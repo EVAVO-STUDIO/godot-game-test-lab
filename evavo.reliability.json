@@ -2,26 +2,39 @@
   "schemaVersion": "1.0",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "defaultBranch": "main",
-  "authority": "canonical-foundation",
+  "authority": "canonical-native-godot-worker",
   "workload": "desktop-application",
+  "requiredVisibility": "private",
   "packageManager": {
     "name": "pip",
-    "lockfilePolicy": "not-applicable"
+    "lockfilePolicy": "unlocked-bounded-development-extra",
+    "install": "python -m pip install -e .[dev]"
   },
   "runtime": {
     "python": ">=3.11",
-    "godot": ">=4.6.2",
+    "minimumGodot": "4.6.2",
     "windowsRunnerRequiredForNativeEvidence": true
   },
+  "prePushValidation": [
+    "python -m compileall src tests",
+    "python -m ruff check src tests",
+    "python -m pytest"
+  ],
   "validation": [
     "python -m compileall src tests",
     "python -m ruff check src tests",
-    "python -m pytest",
-    "godot-lab doctor",
-    "godot-lab validate <target-repository> --artifacts <evidence-directory>"
+    "python -m pytest"
   ],
+  "providerConfirmation": {
+    "workflow": ".github/workflows/evavo-mainline-confirmation.yml",
+    "githubRunner": "ubuntu-latest",
+    "exactMainShaRequired": true,
+    "sourceConfirmationOnly": true,
+    "nativeWindowsEvidenceSeparate": true
+  },
   "branchPolicy": {
     "mode": "direct-main",
+    "exclusiveResource": "repository-main:EVAVO-STUDIO/godot-game-test-lab",
     "exclusiveLeaseRequired": true,
     "forcePushAllowed": false
   },
@@ -30,8 +43,44 @@
     "godotCsharp": "godot-mono-and-dotnet",
     "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime"
   },
+  "nativeAcceptance": {
+    "requiredRunner": "freshly-probed-windows-x64",
+    "requiredInputs": [
+      "absolute target repository path",
+      "absolute external evidence directory",
+      "exact target main SHA",
+      "repository reliability profile",
+      "Godot executable identity",
+      ".NET SDK identity when C# is detected"
+    ],
+    "requiredStages": [
+      "godot-lab doctor",
+      "project inventory",
+      ".NET build before import for C#",
+      "Godot headless import",
+      "bounded main-scene boot",
+      "repository-specific probes",
+      "declared export when required",
+      "native movie or screenshot evidence when required",
+      "interactive or human review when required"
+    ]
+  },
+  "truthBoundaries": [
+    "Source tests prove the Python worker contract only; they do not prove that Godot or .NET exists on a Windows runner.",
+    "A headless import does not prove visual quality, input, game feel or a complete playthrough.",
+    "A bounded boot proves startup only.",
+    "A recorded movie is visual evidence, not interactive play evidence.",
+    "Godot 4 C# projects require Godot Mono and cannot use the browser export path."
+  ],
   "autoRepair": {
     "allowed": true,
-    "targetRepositoryWritesRequireDevelopmentStudioGrant": true
+    "targetRepositoryWritesRequireDevelopmentStudioGrant": true,
+    "blockedEffects": [
+      "target-repository-write-without-grant",
+      "game-save-mutation",
+      "release-publication",
+      "store-deployment",
+      "credential-change"
+    ]
   }
 }
