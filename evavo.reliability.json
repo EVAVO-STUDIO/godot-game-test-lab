@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "repository": "EVAVO-STUDIO/godot-game-test-lab",
+  "defaultBranch": "main",
+  "authority": "canonical-foundation",
+  "workload": "desktop-application",
+  "packageManager": {
+    "name": "pip",
+    "lockfilePolicy": "not-applicable"
+  },
+  "runtime": {
+    "python": ">=3.11",
+    "godot": ">=4.6.2",
+    "windowsRunnerRequiredForNativeEvidence": true
+  },
+  "validation": [
+    "python -m compileall src tests",
+    "python -m ruff check src tests",
+    "python -m pytest",
+    "godot-lab doctor",
+    "godot-lab validate <target-repository> --artifacts <evidence-directory>"
+  ],
+  "branchPolicy": {
+    "mode": "direct-main",
+    "exclusiveLeaseRequired": true,
+    "forcePushAllowed": false
+  },
+  "toolSelection": {
+    "godotGdscript": "standard-godot",
+    "godotCsharp": "godot-mono-and-dotnet",
+    "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime"
+  },
+  "autoRepair": {
+    "allowed": true,
+    "targetRepositoryWritesRequireDevelopmentStudioGrant": true
+  }
+}
