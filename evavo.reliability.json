@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.1",
+  "schemaVersion": "1.2",
   "toolVersion": "0.4.0",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "defaultBranch": "main",
@@ -8,11 +8,19 @@
   "requiredVisibility": "public",
   "packageManager": {
     "name": "pip",
-    "lockfilePolicy": "unlocked-bounded-development-extra",
-    "install": "python -m pip install -e .[dev]"
+    "lockfilePath": "requirements.lock",
+    "lockfilePolicy": "review-first",
+    "lockfilePresent": false,
+    "install": "python -m pip install --disable-pip-version-check .[dev]",
+    "buildBackend": "hatchling==1.25.0",
+    "directDevelopmentDependencies": [
+      "pytest==8.3.0",
+      "ruff==0.9.0"
+    ]
   },
   "runtime": {
-    "python": ">=3.11",
+    "hostedPython": "3.11.15",
+    "nativePythonFamily": "3.11.x",
     "minimumGodot": "4.6.2",
     "windowsRunnerRequiredForNativeEvidence": true,
     "linuxSandboxBase": "ubuntu:noble-20260610@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90",
@@ -22,21 +30,32 @@
     "linuxSoftwareRenderer": "mesa-llvmpipe"
   },
   "prePushValidation": [
-    "python -m compileall src scripts tests",
+    "python scripts/check_repository_toolchain.py",
+    "python scripts/test_repository_toolchain.py",
+    "python -m compileall -q src scripts tests",
     "python -m ruff check src scripts tests",
     "bash -n scripts/*.sh containers/**/*.sh",
-    "python -m pytest"
+    "python -m pytest",
+    "python -m pip wheel --no-deps --wheel-dir dist ."
   ],
   "validation": [
-    "python -m compileall src scripts tests",
+    "python scripts/check_repository_toolchain.py",
+    "python scripts/test_repository_toolchain.py",
+    "python -m pip install --disable-pip-version-check .[dev]",
+    "python scripts/check_repository_toolchain.py --installed",
+    "python -m compileall -q src scripts tests",
     "python -m ruff check src scripts tests",
     "bash -n scripts/*.sh containers/**/*.sh",
-    "python -m pytest"
+    "python -m pytest",
+    "python -m pip wheel --no-deps --wheel-dir dist .",
+    "rm -rf dist && git diff --exit-code && test -z \"$(git status --porcelain)\""
   ],
   "providerConfirmation": {
     "workflow": ".github/workflows/evavo-mainline-confirmation.yml",
-    "githubRunner": "ubuntu-latest",
+    "selfValidationWorkflow": ".github/workflows/ci.yml",
+    "githubRunner": "ubuntu-24.04",
     "exactMainShaRequired": true,
+    "exactHostedPythonRequired": true,
     "sourceConfirmationOnly": true,
     "nativeWindowsEvidenceSeparate": true,
     "linuxSandboxEvidenceSeparate": true,
@@ -64,10 +83,12 @@
       "absolute external evidence directory",
       "exact target default-branch SHA",
       "repository reliability profile",
+      "Python 3.11 executable identity",
       "Godot executable identity",
       ".NET SDK identity when C# is detected"
     ],
     "requiredStages": [
+      "repository toolchain source check",
       "godot-lab doctor",
       "project inventory",
       ".NET build before import for C#",
@@ -108,6 +129,7 @@
     "display": "xvfb-x11",
     "targetCredentialInsideContainer": false,
     "requiredBaseStages": [
+      "repository toolchain source check",
       "project inventory",
       "Godot executable identity",
       ".NET build when C# is detected",
@@ -163,7 +185,7 @@
     ]
   },
   "truthBoundaries": [
-    "Source tests prove the Python, shell, workflow and policy contract only; they do not prove that Docker, Godot or .NET exists on a runner.",
+    "Hosted Python source validation proves the Python, shell, workflow and policy contract only; it does not prove that Docker, Godot or .NET exists on a runner.",
     "A headless import does not prove visual quality, input, game feel or a complete playthrough.",
     "A bounded boot proves startup only.",
     "A recorded movie, screenshot set or contact sheet is visual evidence, not a complete playthrough.",
@@ -187,5 +209,10 @@
       "physical-controller-pass-claim-from-synthetic-input",
       "human-ux-approval-claim-from-geometry-telemetry"
     ]
-  }
+  },
+  "notes": [
+    "Python 3.11.15 is exact for hosted Linux self-validation; native Windows Python remains a freshly probed 3.11.x runner capability.",
+    "Direct build and development dependencies are pinned, but their transitive graph is review-first until requirements.lock is separately generated and validated.",
+    "No source-only validation result authorises target mutation, deployment, store publication, credential change or a physical-controller or human-UX pass claim."
+  ]
 }
