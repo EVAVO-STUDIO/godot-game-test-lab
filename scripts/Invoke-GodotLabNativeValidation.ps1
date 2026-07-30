@@ -120,6 +120,7 @@ $receipt = [ordered]@{
     trackedMutationDetected = $false
     status = "running"
 }
+$validationError = $null
 
 try {
     Invoke-CheckedCommand -FilePath $PythonExecutable -ArgumentList @(
@@ -150,24 +151,32 @@ try {
     $receipt.status = "passed"
 }
 catch {
+    $validationError = $_.Exception
     $receipt.status = "failed"
-    $receipt.error = $_.Exception.Message
-    throw
+    $receipt.error = $validationError.Message
 }
 finally {
     $trackedAfter = @(& git -C $gitRoot status --porcelain=v1 --untracked-files=no) -join "`n"
     if ($LASTEXITCODE -ne 0) {
         $receipt.status = "failed"
         $receipt.error = "Unable to capture final tracked repository status."
+        $validationError = [System.InvalidOperationException]::new($receipt.error)
     }
-    $receipt.trackedMutationDetected = $trackedAfter -ne $trackedBefore
-    $receipt.trackedStatusBefore = $trackedBefore
-    $receipt.trackedStatusAfter = $trackedAfter
+    else {
+        $receipt.trackedMutationDetected = $trackedAfter -ne $trackedBefore
+        $receipt.trackedStatusBefore = $trackedBefore
+        $receipt.trackedStatusAfter = $trackedAfter
+        if ($receipt.trackedMutationDetected) {
+            $receipt.status = "failed"
+            $receipt.error = "Native validation changed tracked files in the target repository."
+            $validationError = [System.InvalidOperationException]::new($receipt.error)
+        }
+    }
     $receipt | ConvertTo-Json -Depth 6 | Set-Content -Path $receiptPath -Encoding UTF8
+}
 
-    if ($receipt.trackedMutationDetected) {
-        throw "Native validation changed tracked files in the target repository."
-    }
+if ($validationError) {
+    throw $validationError
 }
 
 Write-Host "[godot-lab] Native validation passed without tracked source changes."
