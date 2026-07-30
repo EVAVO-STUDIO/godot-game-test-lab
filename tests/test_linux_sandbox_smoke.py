@@ -14,12 +14,25 @@ def test_smoke_fixture_profile_uses_the_fixture_project_root() -> None:
     assert (fixture / "project.godot").is_file()
     assert (fixture / "main.tscn").is_file()
     assert (fixture / "smoke.gd").is_file()
+    assert profile["schemaVersion"] == "2.0"
     assert profile["projectSubpath"] == "fixtures/linux-smoke"
     assert profile["minimumGodotVersion"] == "4.6.2"
     assert profile["engineFlavor"] == "standard"
     assert profile["visual"]["required"] is True
     assert profile["visual"]["scene"] == "res://main.tscn"
     assert profile["visual"]["frames"] == 180
+    assert [journey["id"] for journey in profile["journeys"]] == [
+        "keyboard-action",
+        "mouse-click",
+        "gamepad-action",
+    ]
+    assert all(journey["required"] is True for journey in profile["journeys"])
+    assert profile["journeys"][0]["requiredActions"][0]["devices"] == [
+        "keyboard"
+    ]
+    assert profile["journeys"][2]["requiredActions"][0]["devices"] == [
+        "gamepad"
+    ]
 
 
 def test_smoke_workflow_invokes_local_worker_at_the_same_sha() -> None:
@@ -33,5 +46,8 @@ def test_smoke_workflow_invokes_local_worker_at_the_same_sha() -> None:
     assert "lab_sha: ${{ github.sha }}" in workflow
     assert "target_sha: ${{ github.sha }}" in workflow
     assert "fixtures/linux-smoke/.evavo/godot-lab-linux.json" in workflow
+    assert "scripts/godot_input_journey.gd" in workflow
+    assert "scripts/run_agent_godot_qa.py" in workflow
+    assert "tests/test_interactive_godot_qa.py" in workflow
     assert "workflow_dispatch:" in workflow
     assert "contents: read" in workflow
