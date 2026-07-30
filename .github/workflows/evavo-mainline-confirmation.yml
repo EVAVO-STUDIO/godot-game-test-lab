@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   source:
-    name: Confirm Godot lab Python worker contract
+    name: Confirm Godot lab source and policy contract
     runs-on: ubuntu-latest
     timeout-minutes: 12
 
@@ -96,10 +96,12 @@ jobs:
             '' \
             '- Python compile, lint, shell parsing and tests: requested' \
             '- Reusable caller-context workflow contract: source-tested only' \
+            '- Profile schema 2.0 and journey mutation contract: source-tested only' \
             '- Windows runner probe: not performed' \
             '- Linux Docker image and rendered fixture: not performed' \
             '- Godot executable identity: not performed' \
             '- Godot .NET editor and SDK identity: not performed' \
             '- Target project import, boot, export or movie: not performed' \
-            '- Interactive or human play review: not performed' \
+            '- Keyboard, mouse or synthetic joypad journey: not performed' \
+            '- Physical controller or human UX review: not performed' \
             >> "$GITHUB_STEP_SUMMARY"
