@@ -7,6 +7,9 @@ param(
     [string]$ExpectedLabSha,
 
     [Parameter(Mandatory = $true)]
+    [string]$ExpectedTargetSha,
+
+    [Parameter(Mandatory = $true)]
     [string]$ArtifactPath,
 
     [string]$PythonExecutable = "python",
@@ -62,6 +65,9 @@ function Test-ChildPath {
 if ($ExpectedLabSha -notmatch '^[0-9a-f]{40}$') {
     throw "ExpectedLabSha must be an exact 40-character lowercase commit SHA."
 }
+if ($ExpectedTargetSha -notmatch '^[0-9a-f]{40}$') {
+    throw "ExpectedTargetSha must be an exact 40-character lowercase commit SHA."
+}
 if ($MinimumGodotVersion -notmatch '^4\.[0-9]+\.[0-9]+$') {
     throw "MinimumGodotVersion must be an explicit Godot 4.x.y version."
 }
@@ -95,6 +101,11 @@ if (-not (Test-ChildPath -Candidate $gitRoot -Parent $allowedRepositoryRoot) -an
     throw "The target Git root must remain beneath C:\GitRepos."
 }
 
+$currentTargetSha = (& git -C $gitRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $currentTargetSha -ne $ExpectedTargetSha) {
+    throw "The target repository HEAD does not match ExpectedTargetSha."
+}
+
 New-Item -ItemType Directory -Path $ArtifactPath -Force | Out-Null
 $artifacts = (Resolve-Path $ArtifactPath).Path
 if (-not (Test-ChildPath -Candidate $artifacts -Parent $labRoot) -and
@@ -114,6 +125,7 @@ $receipt = [ordered]@{
     labSha = $currentLabSha
     targetRepositoryPath = $target
     targetGitRoot = $gitRoot
+    targetSha = $currentTargetSha
     minimumGodotVersion = $MinimumGodotVersion
     timeoutSeconds = $TimeoutSeconds
     bootFrames = $BootFrames
