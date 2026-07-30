@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "projectSubpath": "fixtures/linux-smoke",
+  "minimumGodotVersion": "4.6.2",
+  "engineFlavor": "standard",
+  "visual": {
+    "required": true,
+    "scene": "res://main.tscn",
+    "frames": 180,
+    "fps": 30,
+    "width": 960,
+    "height": 540,
+    "renderingMethod": "gl_compatibility",
+    "userArguments": []
+  },
+  "export": {
+    "required": false,
+    "preset": ""
+  }
+}
