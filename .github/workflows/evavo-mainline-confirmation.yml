@@ -71,11 +71,19 @@ jobs:
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: python -m pip install -e ".[dev]"
 
-      - name: Compile source and tests
-        run: python -m compileall src tests
+      - name: Compile source, scripts and tests
+        run: python -m compileall src scripts tests
 
       - name: Run Ruff
-        run: python -m ruff check src tests
+        run: python -m ruff check src scripts tests
+
+      - name: Parse shell entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(find scripts containers -type f -name '*.sh' -print0)
 
       - name: Run tests
         run: python -m pytest
@@ -86,10 +94,12 @@ jobs:
           printf '%s\n' \
             '### Godot Game Test Lab source confirmation' \
             '' \
-            '- Python compile, lint and tests: requested' \
+            '- Python compile, lint, shell parsing and tests: requested' \
+            '- Reusable caller-context workflow contract: source-tested only' \
             '- Windows runner probe: not performed' \
+            '- Linux Docker image and rendered fixture: not performed' \
             '- Godot executable identity: not performed' \
-            '- Godot Mono and .NET identity: not performed' \
-            '- Target project import, Boot, export or movie: not performed' \
+            '- Godot .NET editor and SDK identity: not performed' \
+            '- Target project import, boot, export or movie: not performed' \
             '- Interactive or human play review: not performed' \
             >> "$GITHUB_STEP_SUMMARY"
