@@ -8,6 +8,7 @@ on:
       - ".dockerignore"
       - "containers/linux-sandbox/**"
       - "docs/REUSABLE_LINUX_SANDBOX.md"
+      - "evavo.reliability.json"
       - "fixtures/linux-smoke/**"
       - "scripts/linux-sandbox-entrypoint.sh"
       - "scripts/read_linux_sandbox_profile.py"
