@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "projectSubpath": "fixtures/linux-smoke",
   "minimumGodotVersion": "4.6.2",
   "engineFlavor": "standard",
@@ -16,5 +16,132 @@
   "export": {
     "required": false,
     "preset": ""
-  }
+  },
+  "journeys": [
+    {
+      "id": "keyboard-action",
+      "required": true,
+      "device": "keyboard_mouse",
+      "maxFrames": 240,
+      "settleFrames": 20,
+      "requiredActions": [
+        {
+          "name": "fixture_accept",
+          "devices": ["keyboard"]
+        }
+      ],
+      "steps": [
+        {
+          "type": "key_tap",
+          "physicalKeycode": 87,
+          "holdFrames": 2
+        },
+        {
+          "type": "checkpoint",
+          "id": "keyboard-accepted"
+        }
+      ],
+      "assertions": [
+        {"type": "scene_loaded"},
+        {
+          "type": "metadata_equals",
+          "path": ".",
+          "key": "fixture_accept_count",
+          "value": 1
+        },
+        {"type": "focus_present"}
+      ],
+      "ux": {
+        "minimumVisibleControls": 3,
+        "minimumInteractiveWidth": 24,
+        "minimumInteractiveHeight": 24,
+        "maximumSmallInteractiveTargets": 0,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "requireFocusOwner": true,
+        "failOnBlackFrame": true
+      }
+    },
+    {
+      "id": "mouse-click",
+      "required": true,
+      "device": "keyboard_mouse",
+      "maxFrames": 240,
+      "settleFrames": 20,
+      "steps": [
+        {
+          "type": "mouse_move",
+          "x": 180,
+          "y": 420
+        },
+        {
+          "type": "mouse_click",
+          "buttonIndex": 1,
+          "x": 180,
+          "y": 420,
+          "holdFrames": 2
+        },
+        {
+          "type": "checkpoint",
+          "id": "mouse-accepted"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "metadata_equals",
+          "path": ".",
+          "key": "fixture_accept_count",
+          "value": 1
+        }
+      ],
+      "ux": {
+        "minimumVisibleControls": 3,
+        "maximumSmallInteractiveTargets": 0,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "failOnBlackFrame": true
+      }
+    },
+    {
+      "id": "gamepad-action",
+      "required": true,
+      "device": "gamepad",
+      "maxFrames": 240,
+      "settleFrames": 20,
+      "requiredActions": [
+        {
+          "name": "fixture_accept",
+          "devices": ["gamepad"]
+        }
+      ],
+      "steps": [
+        {
+          "type": "joy_button_tap",
+          "buttonIndex": 5,
+          "holdFrames": 2
+        },
+        {
+          "type": "checkpoint",
+          "id": "gamepad-accepted"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "metadata_equals",
+          "path": ".",
+          "key": "fixture_accept_count",
+          "value": 1
+        },
+        {"type": "focus_present"}
+      ],
+      "ux": {
+        "minimumVisibleControls": 3,
+        "maximumSmallInteractiveTargets": 0,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "requireFocusOwner": true,
+        "failOnBlackFrame": true
+      }
+    }
+  ]
 }
