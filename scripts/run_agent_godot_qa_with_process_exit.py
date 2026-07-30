@@ -172,11 +172,14 @@ def _apply_process_exit_contract(
     findings = _without_missing_report(existing_findings)
     findings.extend(completion_findings)
     findings = sorted(set(findings))
+    process_exit_status = "passed" if not completion_findings else "failed"
+    status = "passed" if not findings else "failed"
 
     completion = {
-        "schemaVersion": "1.0",
+        "schemaVersion": "1.1",
         "mode": "process-exit",
-        "status": "passed" if not completion_findings else "failed",
+        "status": status,
+        "processExitStatus": process_exit_status,
         "expectedExitCode": 0,
         "observedExitCode": process.get("exitCode"),
         "timedOut": bool(process.get("timedOut", False)),
@@ -199,7 +202,6 @@ def _apply_process_exit_contract(
     if not isinstance(evidence_value, list):
         evidence_value = []
     evidence = sorted({str(item) for item in evidence_value} | {relative_completion})
-    status = "passed" if not findings else "failed"
 
     review.update(
         {
