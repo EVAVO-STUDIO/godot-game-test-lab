@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .core import inspect_project
+from .linux_sandbox import run_linux_sandbox
 from .pipeline import (
     command_result_payload,
     command_succeeded,
@@ -39,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="godot-lab",
         description="EVAVO native Godot build, runtime and evidence worker.",
     )
-    parser.add_argument("--version", action="version", version="godot-game-test-lab 0.2.0")
+    parser.add_argument("--version", action="version", version="godot-game-test-lab 0.3.0")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     doctor = subparsers.add_parser("doctor", help="Inspect available Godot and .NET tools.")
@@ -95,6 +96,25 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--debug", action="store_true")
     export.add_argument("--timeout", type=int, default=1_800)
     export.add_argument("--report")
+
+    linux = subparsers.add_parser(
+        "linux-sandbox",
+        help="Run a bounded Linux Godot import, boot, visual capture and optional export.",
+    )
+    linux.add_argument("source")
+    linux.add_argument("--working-root", required=True)
+    linux.add_argument("--artifacts", required=True)
+    linux.add_argument("--project-subpath", default=".")
+    linux.add_argument("--godot", required=True)
+    linux.add_argument("--dotnet")
+    linux.add_argument("--minimum-godot-version", default="4.6.2")
+    linux.add_argument("--timeout", type=int, default=600)
+    linux.add_argument("--boot-frames", type=int, default=30)
+    linux.add_argument("--visual-frames", type=int, default=180)
+    linux.add_argument("--visual-fps", type=int, default=30)
+    linux.add_argument("--visual-width", type=int, default=1280)
+    linux.add_argument("--visual-height", type=int, default=720)
+    linux.add_argument("--export-preset")
 
     return parser
 
@@ -178,6 +198,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
             _write_json(payload, args.report)
             return 0 if command_succeeded(result) and payload["exportExists"] else 2
+
+        if args.command == "linux-sandbox":
+            report = run_linux_sandbox(
+                Path(args.source),
+                working_root=Path(args.working_root),
+                artifacts_root=Path(args.artifacts),
+                project_subpath=args.project_subpath,
+                godot_executable=Path(args.godot),
+                dotnet_executable=_path(args.dotnet),
+                minimum_godot_version=args.minimum_godot_version,
+                timeout_seconds=max(1, args.timeout),
+                boot_frames=max(0, args.boot_frames),
+                visual_frames=max(0, args.visual_frames),
+                visual_fps=max(1, args.visual_fps),
+                visual_width=max(320, args.visual_width),
+                visual_height=max(180, args.visual_height),
+                export_preset=args.export_preset,
+            )
+            print(f"{report.to_json()}\n", end="")
+            return 0 if report.status == "passed" else 2
     except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "blocked", "error": str(error)}, indent=2), file=sys.stderr)
         return 2

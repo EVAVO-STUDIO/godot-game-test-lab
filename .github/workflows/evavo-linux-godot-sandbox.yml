@@ -1,0 +1,248 @@
+name: EVAVO Linux Godot sandbox
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact 40-character test-lab main commit SHA
+        required: true
+        type: string
+      target_repository:
+        description: Target repository in OWNER/NAME form
+        required: true
+        type: string
+      expected_target_sha:
+        description: Exact 40-character target game commit SHA
+        required: true
+        type: string
+      project_subpath:
+        description: Canonical project path inside the target repository
+        required: true
+        default: .
+        type: string
+      engine_flavor:
+        description: Godot standard or .NET editor selection
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - standard
+          - mono
+      visual_frames:
+        description: Bounded Movie Maker frame count
+        required: true
+        default: "180"
+        type: string
+      export_preset:
+        description: Optional declared Linux export preset
+        required: false
+        default: ""
+        type: string
+      request_source:
+        description: Governed dispatcher identity
+        required: true
+        default: evavo-development-studio
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-godot-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
+  cancel-in-progress: false
+
+jobs:
+  validate-linux-sandbox:
+    name: Validate Godot in isolated Linux software-rendered sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Validate dispatch inputs
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+          VISUAL_FRAMES: ${{ inputs.visual_frames }}
+          REQUEST_SOURCE: ${{ inputs.request_source }}
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid expected_sha" >&2; exit 1; }
+          [[ "${EXPECTED_TARGET_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid expected_target_sha" >&2; exit 1; }
+          [[ "${TARGET_REPOSITORY}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "Invalid target_repository" >&2; exit 1; }
+          [[ "${PROJECT_SUBPATH}" != /* && "${PROJECT_SUBPATH}" != *".."* && "${PROJECT_SUBPATH}" != *$'\n'* ]] || { echo "Invalid project_subpath" >&2; exit 1; }
+          [[ "${VISUAL_FRAMES}" =~ ^[0-9]{1,4}$ ]] || { echo "Invalid visual_frames" >&2; exit 1; }
+          (( VISUAL_FRAMES <= 1800 )) || { echo "visual_frames exceeds 1800" >&2; exit 1; }
+          [[ "${REQUEST_SOURCE}" == "evavo-development-studio" ]] || { echo "Unsupported request_source" >&2; exit 1; }
+
+      - name: Check out exact test-lab mainline commit
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify checked-out test-lab commit
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${EXPECTED_SHA}" ]]
+          git merge-base --is-ancestor "${EXPECTED_SHA}" origin/main
+
+      - name: Check out exact target game commit
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: ${{ inputs.target_repository }}
+          ref: ${{ inputs.expected_target_sha }}
+          path: target-source
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.EVAVO_GODOT_LAB_READ_TOKEN }}
+
+      - name: Verify exact target source and choose engine
+        id: target
+        shell: bash
+        env:
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
+          ENGINE_FLAVOR: ${{ inputs.engine_flavor }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+        run: |
+          set -euo pipefail
+          cd target-source
+          [[ "$(git rev-parse HEAD)" == "${EXPECTED_TARGET_SHA}" ]]
+          [[ -f "${PROJECT_SUBPATH%/}/project.godot" ]] || { echo "project.godot is missing at project_subpath" >&2; exit 1; }
+          detected="standard"
+          if find "${PROJECT_SUBPATH%/}" -type f -name '*.csproj' -print -quit | grep -q .; then
+            detected="mono"
+          fi
+          selected="${ENGINE_FLAVOR}"
+          if [[ "${selected}" == "auto" ]]; then
+            selected="${detected}"
+          fi
+          if [[ "${detected}" == "mono" && "${selected}" != "mono" ]]; then
+            echo "C# target requires engine_flavor=mono." >&2
+            exit 1
+          fi
+          echo "flavor=${selected}" >> "${GITHUB_OUTPUT}"
+
+      - name: Initialize retained evidence metadata
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          TARGET_SHA: ${{ inputs.expected_target_sha }}
+          LAB_SHA: ${{ inputs.expected_sha }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+          ENGINE_FLAVOR: ${{ steps.target.outputs.flavor }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/linux-sandbox
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "schemaVersion": "1.0",
+              "status": "dispatched",
+              "targetRepository": os.environ["TARGET_REPOSITORY"],
+              "targetSha": os.environ["TARGET_SHA"],
+              "labSha": os.environ["LAB_SHA"],
+              "projectSubpath": os.environ["PROJECT_SUBPATH"],
+              "engineFlavor": os.environ["ENGINE_FLAVOR"],
+          }
+          Path("artifacts/linux-sandbox/dispatch.json").write_text(
+              json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Build verified Linux Godot sandbox image
+        shell: bash
+        env:
+          ENGINE_FLAVOR: ${{ steps.target.outputs.flavor }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull \
+            --build-arg GODOT_VERSION=4.6.2 \
+            --build-arg GODOT_FLAVOR="${ENGINE_FLAVOR}" \
+            --tag evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            --file containers/linux-sandbox/Dockerfile \
+            .
+
+      - name: Run bounded no-network Linux evidence worker
+        id: sandbox
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          TARGET_SHA: ${{ inputs.expected_target_sha }}
+          LAB_SHA: ${{ inputs.expected_sha }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+          VISUAL_FRAMES: ${{ inputs.visual_frames }}
+          EXPORT_PRESET: ${{ inputs.export_preset }}
+        run: |
+          set -euo pipefail
+          artifacts="${GITHUB_WORKSPACE}/artifacts/linux-sandbox"
+          work="${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "${work}"
+          mkdir -p "${artifacts}" "${work}"
+          chmod 0777 "${artifacts}" "${work}"
+          timeout --signal=TERM --kill-after=15s 2700s docker run --rm \
+            --name "evavo-godot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --stop-timeout 10 \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 2048 \
+            --cpus 4 \
+            --memory 8g \
+            --shm-size 1g \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+            --tmpfs /home/godotlab:rw,nosuid,nodev,size=2g,mode=0700,uid=10001,gid=10001 \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/target-source,target=/workspace/source,readonly" \
+            --mount "type=bind,source=${work},target=/workspace/work" \
+            --mount "type=bind,source=${artifacts},target=/artifacts" \
+            --env EVAVO_TARGET_REPOSITORY="${TARGET_REPOSITORY}" \
+            --env EVAVO_TARGET_SHA="${TARGET_SHA}" \
+            --env EVAVO_LAB_SHA="${LAB_SHA}" \
+            --env EVAVO_PROJECT_SUBPATH="${PROJECT_SUBPATH}" \
+            --env EVAVO_VISUAL_FRAMES="${VISUAL_FRAMES}" \
+            --env EVAVO_EXPORT_PRESET="${EXPORT_PRESET}" \
+            "evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Verify target checkout remained unchanged
+        if: always()
+        shell: bash
+        env:
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
+        run: |
+          set -euo pipefail
+          cd target-source
+          [[ "$(git rev-parse HEAD)" == "${EXPECTED_TARGET_SHA}" ]]
+          if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+            echo "Linux sandbox changed the target checkout." >&2
+            git status --short
+            exit 1
+          fi
+
+      - name: Upload bounded Linux sandbox evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-godot-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
+          path: artifacts/linux-sandbox
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove ephemeral image and working copy
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f "evavo-godot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          docker image rm "evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          rm -rf "${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

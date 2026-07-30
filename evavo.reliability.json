@@ -13,7 +13,10 @@
   "runtime": {
     "python": ">=3.11",
     "minimumGodot": "4.6.2",
-    "windowsRunnerRequiredForNativeEvidence": true
+    "windowsRunnerRequiredForNativeEvidence": true,
+    "linuxSandboxBase": "ubuntu:noble-20260610",
+    "linuxSandboxGodot": "4.6.2",
+    "linuxSandboxDotnet": "8.0"
   },
   "prePushValidation": [
     "python -m compileall src tests",
@@ -30,7 +33,8 @@
     "githubRunner": "ubuntu-latest",
     "exactMainShaRequired": true,
     "sourceConfirmationOnly": true,
-    "nativeWindowsEvidenceSeparate": true
+    "nativeWindowsEvidenceSeparate": true,
+    "linuxSandboxEvidenceSeparate": true
   },
   "branchPolicy": {
     "mode": "direct-main",
@@ -40,7 +44,8 @@
   },
   "toolSelection": {
     "godotGdscript": "standard-godot",
-    "godotCsharp": "godot-mono-and-dotnet",
+    "godotCsharp": "godot-dotnet-and-dotnet-sdk-8",
+    "linuxVisualEvidence": "xvfb-mesa-llvmpipe-movie-maker",
     "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime"
   },
   "nativeAcceptance": {
@@ -65,12 +70,33 @@
       "interactive or human review when required"
     ]
   },
+  "linuxSandboxAcceptance": {
+    "workflow": ".github/workflows/evavo-linux-godot-sandbox.yml",
+    "manualDispatchOnly": true,
+    "exactLabShaRequired": true,
+    "exactTargetShaRequired": true,
+    "targetSourceReadOnly": true,
+    "ephemeralWorkingCopy": true,
+    "networkDisabled": true,
+    "rootFilesystemReadOnly": true,
+    "capabilitiesDropped": true,
+    "noNewPrivileges": true,
+    "softwareRendering": "mesa-llvmpipe",
+    "display": "xvfb",
+    "visualEvidence": [
+      "gameplay.avi",
+      "ffprobe.json",
+      "contact-sheet.png"
+    ],
+    "targetCredentialInsideContainer": false
+  },
   "truthBoundaries": [
-    "Source tests prove the Python worker contract only; they do not prove that Godot or .NET exists on a Windows runner.",
+    "Source tests prove the Python and policy contract only; they do not prove that Docker, Godot or .NET exists on a runner.",
     "A headless import does not prove visual quality, input, game feel or a complete playthrough.",
     "A bounded boot proves startup only.",
-    "A recorded movie is visual evidence, not interactive play evidence.",
-    "Godot 4 C# projects require Godot Mono and cannot use the browser export path."
+    "A recorded movie or contact sheet is visual evidence, not interactive play evidence.",
+    "Xvfb and Mesa software rendering do not prove hardware-specific Vulkan behavior or performance.",
+    "Godot 4 C# projects require the .NET editor and cannot use the browser export path."
   ],
   "autoRepair": {
     "allowed": true,

@@ -19,23 +19,35 @@ python -m ruff check src tests
 python -m pytest
 ```
 
-The exact-SHA GitHub workflow proves only this Python worker contract. It does not prove a Windows runner, Godot executable, .NET SDK, target project, import, Boot, export, visual result or playthrough.
+The exact-SHA GitHub source workflow proves only this Python and policy contract. It does not prove a Windows runner, Linux container build, Godot executable, .NET SDK, target project, import, boot, export, visual result or playthrough.
 
 ## Native acceptance
 
 For a real project, use a freshly probed Windows x64 runner and supply an absolute target repository path plus an external evidence directory. Run `godot-lab doctor` before `godot-lab validate`, export or recording commands. Bind every run to the exact target `main` SHA and target reliability profile.
 
+## Linux sandbox acceptance
+
+- Use only `EVAVO-STUDIO/godot-game-test-lab` for reusable Linux Godot execution.
+- Bind the run to the exact lab and target SHAs and `request_source=evavo-development-studio`.
+- Mount target source read-only and perform all Godot and .NET writes in an ephemeral copy.
+- Build Godot only from the official 4.6.2 release archives after SHA-512 manifest verification.
+- Run as a non-root user with no network, no Linux capabilities, `no-new-privileges`, a read-only root filesystem and bounded CPU, memory, processes and runtime.
+- Never pass a GitHub token, deploy secret, signing key or target write credential into the container.
+- Preserve report, stdout, stderr, AVI, probe metadata, contact sheet and optional export evidence.
+- Treat Xvfb and Mesa `llvmpipe` as software-rendered Linux compatibility evidence, not GPU performance or final visual approval.
+- Require the target checkout SHA and status to remain unchanged after the run.
+
 ## Runtime rules
 
 - Detect C# from `.csproj` files.
-- C# requires Godot Mono and `.NET`; a standard Godot binary is invalid.
+- C# requires Godot .NET and `.NET`; a standard Godot binary is invalid.
 - GDScript uses the standard Godot binary unless the repository profile says otherwise.
 - Require Godot 4.6.2 or the repository-declared compatible later version.
 - Run `.NET` build before Godot import for C# projects.
 - Preserve command, exit code, duration, stdout, stderr, timeout and artifact evidence.
 - A headless pass is not visual quality evidence.
-- A bounded Boot proves startup only.
-- A movie is not an interactive playthrough.
+- A bounded boot proves startup only.
+- A movie or contact sheet is not an interactive playthrough.
 - Use Godot Web Runtime for real browser input and semantic gameplay observations when a compatible GDScript web export exists.
 
-The worker must never edit, commit, push, deploy or mutate a target game without a separate governed Development Studio execution grant and the target repository’s own exclusive mainline lease.
+The worker must never edit, commit, push, deploy or mutate a target game without a separate governed Development Studio execution grant and the target repository's own exclusive mainline lease.
