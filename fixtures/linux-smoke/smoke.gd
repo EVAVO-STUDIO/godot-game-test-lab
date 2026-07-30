@@ -1,5 +1,10 @@
 extends Node2D
 
+const PROCESS_EXIT_ARGUMENT := "--run-process-exit-fixture"
+const PROCESS_EXIT_PASS_MARKER := "EVAVO_PROCESS_EXIT_FIXTURE_PASS"
+const PROCESS_EXIT_FAIL_MARKER := "EVAVO_PROCESS_EXIT_FIXTURE_FAIL"
+const PROCESS_EXIT_DELAY_FRAMES := 90
+
 var elapsed := 0.0
 var fixture_accept_count := 0
 var _status_label: Label
@@ -10,6 +15,8 @@ func _ready() -> void:
     print("EVAVO_LINUX_SANDBOX_FIXTURE_READY")
     _build_interface()
     set_meta("fixture_accept_count", fixture_accept_count)
+    if OS.get_cmdline_user_args().has(PROCESS_EXIT_ARGUMENT):
+        call_deferred("_complete_process_exit_fixture")
     queue_redraw()
 
 
@@ -22,6 +29,13 @@ func _unhandled_input(event: InputEvent) -> void:
     if event.is_action_pressed("fixture_accept"):
         _record_accept("ACTION")
         get_viewport().set_input_as_handled()
+
+
+func _complete_process_exit_fixture() -> void:
+    for _frame in range(PROCESS_EXIT_DELAY_FRAMES):
+        await get_tree().process_frame
+    print(PROCESS_EXIT_PASS_MARKER)
+    get_tree().quit(0)
 
 
 func _build_interface() -> void:
