@@ -2,6 +2,8 @@
 set -euo pipefail
 umask 077
 
+# Preserve the canonical linux-sandbox import/build/export stage, then add the
+# governed rendered journey and agent-readable evidence layer.
 source_root="${EVAVO_SOURCE_ROOT:-/workspace/source}"
 working_root="${EVAVO_WORKING_ROOT:-/workspace/work/project}"
 artifacts_root="${EVAVO_ARTIFACTS_ROOT:-/artifacts}"
