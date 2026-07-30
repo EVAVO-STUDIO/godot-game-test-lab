@@ -1,5 +1,6 @@
 {
   "schemaVersion": "1.1",
+  "toolVersion": "0.4.0",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "defaultBranch": "main",
   "authority": "canonical-native-and-sandboxed-godot-worker",
@@ -16,7 +17,9 @@
     "windowsRunnerRequiredForNativeEvidence": true,
     "linuxSandboxBase": "ubuntu:noble-20260610@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90",
     "linuxSandboxGodot": "repository-profile-exact-version",
-    "linuxSandboxDotnet": "8.0"
+    "linuxSandboxDotnet": "8.0",
+    "linuxDisplay": "xvfb-x11",
+    "linuxSoftwareRenderer": "mesa-llvmpipe"
   },
   "prePushValidation": [
     "python -m compileall src scripts tests",
@@ -37,7 +40,8 @@
     "sourceConfirmationOnly": true,
     "nativeWindowsEvidenceSeparate": true,
     "linuxSandboxEvidenceSeparate": true,
-    "reusableLinuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml"
+    "reusableLinuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
+    "realInteractiveSmokeWorkflow": ".github/workflows/linux-sandbox-smoke.yml"
   },
   "branchPolicy": {
     "mode": "direct-main",
@@ -49,6 +53,8 @@
     "godotGdscript": "standard-godot",
     "godotCsharp": "godot-dotnet-and-dotnet-sdk-8",
     "linuxVisualEvidence": "xvfb-x11-mesa-llvmpipe-movie-maker",
+    "linuxInputEvidence": "godot-inputevent-parse-input-event",
+    "linuxVideoDiagnostics": "ffprobe-ffmpeg-blackdetect-freezedetect",
     "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime"
   },
   "nativeAcceptance": {
@@ -56,7 +62,7 @@
     "requiredInputs": [
       "absolute target repository path",
       "absolute external evidence directory",
-      "exact target main SHA",
+      "exact target default-branch SHA",
       "repository reliability profile",
       "Godot executable identity",
       ".NET SDK identity when C# is detected"
@@ -70,53 +76,116 @@
       "repository-specific probes",
       "declared export when required",
       "native movie or screenshot evidence when required",
-      "interactive or human review when required"
+      "physical-controller or human review when required"
     ]
   },
   "linuxSandboxAcceptance": {
-    "manualWorkflow": ".github/workflows/evavo-linux-godot-sandbox.yml",
+    "administrativeWorkflow": ".github/workflows/evavo-linux-godot-sandbox.yml",
     "reusableWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
     "callerContextPreferred": true,
     "standingCrossRepositoryTokenRequired": false,
     "repositoryProfile": ".evavo/godot-lab-linux.json",
+    "supportedProfileSchemas": [
+      "1.0",
+      "2.0"
+    ],
     "exactLabShaRequired": true,
     "exactTargetShaRequired": true,
     "callerShaEqualityRequired": true,
+    "callerDefaultBranchRequired": true,
+    "mainAndMasterDefaultBranchesSupported": true,
     "targetSourceReadOnly": true,
+    "normalizedProfileReadOnly": true,
     "ephemeralWorkingCopy": true,
     "networkDisabled": true,
     "rootFilesystemReadOnly": true,
     "capabilitiesDropped": true,
     "noNewPrivileges": true,
+    "dockerSocketUnavailable": true,
+    "uinputUnavailable": true,
     "boundedCpuMemorySwapPidsFilesAndTime": true,
     "softwareRendering": "mesa-llvmpipe",
     "display": "xvfb-x11",
+    "targetCredentialInsideContainer": false,
+    "requiredBaseStages": [
+      "project inventory",
+      "Godot executable identity",
+      ".NET build when C# is detected",
+      "Godot headless import",
+      "bounded boot",
+      "declared Linux export when required",
+      "baseline rendered journey when required"
+    ],
+    "interactiveProfile": {
+      "schemaVersion": "2.0",
+      "maximumJourneys": 4,
+      "maximumStepsPerJourney": 256,
+      "maximumJourneyFrames": 3600,
+      "requiredJourneyFailuresBlock": true,
+      "optionalJourneyFailuresRetained": true,
+      "eventInjection": "Input.parse_input_event",
+      "supportedDevices": [
+        "semantic-action",
+        "keyboard",
+        "mouse",
+        "synthetic-gamepad"
+      ],
+      "supportedAssertions": [
+        "scene-loaded",
+        "input-action-exists",
+        "node-exists",
+        "node-visible",
+        "focus-present",
+        "metadata-equals"
+      ],
+      "uiTelemetry": [
+        "visible-control-count",
+        "interactive-control-count",
+        "focus-owner",
+        "mouse-mode",
+        "out-of-viewport-controls",
+        "small-interactive-targets",
+        "interactive-overlap-pairs",
+        "bounded-control-tree"
+      ]
+    },
     "visualEvidence": [
       "gameplay.avi",
       "ffprobe.json",
-      "screenshots/frame-01.png through frame-06.png",
+      "screenshots/frame-01.png through frame-08.png",
       "contact-sheet.png",
+      "named checkpoint PNGs",
+      "black-segment diagnostics",
+      "frozen-segment diagnostics",
+      "journey-report.json",
+      "visual-ux-review.json",
       "agent-summary.json"
-    ],
-    "targetCredentialInsideContainer": false
+    ]
   },
   "truthBoundaries": [
-    "Source tests prove the Python, shell and workflow contract only; they do not prove that Docker, Godot or .NET exists on a runner.",
+    "Source tests prove the Python, shell, workflow and policy contract only; they do not prove that Docker, Godot or .NET exists on a runner.",
     "A headless import does not prove visual quality, input, game feel or a complete playthrough.",
     "A bounded boot proves startup only.",
-    "A recorded movie, screenshot set or contact sheet is visual evidence, not interactive play evidence.",
+    "A recorded movie, screenshot set or contact sheet is visual evidence, not a complete playthrough.",
+    "Synthetic keyboard and mouse events prove the declared Godot input path, not physical-device latency.",
+    "Synthetic joypad events prove InputMap coverage and Godot event handling, not physical USB enumeration, Steam Input, rumble or controller certification.",
+    "UI geometry telemetry detects deterministic clipping, overlap, focus and target-size defects but does not replace human art direction, accessibility or UX approval.",
     "Xvfb and Mesa software rendering do not prove hardware-specific Vulkan behavior or performance.",
     "Godot 4 C# projects require the .NET editor and cannot use the browser export path."
   ],
   "autoRepair": {
     "allowed": true,
     "targetRepositoryWritesRequireDevelopmentStudioGrant": true,
+    "evidenceMustIdentifyExactTargetSha": true,
+    "requiredJourneyFailuresMayOpenRepairWork": true,
     "blockedEffects": [
       "target-repository-write-without-grant",
       "game-save-mutation",
       "release-publication",
       "store-deployment",
-      "credential-change"
+      "credential-change",
+      "physical-controller-pass-claim-from-synthetic-input",
+      "human-ux-approval-claim-from-geometry-telemetry"
     ]
   }
 }
