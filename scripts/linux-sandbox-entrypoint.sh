@@ -2,10 +2,10 @@
 set -euo pipefail
 umask 077
 
-# The canonical linux-sandbox entrypoint runs run_agent_godot_qa.py, which wraps
-# run_profiled_linux_sandbox.py. This preserves the import/build/export path
-# before governed keyboard, mouse and synthetic gamepad journeys execute
-# against the ephemeral working copy.
+# The process-exit wrapper extends run_agent_godot_qa.py without replacing its
+# canonical import/build/export path. Ordinary journeys retain the original
+# journey-report contract; explicitly governed process-exit journeys may finish
+# through exit code zero plus required and forbidden output markers.
 source_root="${EVAVO_SOURCE_ROOT:-/workspace/source}"
 working_root="${EVAVO_WORKING_ROOT:-/workspace/work/project}"
 artifacts_root="${EVAVO_ARTIFACTS_ROOT:-/artifacts}"
@@ -74,4 +74,4 @@ if [[ -n "${export_preset}" ]]; then
     arguments+=(--export-preset "${export_preset}")
 fi
 
-exec python3 /opt/godot-lab/scripts/run_agent_godot_qa.py "${arguments[@]}"
+exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_process_exit.py "${arguments[@]}"
