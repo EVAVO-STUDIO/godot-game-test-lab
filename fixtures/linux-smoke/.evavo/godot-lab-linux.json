@@ -142,6 +142,33 @@
         "requireFocusOwner": true,
         "failOnBlackFrame": true
       }
+    },
+    {
+      "id": "process-exit-marker",
+      "required": true,
+      "device": "semantic",
+      "scene": "res://main.tscn",
+      "maxFrames": 240,
+      "settleFrames": 20,
+      "userArguments": [
+        "--run-process-exit-fixture",
+        "--evavo-agent-completion=process-exit",
+        "--evavo-agent-require-output=EVAVO_PROCESS_EXIT_FIXTURE_PASS",
+        "--evavo-agent-forbid-output=EVAVO_PROCESS_EXIT_FIXTURE_FAIL"
+      ],
+      "requiredActions": [],
+      "steps": [
+        {"type": "wait", "frames": 120}
+      ],
+      "assertions": [],
+      "ux": {
+        "minimumVisibleControls": 3,
+        "maximumSmallInteractiveTargets": 0,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "failOnBlackFrame": true,
+        "failOnFrozenVideo": false
+      }
     }
   ]
 }
