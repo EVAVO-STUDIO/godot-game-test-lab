@@ -86,10 +86,10 @@ jobs:
           py -3.11 -m venv $venv
           if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 is unavailable on the native runner.' }
           $python = Join-Path $venv 'Scripts\python.exe'
-          & $python -m pip install --disable-pip-version-check --upgrade pip
-          if ($LASTEXITCODE -ne 0) { throw 'Unable to prepare pip.' }
+          & $python -m pip --version
+          if ($LASTEXITCODE -ne 0) { throw 'The Python 3.11 virtual environment has no usable pip.' }
           & $python -m pip install --disable-pip-version-check -e '.[dev]'
-          if ($LASTEXITCODE -ne 0) { throw 'Unable to install the committed test-lab source.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to install the pinned test-lab source.' }
           "python=$python" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Run bounded Godot 4.6.2 native validation
