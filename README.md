@@ -19,7 +19,7 @@ Version 0.2.0 provides:
 - command-line debug and release export;
 - deterministic Movie Maker recording with fixed FPS and bounded frames;
 - JSON reports and separate stdout/stderr evidence logs;
-- dependency-free runtime code with pytest and Ruff development gates.
+- dependency-free runtime code with pinned pytest and Ruff development gates.
 
 ## Installation
 
@@ -27,7 +27,7 @@ Version 0.2.0 provides:
 Set-Location C:\GitRepos\godot-game-test-lab
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
+python -m pip --version
 python -m pip install -e ".[dev]"
 ```
 
@@ -95,25 +95,27 @@ godot-lab export C:\GitRepos\epochbound `
 
 ## Exact-SHA native automation
 
-The repository now includes `.github/workflows/evavo-native-godot-validation.yml` for approved self-hosted Windows validation.
+The repository includes `.github/workflows/evavo-native-godot-validation.yml` for approved self-hosted Windows validation.
 
 The workflow:
 
 - runs only through manual `workflow_dispatch`;
 - requires an exact test-lab `main` SHA;
+- requires the exact target game repository SHA;
 - requires `request_source=evavo-development-studio`;
 - accepts only target paths beneath `C:\GitRepos`;
 - uses runner labels `self-hosted`, `Windows`, `X64`, and `evavo-godot-lab`;
-- prepares an isolated Python 3.11 environment;
+- prepares an isolated Python 3.11 environment using pinned build and validation dependencies;
+- refuses to run unless the target checkout `HEAD` matches `expected_target_sha`;
 - runs compile, Ruff, pytest, doctor and the canonical Godot validation pipeline;
 - compares tracked target-repository status before and after execution;
 - fails if validation changes any tracked game source;
 - uploads bounded evidence for 14 days;
-- has no commit, push, branch, pull-request, deployment or repository-reset operation.
+- has no checkout, reset, commit, push, branch, pull-request, deployment or repository-reset operation for the target game.
 
 Runner provisioning and local parity are defined in `docs/NATIVE_RUNNER_CONTRACT.md`.
 
-A native run also requires Development Studio to record the exact target game SHA separately. The lab validates the selected working tree but never chooses or updates a game revision itself.
+Development Studio prepares the intended target checkout and supplies the same exact target SHA. The lab verifies that revision but never chooses or updates it.
 
 ## Truth boundaries
 
