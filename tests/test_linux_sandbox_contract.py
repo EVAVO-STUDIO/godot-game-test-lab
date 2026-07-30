@@ -3,6 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+BASE_IMAGE = (
+    "ubuntu:noble-20260610@sha256:"
+    "4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+)
 
 
 def _read(relative: str) -> str:
@@ -12,7 +16,9 @@ def _read(relative: str) -> str:
 def test_linux_container_is_pinned_and_fail_closed() -> None:
     dockerfile = _read("containers/linux-sandbox/Dockerfile")
     dockerignore = _read(".dockerignore")
-    assert "FROM ubuntu:noble-20260610" in dockerfile
+    reliability = _read("evavo.reliability.json")
+    assert f"FROM {BASE_IMAGE}" in dockerfile
+    assert BASE_IMAGE in reliability
     assert "GODOT_VERSION=4.6.2" in dockerfile
     assert "SHA512-SUMS.txt" in dockerfile
     assert "sha512sum --check" in dockerfile
