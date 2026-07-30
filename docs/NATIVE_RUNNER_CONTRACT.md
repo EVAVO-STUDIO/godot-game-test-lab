@@ -61,26 +61,31 @@ The operator supplies:
 
 - the exact 40-character Godot Game Test Lab `main` SHA;
 - the absolute target project path;
+- the exact 40-character target game repository SHA;
 - the minimum Godot version, normally `4.6.2`;
 - `request_source=evavo-development-studio`.
 
-The workflow checks out the exact lab SHA and proves that it belongs to `origin/main`. It does not select or mutate a target repository revision. Development Studio must separately record the target repository SHA before requesting validation.
+The workflow checks out the exact lab SHA and proves that it belongs to `origin/main`. The native wrapper resolves the target Git root and refuses to run unless its current `HEAD` exactly matches `expected_target_sha`.
+
+The workflow never checks out, resets, pulls, merges or otherwise selects a target game revision. Development Studio must prepare the intended target checkout and record the same SHA before requesting validation.
 
 ## Validation order
 
 The native wrapper runs:
 
-1. Python source compilation;
-2. Ruff;
-3. pytest;
-4. Godot and .NET doctor probe;
-5. target project inventory;
-6. exact Godot/Mono compatibility checks;
-7. `.NET` build when required;
-8. headless Godot import;
-9. bounded main-scene boot;
-10. tracked-source mutation comparison;
-11. bounded JSON receipt and logs.
+1. exact test-lab SHA verification;
+2. exact target game SHA verification;
+3. Python source compilation;
+4. Ruff;
+5. pytest;
+6. Godot and .NET doctor probe;
+7. target project inventory;
+8. exact Godot/Mono compatibility checks;
+9. `.NET` build when required;
+10. headless Godot import;
+11. bounded main-scene boot;
+12. tracked-source mutation comparison;
+13. bounded JSON receipt and logs.
 
 A successful import or bounded boot is not a visual-quality approval. Windowed play, recording, screenshots and human/gameplay review remain separate evidence lanes.
 
@@ -92,6 +97,7 @@ The workflow uploads only the bounded `artifacts/native` directory and retains i
 - validation report;
 - command stdout/stderr;
 - exact lab SHA;
+- exact target game SHA;
 - target path and Git root;
 - minimum Godot version;
 - tracked status before and after;
@@ -101,7 +107,7 @@ Do not place secrets, provider tokens, private keys, game source archives or use
 
 ## Local execution
 
-From an exact test-lab checkout:
+From an exact test-lab checkout and an exact prepared target checkout:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -109,9 +115,10 @@ py -3.11 -m venv .venv
 .\scripts\Invoke-GodotLabNativeValidation.ps1 `
   -TargetRepositoryPath "C:\GitRepos\Brass_Brine" `
   -ExpectedLabSha (git rev-parse HEAD) `
+  -ExpectedTargetSha (git -C "C:\GitRepos\Brass_Brine" rev-parse HEAD) `
   -ArtifactPath ".\artifacts\native" `
   -PythonExecutable ".\.venv\Scripts\python.exe" `
   -MinimumGodotVersion "4.6.2"
 ```
 
-Local execution follows the same path, version, test and mutation boundaries as the GitHub workflow.
+Local execution follows the same revision, path, version, test and mutation boundaries as the GitHub workflow.
