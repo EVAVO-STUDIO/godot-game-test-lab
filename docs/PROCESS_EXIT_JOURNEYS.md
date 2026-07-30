@@ -60,7 +60,12 @@ The ordinary process logs, movie, screenshots, contact sheet and visual review r
 journeys/<journey-id>/process-exit-completion.json
 ```
 
-That record includes the expected and observed exit state, required markers, observed markers, missing markers and forbidden markers. `visual-ux-review.json` and `agent-summary.json` retain the resulting status and evidence path.
+The schema-1.1 completion record distinguishes:
+
+- `processExitStatus`: whether exit code, timeout and exact marker requirements passed;
+- `status`: the overall journey status after every base-runner and visual finding is included.
+
+The overall `status` can never be `passed` while the journey review is failed. A valid exit and marker result may therefore retain `processExitStatus = passed` while `status = failed` because a black-frame, screenshot or another independent finding still blocks the journey. The record also includes the expected and observed exit state, required markers, observed markers, missing markers and forbidden markers. `visual-ux-review.json` and `agent-summary.json` retain the same overall result and evidence path.
 
 ## Truth boundary
 
