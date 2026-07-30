@@ -1,0 +1,36 @@
+name: Linux Sandbox Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".gitattributes"
+      - ".dockerignore"
+      - "containers/linux-sandbox/**"
+      - "fixtures/linux-smoke/**"
+      - "scripts/linux-sandbox-entrypoint.sh"
+      - "scripts/read_linux_sandbox_profile.py"
+      - "scripts/run_profiled_linux_sandbox.py"
+      - "src/godot_game_test_lab/**"
+      - "tests/test_linux_sandbox.py"
+      - "tests/test_linux_sandbox_contract.py"
+      - "tests/test_profiled_linux_sandbox.py"
+      - ".github/workflows/reusable-godot-linux-sandbox.yml"
+      - ".github/workflows/linux-sandbox-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-sandbox-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-linux-smoke:
+    uses: ./.github/workflows/reusable-godot-linux-sandbox.yml
+    with:
+      lab_sha: ${{ github.sha }}
+      target_sha: ${{ github.sha }}
+      profile_path: fixtures/linux-smoke/.evavo/godot-lab-linux.json
+      retention_days: 14
