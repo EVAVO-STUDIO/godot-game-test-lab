@@ -1,0 +1,119 @@
+name: EVAVO native Godot validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact 40-character test-lab main commit SHA
+        required: true
+        type: string
+      target_repository_path:
+        description: Absolute Godot project path beneath C:\GitRepos
+        required: true
+        type: string
+      minimum_godot_version:
+        description: Minimum installed Godot version
+        required: true
+        default: 4.6.2
+        type: string
+      request_source:
+        description: Governed dispatcher identity
+        required: true
+        default: evavo-development-studio
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-godot-${{ inputs.expected_sha }}-${{ inputs.target_repository_path }}
+  cancel-in-progress: false
+
+jobs:
+  validate-native-project:
+    name: Validate native Godot project
+    runs-on: [self-hosted, Windows, X64, evavo-godot-lab]
+    timeout-minutes: 45
+
+    steps:
+      - name: Validate dispatch inputs
+        shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
+          REQUEST_SOURCE: ${{ inputs.request_source }}
+        run: |
+          if ($env:EXPECTED_SHA -notmatch '^[0-9a-f]{40}$') {
+            throw 'Invalid expected_sha.'
+          }
+          if ($env:TARGET_REPOSITORY_PATH -notmatch '^[A-Za-z]:\\GitRepos\\[^\r\n]+$') {
+            throw 'target_repository_path must be beneath C:\GitRepos.'
+          }
+          if ($env:MINIMUM_GODOT_VERSION -notmatch '^4\.[0-9]+\.[0-9]+$') {
+            throw 'minimum_godot_version must be an explicit Godot 4.x.y version.'
+          }
+          if ($env:REQUEST_SOURCE -ne 'evavo-development-studio') {
+            throw 'Unsupported request_source.'
+          }
+
+      - name: Check out exact test-lab mainline commit
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify checked-out test-lab commit
+        shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          $actualSha = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualSha -ne $env:EXPECTED_SHA) {
+            throw 'The checked-out test-lab SHA is not the requested SHA.'
+          }
+          git merge-base --is-ancestor $env:EXPECTED_SHA origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw 'The requested SHA is not on test-lab main.'
+          }
+
+      - name: Prepare isolated Python 3.11 environment
+        id: python
+        shell: pwsh
+        run: |
+          $venv = Join-Path $env:RUNNER_TEMP "godot-lab-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          py -3.11 -m venv $venv
+          if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 is unavailable on the native runner.' }
+          $python = Join-Path $venv 'Scripts\python.exe'
+          & $python -m pip install --disable-pip-version-check --upgrade pip
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to prepare pip.' }
+          & $python -m pip install --disable-pip-version-check -e '.[dev]'
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to install the committed test-lab source.' }
+          "python=$python" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run bounded Godot 4.6.2 native validation
+        shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
+          PYTHON_EXECUTABLE: ${{ steps.python.outputs.python }}
+        run: |
+          ./scripts/Invoke-GodotLabNativeValidation.ps1 `
+            -TargetRepositoryPath $env:TARGET_REPOSITORY_PATH `
+            -ExpectedLabSha $env:EXPECTED_SHA `
+            -ArtifactPath (Join-Path $env:GITHUB_WORKSPACE 'artifacts\native') `
+            -PythonExecutable $env:PYTHON_EXECUTABLE `
+            -MinimumGodotVersion $env:MINIMUM_GODOT_VERSION `
+            -TimeoutSeconds 300 `
+            -BootFrames 5
+
+      - name: Upload bounded native evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-godot-${{ inputs.expected_sha }}-${{ github.run_id }}
+          path: artifacts/native
+          if-no-files-found: error
+          retention-days: 14
