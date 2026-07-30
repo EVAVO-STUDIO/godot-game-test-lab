@@ -43,20 +43,35 @@ def _load_object(path: Path) -> dict[str, Any]:
     except ProfileError:
         raise
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ProfileError(f"Could not read Linux sandbox profile {path}: {exc}") from exc
+        raise ProfileError(
+            f"Could not read Linux sandbox profile {path}: {exc}"
+        ) from exc
     if not isinstance(value, dict):
         raise ProfileError("Linux sandbox profile root must be an object.")
     return value
 
 
-def _canonical_relative_path(value: Any, label: str, *, allow_dot: bool = False) -> str:
+def _canonical_relative_path(
+    value: Any,
+    label: str,
+    *,
+    allow_dot: bool = False,
+) -> str:
     text = str(value if value is not None else "").strip()
     if allow_dot and text in ("", "."):
         return "."
-    if not text or "\\" in text or "\x00" in text or "\n" in text or "\r" in text:
+    if (
+        not text
+        or "\\" in text
+        or "\x00" in text
+        or "\n" in text
+        or "\r" in text
+    ):
         raise ProfileError(f"{label} must be a canonical relative path.")
     path = PurePosixPath(text)
-    if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
+    if path.is_absolute() or any(
+        part in ("", ".", "..") for part in path.parts
+    ):
         raise ProfileError(f"{label} must be a canonical relative path.")
     return path.as_posix()
 
@@ -65,16 +80,30 @@ def _scene_path(value: Any) -> str:
     text = str(value if value is not None else "").strip()
     if not text:
         return ""
-    if not text.startswith("res://") or "\\" in text or "\n" in text or "\r" in text:
-        raise ProfileError("visual.scene must be an empty value or a canonical res:// path.")
+    if (
+        not text.startswith("res://")
+        or "\\" in text
+        or "\n" in text
+        or "\r" in text
+    ):
+        raise ProfileError(
+            "visual.scene must be an empty value or a canonical res:// path."
+        )
     tail = text[6:]
     parts = tail.split("/")
     if not tail or any(part in ("", ".", "..") for part in parts):
-        raise ProfileError("visual.scene must be an empty value or a canonical res:// path.")
+        raise ProfileError(
+            "visual.scene must be an empty value or a canonical res:// path."
+        )
     return "res://" + "/".join(parts)
 
 
-def _bounded_int(value: Any, label: str, minimum: int, maximum: int) -> int:
+def _bounded_int(
+    value: Any,
+    label: str,
+    minimum: int,
+    maximum: int,
+) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ProfileError(f"{label} must be an integer.")
     if value < minimum or value > maximum:
@@ -88,11 +117,16 @@ def _arguments(value: Any) -> list[str]:
     if not isinstance(value, list):
         raise ProfileError("visual.userArguments must be an array.")
     if len(value) > MAX_ARGUMENTS:
-        raise ProfileError(f"visual.userArguments may contain at most {MAX_ARGUMENTS} values.")
+        raise ProfileError(
+            "visual.userArguments may contain at most "
+            f"{MAX_ARGUMENTS} values."
+        )
     result: list[str] = []
     for index, item in enumerate(value):
         if not isinstance(item, str):
-            raise ProfileError(f"visual.userArguments[{index}] must be a string.")
+            raise ProfileError(
+                f"visual.userArguments[{index}] must be a string."
+            )
         if (
             not item.startswith("--")
             or "\x00" in item
@@ -101,7 +135,8 @@ def _arguments(value: Any) -> list[str]:
             or len(item.encode("utf-8")) > MAX_ARGUMENT_BYTES
         ):
             raise ProfileError(
-                f"visual.userArguments[{index}] must be a bounded --prefixed argument."
+                f"visual.userArguments[{index}] must be a bounded "
+                "--prefixed argument."
             )
         result.append(item)
     return result
@@ -110,14 +145,22 @@ def _arguments(value: Any) -> list[str]:
 def read_profile(path: Path) -> dict[str, Any]:
     data = _load_object(path)
     if str(data.get("schemaVersion", "")) != "1.0":
-        raise ProfileError("Linux sandbox profile schemaVersion must be 1.0.")
+        raise ProfileError(
+            "Linux sandbox profile schemaVersion must be 1.0."
+        )
 
     project_subpath = _canonical_relative_path(
-        data.get("projectSubpath", "."), "projectSubpath", allow_dot=True
+        data.get("projectSubpath", "."),
+        "projectSubpath",
+        allow_dot=True,
     )
-    minimum_version = str(data.get("minimumGodotVersion", "4.6.2")).strip()
+    minimum_version = str(
+        data.get("minimumGodotVersion", "4.6.2")
+    ).strip()
     if not VERSION_RE.fullmatch(minimum_version):
-        raise ProfileError("minimumGodotVersion must be an explicit Godot 4.x.y version.")
+        raise ProfileError(
+            "minimumGodotVersion must be an explicit Godot 4.x.y version."
+        )
 
     engine_flavor = str(data.get("engineFlavor", "auto")).strip().lower()
     if engine_flavor not in ALLOWED_ENGINE_FLAVORS:
@@ -136,17 +179,31 @@ def read_profile(path: Path) -> dict[str, Any]:
         1 if visual_required else 0,
         1800,
     )
-    visual_fps = _bounded_int(visual_value.get("fps", 30), "visual.fps", 1, 120)
-    visual_width = _bounded_int(visual_value.get("width", 1280), "visual.width", 320, 3840)
+    visual_fps = _bounded_int(
+        visual_value.get("fps", 30),
+        "visual.fps",
+        1,
+        120,
+    )
+    visual_width = _bounded_int(
+        visual_value.get("width", 1280),
+        "visual.width",
+        320,
+        3840,
+    )
     visual_height = _bounded_int(
-        visual_value.get("height", 720), "visual.height", 180, 2160
+        visual_value.get("height", 720),
+        "visual.height",
+        180,
+        2160,
     )
     rendering_method = str(
         visual_value.get("renderingMethod", "gl_compatibility")
     ).strip()
     if rendering_method not in ALLOWED_RENDERING_METHODS:
         raise ProfileError(
-            "visual.renderingMethod must be gl_compatibility, mobile, or forward_plus."
+            "visual.renderingMethod must be gl_compatibility, mobile, "
+            "or forward_plus."
         )
     user_arguments = _arguments(visual_value.get("userArguments", []))
 
@@ -158,8 +215,14 @@ def read_profile(path: Path) -> dict[str, Any]:
         raise ProfileError("export.required must be a boolean.")
     export_preset = str(export_value.get("preset", "")).strip()
     if export_required and not export_preset:
-        raise ProfileError("export.preset is required when export.required is true.")
-    if len(export_preset.encode("utf-8")) > 128 or "\n" in export_preset or "\r" in export_preset:
+        raise ProfileError(
+            "export.preset is required when export.required is true."
+        )
+    if (
+        len(export_preset.encode("utf-8")) > 128
+        or "\n" in export_preset
+        or "\r" in export_preset
+    ):
         raise ProfileError("export.preset is invalid.")
 
     return {
@@ -184,7 +247,10 @@ def read_profile(path: Path) -> dict[str, Any]:
     }
 
 
-def _write_github_outputs(path: Path, profile: dict[str, Any]) -> None:
+def _write_github_outputs(
+    path: Path,
+    profile: dict[str, Any],
+) -> None:
     visual = dict(profile["visual"])
     export = dict(profile["export"])
     values = {
@@ -199,7 +265,9 @@ def _write_github_outputs(path: Path, profile: dict[str, Any]) -> None:
         "visual_height": str(visual["height"]),
         "rendering_method": visual["renderingMethod"],
         "visual_arguments_json": json.dumps(
-            visual["userArguments"], ensure_ascii=False, separators=(",", ":")
+            visual["userArguments"],
+            ensure_ascii=False,
+            separators=(",", ":"),
         ),
         "export_required": str(bool(export["required"])).lower(),
         "export_preset": export["preset"],
@@ -219,7 +287,12 @@ def main() -> int:
     try:
         profile = read_profile(args.profile)
     except ProfileError as exc:
-        print(json.dumps({"status": "blocked", "error": str(exc)}, indent=2))
+        print(
+            json.dumps(
+                {"status": "blocked", "error": str(exc)},
+                indent=2,
+            )
+        )
         return 2
 
     rendered = json.dumps(profile, indent=2, ensure_ascii=False) + "\n"
