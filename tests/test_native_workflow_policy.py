@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "evavo-native-godot-validation.yml"
 RUNNER = ROOT / "scripts" / "Invoke-GodotLabNativeValidation.ps1"
+PYPROJECT = ROOT / "pyproject.toml"
 
 
 def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
@@ -26,6 +28,8 @@ def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
         "persist-credentials: false",
         "git merge-base --is-ancestor $env:EXPECTED_SHA origin/main",
         "py -3.11 -m venv",
+        "& $python -m pip --version",
+        "pip install --disable-pip-version-check -e '.[dev]'",
         "./scripts/Invoke-GodotLabNativeValidation.ps1",
         "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
         "retention-days: 14",
@@ -56,6 +60,7 @@ def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
         "wrangler deploy",
         "vercel deploy",
         "secrets.",
+        "--upgrade pip",
     ):
         assert forbidden not in source
 
@@ -92,3 +97,13 @@ def test_native_wrapper_is_bounded_and_detects_tracked_mutation() -> None:
         "gh pr",
     ):
         assert forbidden not in source
+
+
+def test_validation_toolchain_dependencies_are_exact() -> None:
+    document = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    assert document["build-system"]["requires"] == ["hatchling==1.25.0"]
+    assert document["project"]["optional-dependencies"]["dev"] == [
+        "pytest==8.3.0",
+        "ruff==0.9.0",
+    ]
