@@ -65,6 +65,26 @@ def write_base_review(
     )
 
 
+def install_base_result(module, findings: list[str] | None = None) -> None:
+    module.ORIGINAL_RUN_JOURNEY = lambda *args, **kwargs: {
+        "id": "compiled-regression",
+        "required": True,
+        "status": "failed",
+        "findings": findings or ["journey report was not produced"],
+        "evidence": ["journeys/compiled-regression/logs/journey.stdout.log"],
+    }
+
+
+def run_process_exit(module, tmp_path: Path, artifacts: Path) -> dict[str, Any]:
+    return module._run_journey(
+        SimpleNamespace(),
+        {},
+        process_exit_journey(),
+        tmp_path,
+        artifacts,
+    )
+
+
 def test_split_process_exit_contract_strips_only_reserved_arguments() -> None:
     module = load_wrapper()
 
@@ -114,21 +134,9 @@ def test_successful_process_exit_markers_replace_only_missing_report_failure(
             "[PLAYTEST_REGRESSION] PASS\n"
         ),
     )
-    module.ORIGINAL_RUN_JOURNEY = lambda *args, **kwargs: {
-        "id": "compiled-regression",
-        "required": True,
-        "status": "failed",
-        "findings": ["journey report was not produced"],
-        "evidence": ["journeys/compiled-regression/logs/journey.stdout.log"],
-    }
+    install_base_result(module)
 
-    result = module._run_journey(
-        SimpleNamespace(),
-        {},
-        process_exit_journey(),
-        tmp_path,
-        artifacts,
-    )
+    result = run_process_exit(module, tmp_path, artifacts)
 
     assert result["status"] == "passed"
     assert result["findings"] == []
@@ -136,6 +144,36 @@ def test_successful_process_exit_markers_replace_only_missing_report_failure(
     assert "journeys/compiled-regression/process-exit-completion.json" in result[
         "evidence"
     ]
+
+
+def test_decorated_markers_do_not_match_exact_output_lines(tmp_path: Path) -> None:
+    module = load_wrapper()
+    artifacts = tmp_path / "artifacts"
+    write_base_review(
+        artifacts,
+        stdout=(
+            "prefix [ACTION_SCREEN_EXPERIENCE] PASS suffix\n"
+            "[PLAYTEST_REGRESSION] PASS\n"
+            "prefix [ACTION_SCREEN_EXPERIENCE] FAIL suffix\n"
+        ),
+    )
+    install_base_result(module)
+
+    result = run_process_exit(module, tmp_path, artifacts)
+
+    assert result["status"] == "failed"
+    assert result["completion"]["observedRequiredOutputMarkers"] == [
+        "[PLAYTEST_REGRESSION] PASS"
+    ]
+    assert result["completion"]["observedForbiddenOutputMarkers"] == []
+    assert any(
+        "required output marker was not observed" in item
+        for item in result["findings"]
+    )
+    assert not any(
+        "forbidden output marker was observed" in item
+        for item in result["findings"]
+    )
 
 
 def test_missing_or_forbidden_marker_keeps_process_exit_journey_failed(
@@ -150,21 +188,9 @@ def test_missing_or_forbidden_marker_keeps_process_exit_journey_failed(
             "[ACTION_SCREEN_EXPERIENCE] FAIL\n"
         ),
     )
-    module.ORIGINAL_RUN_JOURNEY = lambda *args, **kwargs: {
-        "id": "compiled-regression",
-        "required": True,
-        "status": "failed",
-        "findings": ["journey report was not produced"],
-        "evidence": [],
-    }
+    install_base_result(module)
 
-    result = module._run_journey(
-        SimpleNamespace(),
-        {},
-        process_exit_journey(),
-        tmp_path,
-        artifacts,
-    )
+    result = run_process_exit(module, tmp_path, artifacts)
 
     assert result["status"] == "failed"
     assert any(
@@ -182,35 +208,21 @@ def test_process_exit_completion_never_discards_other_base_findings(
 ) -> None:
     module = load_wrapper()
     artifacts = tmp_path / "artifacts"
+    other_findings = [
+        "journey report was not produced",
+        "rendered journey contains a sustained black segment",
+    ]
     write_base_review(
         artifacts,
         stdout=(
             "[ACTION_SCREEN_EXPERIENCE] PASS\n"
             "[PLAYTEST_REGRESSION] PASS\n"
         ),
-        findings=[
-            "journey report was not produced",
-            "rendered journey contains a sustained black segment",
-        ],
+        findings=other_findings,
     )
-    module.ORIGINAL_RUN_JOURNEY = lambda *args, **kwargs: {
-        "id": "compiled-regression",
-        "required": True,
-        "status": "failed",
-        "findings": [
-            "journey report was not produced",
-            "rendered journey contains a sustained black segment",
-        ],
-        "evidence": [],
-    }
+    install_base_result(module, other_findings)
 
-    result = module._run_journey(
-        SimpleNamespace(),
-        {},
-        process_exit_journey(),
-        tmp_path,
-        artifacts,
-    )
+    result = run_process_exit(module, tmp_path, artifacts)
 
     assert result["status"] == "failed"
     assert result["findings"] == [
