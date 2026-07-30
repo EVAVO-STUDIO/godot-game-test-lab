@@ -75,6 +75,12 @@ The artifact bundle contains:
 - a 3x2 contact sheet;
 - `agent-summary.json` with status, exact SHAs, scene, arguments, findings, sandbox controls and SHA-256/byte metadata for every retained artifact.
 
+## Lab self-test
+
+`.github/workflows/linux-sandbox-smoke.yml` calls the same reusable workflow against `fixtures/linux-smoke` at the exact lab commit. It is triggered by changes to the container, entrypoint, Linux runner, profile parser, fixture, contract tests or reusable workflow.
+
+The smoke run must build the real image, verify the Godot archives, import and boot the fixture, record 180 rendered X11 frames, probe the movie, extract screenshots and upload the evidence bundle. Source tests alone are not sufficient acceptance for a change to the sandbox execution path.
+
 ## Truth boundary
 
 This lane proves Linux compatibility under the selected Godot version and Xvfb/Mesa software renderer. It does not prove real GPU performance, input correctness, game feel, complete gameplay or final art quality. Those remain separate native hardware, browser, automated interaction and human-review boundaries.
