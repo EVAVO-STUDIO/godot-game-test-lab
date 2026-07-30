@@ -1,0 +1,291 @@
+name: Reusable Godot Linux sandbox
+
+on:
+  workflow_call:
+    inputs:
+      lab_sha:
+        description: Exact 40-character Godot Game Test Lab main SHA
+        required: true
+        type: string
+      target_sha:
+        description: Exact 40-character caller repository main SHA
+        required: true
+        type: string
+      profile_path:
+        description: Repository-owned Linux sandbox profile
+        required: false
+        default: .evavo/godot-lab-linux.json
+        type: string
+      retention_days:
+        description: Evidence artifact retention
+        required: false
+        default: 14
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reusable-godot-linux-${{ github.repository }}-${{ inputs.target_sha }}
+  cancel-in-progress: false
+
+jobs:
+  validate-linux:
+    name: Import, export and render in isolated Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Validate immutable inputs
+        shell: bash
+        env:
+          LAB_SHA: ${{ inputs.lab_sha }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          PROFILE_PATH: ${{ inputs.profile_path }}
+        run: |
+          set -euo pipefail
+          [[ "${LAB_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid lab_sha" >&2; exit 1; }
+          [[ "${TARGET_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid target_sha" >&2; exit 1; }
+          [[ "${TARGET_SHA}" == "${GITHUB_SHA}" ]] || { echo "target_sha must equal the caller workflow SHA" >&2; exit 1; }
+          [[ "${PROFILE_PATH}" != /* && "${PROFILE_PATH}" != *".."* && "${PROFILE_PATH}" != *$'\n'* ]] || {
+            echo "profile_path must be a canonical caller-repository path" >&2
+            exit 1
+          }
+
+      - name: Check out exact target revision with LFS content
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.target_sha }}
+          path: target-source
+          fetch-depth: 0
+          lfs: true
+          persist-credentials: false
+
+      - name: Check out exact public test-lab revision
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: EVAVO-STUDIO/godot-game-test-lab
+          ref: ${{ inputs.lab_sha }}
+          path: lab-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify both exact mainline revisions and clean source
+        shell: bash
+        env:
+          LAB_SHA: ${{ inputs.lab_sha }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git -C target-source rev-parse HEAD)" == "${TARGET_SHA}" ]]
+          [[ "$(git -C lab-source rev-parse HEAD)" == "${LAB_SHA}" ]]
+          git -C target-source merge-base --is-ancestor "${TARGET_SHA}" origin/main
+          git -C lab-source merge-base --is-ancestor "${LAB_SHA}" origin/main
+          [[ -z "$(git -C target-source status --porcelain=v1 --untracked-files=all)" ]]
+          [[ -z "$(git -C lab-source status --porcelain=v1 --untracked-files=all)" ]]
+
+      - name: Read repository-owned sandbox profile
+        id: profile
+        shell: bash
+        env:
+          PROFILE_PATH: ${{ inputs.profile_path }}
+        run: |
+          set -euo pipefail
+          python3 lab-source/scripts/read_linux_sandbox_profile.py \
+            --profile "target-source/${PROFILE_PATH}" \
+            --github-output "${GITHUB_OUTPUT}" \
+            --output profile.normalized.json
+
+      - name: Select standard or .NET Godot editor
+        id: engine
+        shell: bash
+        env:
+          PROJECT_SUBPATH: ${{ steps.profile.outputs.project_subpath }}
+          REQUESTED_FLAVOR: ${{ steps.profile.outputs.engine_flavor }}
+        run: |
+          set -euo pipefail
+          project="target-source"
+          if [[ "${PROJECT_SUBPATH}" != "." ]]; then
+            project="${project}/${PROJECT_SUBPATH}"
+          fi
+          [[ -f "${project}/project.godot" ]] || { echo "project.godot is missing" >&2; exit 1; }
+          detected="standard"
+          if find "${project}" -type f -name '*.csproj' -print -quit | grep -q .; then
+            detected="mono"
+          fi
+          selected="${REQUESTED_FLAVOR}"
+          if [[ "${selected}" == "auto" ]]; then
+            selected="${detected}"
+          fi
+          if [[ "${detected}" == "mono" && "${selected}" != "mono" ]]; then
+            echo "C# target requires engineFlavor=mono or auto" >&2
+            exit 1
+          fi
+          echo "flavor=${selected}" >> "${GITHUB_OUTPUT}"
+
+      - name: Initialize retained evidence
+        shell: bash
+        env:
+          LAB_SHA: ${{ inputs.lab_sha }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          PROFILE_PATH: ${{ inputs.profile_path }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/linux-sandbox
+          cp profile.normalized.json artifacts/linux-sandbox/profile.normalized.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "schemaVersion": "1.0",
+              "status": "dispatched",
+              "targetRepository": os.environ["GITHUB_REPOSITORY"],
+              "targetSha": os.environ["TARGET_SHA"],
+              "labRepository": "EVAVO-STUDIO/godot-game-test-lab",
+              "labSha": os.environ["LAB_SHA"],
+              "profilePath": os.environ["PROFILE_PATH"],
+              "callerRunId": os.environ["GITHUB_RUN_ID"],
+              "callerRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+          }
+          Path("artifacts/linux-sandbox/dispatch.json").write_text(
+              json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Build manifest-verified Godot Linux image
+        shell: bash
+        env:
+          GODOT_VERSION: ${{ steps.profile.outputs.minimum_godot_version }}
+          ENGINE_FLAVOR: ${{ steps.engine.outputs.flavor }}
+        run: |
+          set -euo pipefail
+          image="evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker build \
+            --pull \
+            --build-arg GODOT_VERSION="${GODOT_VERSION}" \
+            --build-arg GODOT_FLAVOR="${ENGINE_FLAVOR}" \
+            --tag "${image}" \
+            --file lab-source/containers/linux-sandbox/Dockerfile \
+            lab-source \
+            >artifacts/linux-sandbox/docker-build.log 2>&1
+          docker image inspect "${image}" >artifacts/linux-sandbox/docker-image.json
+
+      - name: Run no-network read-only sandbox
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+          LAB_SHA: ${{ inputs.lab_sha }}
+          PROJECT_SUBPATH: ${{ steps.profile.outputs.project_subpath }}
+          MINIMUM_GODOT_VERSION: ${{ steps.profile.outputs.minimum_godot_version }}
+          VISUAL_SCENE: ${{ steps.profile.outputs.visual_scene }}
+          VISUAL_FRAMES: ${{ steps.profile.outputs.visual_frames }}
+          VISUAL_FPS: ${{ steps.profile.outputs.visual_fps }}
+          VISUAL_WIDTH: ${{ steps.profile.outputs.visual_width }}
+          VISUAL_HEIGHT: ${{ steps.profile.outputs.visual_height }}
+          RENDERING_METHOD: ${{ steps.profile.outputs.rendering_method }}
+          VISUAL_ARGUMENTS_JSON: ${{ steps.profile.outputs.visual_arguments_json }}
+          EXPORT_PRESET: ${{ steps.profile.outputs.export_preset }}
+        run: |
+          set -euo pipefail
+          image="evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          artifacts="${GITHUB_WORKSPACE}/artifacts/linux-sandbox"
+          work="${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "${work}"
+          mkdir -p "${work}"
+          chmod 0777 "${artifacts}" "${work}"
+          timeout --signal=TERM --kill-after=15s 2700s docker run --rm \
+            --name "evavo-godot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --stop-timeout 10 \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 1024 \
+            --cpus 4 \
+            --memory 10g \
+            --memory-swap 10g \
+            --ulimit nofile=4096:4096 \
+            --shm-size 1g \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+            --tmpfs /home/godotlab:rw,nosuid,nodev,size=2g,mode=0700,uid=10001,gid=10001 \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/target-source,target=/workspace/source,readonly" \
+            --mount "type=bind,source=${work},target=/workspace/work" \
+            --mount "type=bind,source=${artifacts},target=/artifacts" \
+            --env EVAVO_TARGET_REPOSITORY="${GITHUB_REPOSITORY}" \
+            --env EVAVO_TARGET_SHA="${TARGET_SHA}" \
+            --env EVAVO_LAB_SHA="${LAB_SHA}" \
+            --env EVAVO_PROJECT_SUBPATH="${PROJECT_SUBPATH}" \
+            --env EVAVO_MINIMUM_GODOT_VERSION="${MINIMUM_GODOT_VERSION}" \
+            --env EVAVO_VISUAL_SCENE="${VISUAL_SCENE}" \
+            --env EVAVO_VISUAL_FRAMES="${VISUAL_FRAMES}" \
+            --env EVAVO_VISUAL_FPS="${VISUAL_FPS}" \
+            --env EVAVO_VISUAL_WIDTH="${VISUAL_WIDTH}" \
+            --env EVAVO_VISUAL_HEIGHT="${VISUAL_HEIGHT}" \
+            --env EVAVO_RENDERING_METHOD="${RENDERING_METHOD}" \
+            --env EVAVO_VISUAL_ARGUMENTS_JSON="${VISUAL_ARGUMENTS_JSON}" \
+            --env EVAVO_EXPORT_PRESET="${EXPORT_PRESET}" \
+            "${image}"
+
+      - name: Verify immutable target checkout
+        if: always()
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git -C target-source rev-parse HEAD)" == "${TARGET_SHA}" ]]
+          if [[ -n "$(git -C target-source status --porcelain=v1 --untracked-files=all)" ]]; then
+            echo "Linux sandbox changed the target checkout" >&2
+            git -C target-source status --short
+            exit 1
+          fi
+
+      - name: Publish agent-readable summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="artifacts/linux-sandbox/agent-summary.json"
+          if [[ ! -f "${summary}" ]]; then
+            printf '%s\n' '### Godot Linux sandbox' '' '- Agent summary was not produced.' >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          python3 - "${summary}" >> "${GITHUB_STEP_SUMMARY}" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          value = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print("### Godot Linux sandbox")
+          print()
+          print(f"- Status: **{value.get('status', 'unknown')}**")
+          print(f"- Target SHA: `{value.get('targetSha', '')}`")
+          print(f"- Lab SHA: `{value.get('labSha', '')}`")
+          print(f"- Project: `{value.get('projectSubpath', '.')}`")
+          visual = value.get("visual", {})
+          print(f"- Rendered scene: `{visual.get('scene', '')}`")
+          print(f"- Render frames: {visual.get('frames', 0)} at {visual.get('fps', 0)} FPS")
+          findings = value.get("findings", [])
+          print(f"- Findings: {len(findings)}")
+          for finding in findings[:10]:
+              print(f"  - {finding}")
+          PY
+
+      - name: Upload bounded evidence bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: godot-linux-${{ github.event.repository.name }}-${{ inputs.target_sha }}
+          path: artifacts/linux-sandbox
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}
+
+      - name: Remove ephemeral image and worktree
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f "evavo-godot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          docker image rm "evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
+          rm -rf "${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
