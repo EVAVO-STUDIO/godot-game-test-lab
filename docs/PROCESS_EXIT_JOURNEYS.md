@@ -32,7 +32,7 @@ The reserved arguments are consumed by the test lab and are not passed to Godot:
 - one or more `--evavo-agent-require-output=<marker>` arguments are mandatory;
 - zero or more `--evavo-agent-forbid-output=<marker>` arguments may reject explicit failure markers.
 
-All other arguments are passed through unchanged to the target project. Markers are exact, case-sensitive, single-line values. Blank, oversized or unsupported reserved arguments fail closed before execution.
+All other arguments are passed through unchanged to the target project. Markers are case-sensitive, bounded, single-line values. A marker is observed only when one complete retained stdout or stderr line equals it exactly. Prefixes, suffixes, log decorations and substring matches do not satisfy or trigger the marker contract. Blank, oversized or unsupported reserved arguments fail closed before execution.
 
 ## Pass rule
 
@@ -46,8 +46,8 @@ It does so only when all of the following are true:
 
 1. the Godot process completed within its bounded timeout;
 2. the observed exit code is exactly zero;
-3. every required output marker appears in retained stdout or stderr;
-4. no forbidden output marker appears;
+3. every required output marker appears as an exact retained output line;
+4. no forbidden output marker appears as an exact retained output line;
 5. the base journey has no other finding.
 
 A crash, non-zero exit, timeout, error marker, missing marker, forbidden marker, black-frame finding, frozen-frame finding, screenshot failure or any other base-runner finding still fails the journey. Process-exit mode cannot turn an unrelated failure into a pass.
