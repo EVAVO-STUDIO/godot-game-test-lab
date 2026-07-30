@@ -2,11 +2,13 @@
 set -euo pipefail
 umask 077
 
-# Preserve the canonical linux-sandbox import/build/export stage, then add the
-# governed rendered journey and agent-readable evidence layer.
+# run_agent_godot_qa.py wraps run_profiled_linux_sandbox.py, preserving the
+# canonical import/build/export path before governed keyboard, mouse and
+# synthetic gamepad journeys execute against the ephemeral working copy.
 source_root="${EVAVO_SOURCE_ROOT:-/workspace/source}"
 working_root="${EVAVO_WORKING_ROOT:-/workspace/work/project}"
 artifacts_root="${EVAVO_ARTIFACTS_ROOT:-/artifacts}"
+profile_path="${EVAVO_PROFILE_PATH:-/workspace/profile.normalized.json}"
 project_subpath="${EVAVO_PROJECT_SUBPATH:-.}"
 godot_bin="${GODOT_BIN:-/usr/local/bin/godot}"
 dotnet_bin="${DOTNET_BIN:-/usr/bin/dotnet}"
@@ -26,10 +28,19 @@ if [[ ! -d "${source_root}" ]]; then
     echo "Linux sandbox source mount is missing: ${source_root}" >&2
     exit 2
 fi
+if [[ ! -f "${profile_path}" ]]; then
+    echo "Normalised sandbox profile is missing: ${profile_path}" >&2
+    exit 2
+fi
 
 mount_options="$(findmnt -T "${source_root}" -no OPTIONS 2>/dev/null || true)"
 if [[ ",${mount_options}," != *,ro,* ]]; then
     echo "Linux sandbox source mount must be read-only." >&2
+    exit 2
+fi
+profile_options="$(findmnt -T "${profile_path}" -no OPTIONS 2>/dev/null || true)"
+if [[ ",${profile_options}," != *,ro,* ]]; then
+    echo "Linux sandbox profile mount must be read-only." >&2
     exit 2
 fi
 
@@ -40,6 +51,7 @@ arguments=(
     "${source_root}"
     --working-root "${working_root}"
     --artifacts "${artifacts_root}"
+    --profile "${profile_path}"
     --project-subpath "${project_subpath}"
     --godot "${godot_bin}"
     --minimum-godot-version "${minimum_version}"
@@ -61,4 +73,4 @@ if [[ -n "${export_preset}" ]]; then
     arguments+=(--export-preset "${export_preset}")
 fi
 
-exec python3 /opt/godot-lab/scripts/run_profiled_linux_sandbox.py "${arguments[@]}"
+exec python3 /opt/godot-lab/scripts/run_agent_godot_qa.py "${arguments[@]}"
