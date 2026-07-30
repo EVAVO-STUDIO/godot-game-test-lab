@@ -2,9 +2,10 @@
 set -euo pipefail
 umask 077
 
-# run_agent_godot_qa.py wraps run_profiled_linux_sandbox.py, preserving the
-# canonical import/build/export path before governed keyboard, mouse and
-# synthetic gamepad journeys execute against the ephemeral working copy.
+# The canonical linux-sandbox entrypoint runs run_agent_godot_qa.py, which wraps
+# run_profiled_linux_sandbox.py. This preserves the import/build/export path
+# before governed keyboard, mouse and synthetic gamepad journeys execute
+# against the ephemeral working copy.
 source_root="${EVAVO_SOURCE_ROOT:-/workspace/source}"
 working_root="${EVAVO_WORKING_ROOT:-/workspace/work/project}"
 artifacts_root="${EVAVO_ARTIFACTS_ROOT:-/artifacts}"
