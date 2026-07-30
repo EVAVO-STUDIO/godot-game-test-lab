@@ -140,7 +140,9 @@ def test_successful_process_exit_markers_replace_only_missing_report_failure(
 
     assert result["status"] == "passed"
     assert result["findings"] == []
+    assert result["completion"]["schemaVersion"] == "1.1"
     assert result["completion"]["status"] == "passed"
+    assert result["completion"]["processExitStatus"] == "passed"
     assert "journeys/compiled-regression/process-exit-completion.json" in result[
         "evidence"
     ]
@@ -162,6 +164,8 @@ def test_decorated_markers_do_not_match_exact_output_lines(tmp_path: Path) -> No
     result = run_process_exit(module, tmp_path, artifacts)
 
     assert result["status"] == "failed"
+    assert result["completion"]["status"] == "failed"
+    assert result["completion"]["processExitStatus"] == "failed"
     assert result["completion"]["observedRequiredOutputMarkers"] == [
         "[PLAYTEST_REGRESSION] PASS"
     ]
@@ -193,6 +197,8 @@ def test_missing_or_forbidden_marker_keeps_process_exit_journey_failed(
     result = run_process_exit(module, tmp_path, artifacts)
 
     assert result["status"] == "failed"
+    assert result["completion"]["status"] == "failed"
+    assert result["completion"]["processExitStatus"] == "failed"
     assert any(
         "required output marker was not observed" in item
         for item in result["findings"]
@@ -225,6 +231,8 @@ def test_process_exit_completion_never_discards_other_base_findings(
     result = run_process_exit(module, tmp_path, artifacts)
 
     assert result["status"] == "failed"
+    assert result["completion"]["status"] == "failed"
+    assert result["completion"]["processExitStatus"] == "passed"
     assert result["findings"] == [
         "rendered journey contains a sustained black segment"
     ]
