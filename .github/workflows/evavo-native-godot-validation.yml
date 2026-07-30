@@ -11,6 +11,10 @@ on:
         description: Absolute Godot project path beneath C:\GitRepos
         required: true
         type: string
+      expected_target_sha:
+        description: Exact 40-character target game commit SHA
+        required: true
+        type: string
       minimum_godot_version:
         description: Minimum installed Godot version
         required: true
@@ -26,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-godot-${{ inputs.expected_sha }}-${{ inputs.target_repository_path }}
+  group: native-godot-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
   cancel-in-progress: false
 
 jobs:
@@ -41,11 +45,15 @@ jobs:
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
           TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
           MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
           REQUEST_SOURCE: ${{ inputs.request_source }}
         run: |
           if ($env:EXPECTED_SHA -notmatch '^[0-9a-f]{40}$') {
             throw 'Invalid expected_sha.'
+          }
+          if ($env:EXPECTED_TARGET_SHA -notmatch '^[0-9a-f]{40}$') {
+            throw 'Invalid expected_target_sha.'
           }
           if ($env:TARGET_REPOSITORY_PATH -notmatch '^[A-Za-z]:\\GitRepos\\[^\r\n]+$') {
             throw 'target_repository_path must be beneath C:\GitRepos.'
@@ -97,12 +105,14 @@ jobs:
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
           TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
           MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
           PYTHON_EXECUTABLE: ${{ steps.python.outputs.python }}
         run: |
           ./scripts/Invoke-GodotLabNativeValidation.ps1 `
             -TargetRepositoryPath $env:TARGET_REPOSITORY_PATH `
             -ExpectedLabSha $env:EXPECTED_SHA `
+            -ExpectedTargetSha $env:EXPECTED_TARGET_SHA `
             -ArtifactPath (Join-Path $env:GITHUB_WORKSPACE 'artifacts\native') `
             -PythonExecutable $env:PYTHON_EXECUTABLE `
             -MinimumGodotVersion $env:MINIMUM_GODOT_VERSION `
@@ -113,7 +123,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: native-godot-${{ inputs.expected_sha }}-${{ github.run_id }}
+          name: native-godot-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
           path: artifacts/native
           if-no-files-found: error
           retention-days: 14
