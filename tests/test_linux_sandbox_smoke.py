@@ -10,6 +10,7 @@ def test_smoke_fixture_profile_uses_the_fixture_project_root() -> None:
     fixture = ROOT / "fixtures/linux-smoke"
     profile_path = fixture / ".evavo/godot-lab-linux.json"
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    smoke = (fixture / "smoke.gd").read_text(encoding="utf-8")
 
     assert (fixture / "project.godot").is_file()
     assert (fixture / "main.tscn").is_file()
@@ -25,6 +26,7 @@ def test_smoke_fixture_profile_uses_the_fixture_project_root() -> None:
         "keyboard-action",
         "mouse-click",
         "gamepad-action",
+        "process-exit-marker",
     ]
     assert all(journey["required"] is True for journey in profile["journeys"])
     assert profile["journeys"][0]["requiredActions"][0]["devices"] == [
@@ -33,6 +35,35 @@ def test_smoke_fixture_profile_uses_the_fixture_project_root() -> None:
     assert profile["journeys"][2]["requiredActions"][0]["devices"] == [
         "gamepad"
     ]
+
+    process_exit = profile["journeys"][3]
+    assert process_exit["device"] == "semantic"
+    assert process_exit["scene"] == "res://main.tscn"
+    assert process_exit["maxFrames"] == 240
+    assert process_exit["settleFrames"] == 20
+    assert process_exit["userArguments"] == [
+        "--run-process-exit-fixture",
+        "--evavo-agent-completion=process-exit",
+        "--evavo-agent-require-output=EVAVO_PROCESS_EXIT_FIXTURE_PASS",
+        "--evavo-agent-forbid-output=EVAVO_PROCESS_EXIT_FIXTURE_FAIL",
+    ]
+    assert process_exit["steps"] == [{"type": "wait", "frames": 120}]
+    assert process_exit["assertions"] == []
+    assert process_exit["ux"]["failOnBlackFrame"] is True
+    assert process_exit["ux"]["failOnFrozenVideo"] is False
+
+    for token in [
+        'PROCESS_EXIT_ARGUMENT := "--run-process-exit-fixture"',
+        'PROCESS_EXIT_PASS_MARKER := "EVAVO_PROCESS_EXIT_FIXTURE_PASS"',
+        'PROCESS_EXIT_FAIL_MARKER := "EVAVO_PROCESS_EXIT_FIXTURE_FAIL"',
+        "PROCESS_EXIT_DELAY_FRAMES := 90",
+        "OS.get_cmdline_user_args().has(PROCESS_EXIT_ARGUMENT)",
+        'call_deferred("_complete_process_exit_fixture")',
+        "print(PROCESS_EXIT_PASS_MARKER)",
+        "get_tree().quit(0)",
+    ]:
+        assert token in smoke
+    assert "print(PROCESS_EXIT_FAIL_MARKER)" not in smoke
 
 
 def test_smoke_workflow_invokes_local_worker_at_the_same_sha() -> None:
