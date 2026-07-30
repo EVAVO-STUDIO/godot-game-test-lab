@@ -19,8 +19,10 @@ def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
         "workflow_dispatch:",
         "expected_sha:",
         "target_repository_path:",
+        "expected_target_sha:",
         "minimum_godot_version:",
         "request_source:",
+        "group: native-godot-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}",
         "permissions:\n  contents: read",
         "runs-on: [self-hosted, Windows, X64, evavo-godot-lab]",
         "ref: ${{ inputs.expected_sha }}",
@@ -30,6 +32,7 @@ def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
         "py -3.11 -m venv",
         "& $python -m pip --version",
         "pip install --disable-pip-version-check -e '.[dev]'",
+        "-ExpectedTargetSha $env:EXPECTED_TARGET_SHA",
         "./scripts/Invoke-GodotLabNativeValidation.ps1",
         "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
         "retention-days: 14",
@@ -65,15 +68,19 @@ def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
         assert forbidden not in source
 
 
-def test_native_wrapper_is_bounded_and_detects_tracked_mutation() -> None:
+def test_native_wrapper_is_bounded_and_detects_revision_or_source_drift() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
     for token in (
+        '[string]$ExpectedTargetSha',
         '[string]$MinimumGodotVersion = "4.6.2"',
         '$allowedRepositoryRoot = (Resolve-Path "C:\\GitRepos").Path',
         'Test-Path (Join-Path $target "project.godot")',
         'git -C $labRoot rev-parse HEAD',
         'git -C $target rev-parse --show-toplevel',
+        '$currentTargetSha = (& git -C $gitRoot rev-parse HEAD).Trim()',
+        '$currentTargetSha -ne $ExpectedTargetSha',
+        'targetSha = $currentTargetSha',
         'status --porcelain=v1 --untracked-files=no',
         '"-m", "compileall", "src", "tests"',
         '"-m", "ruff", "check", "src", "tests"',
