@@ -1,10 +1,10 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "defaultBranch": "main",
-  "authority": "canonical-native-godot-worker",
+  "authority": "canonical-native-and-sandboxed-godot-worker",
   "workload": "desktop-application",
-  "requiredVisibility": "private",
+  "requiredVisibility": "public",
   "packageManager": {
     "name": "pip",
     "lockfilePolicy": "unlocked-bounded-development-extra",
@@ -15,17 +15,19 @@
     "minimumGodot": "4.6.2",
     "windowsRunnerRequiredForNativeEvidence": true,
     "linuxSandboxBase": "ubuntu:noble-20260610",
-    "linuxSandboxGodot": "4.6.2",
+    "linuxSandboxGodot": "repository-profile-exact-version",
     "linuxSandboxDotnet": "8.0"
   },
   "prePushValidation": [
-    "python -m compileall src tests",
-    "python -m ruff check src tests",
+    "python -m compileall src scripts tests",
+    "python -m ruff check src scripts tests",
+    "bash -n scripts/*.sh containers/**/*.sh",
     "python -m pytest"
   ],
   "validation": [
-    "python -m compileall src tests",
-    "python -m ruff check src tests",
+    "python -m compileall src scripts tests",
+    "python -m ruff check src scripts tests",
+    "bash -n scripts/*.sh containers/**/*.sh",
     "python -m pytest"
   ],
   "providerConfirmation": {
@@ -34,7 +36,8 @@
     "exactMainShaRequired": true,
     "sourceConfirmationOnly": true,
     "nativeWindowsEvidenceSeparate": true,
-    "linuxSandboxEvidenceSeparate": true
+    "linuxSandboxEvidenceSeparate": true,
+    "reusableLinuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml"
   },
   "branchPolicy": {
     "mode": "direct-main",
@@ -45,7 +48,7 @@
   "toolSelection": {
     "godotGdscript": "standard-godot",
     "godotCsharp": "godot-dotnet-and-dotnet-sdk-8",
-    "linuxVisualEvidence": "xvfb-mesa-llvmpipe-movie-maker",
+    "linuxVisualEvidence": "xvfb-x11-mesa-llvmpipe-movie-maker",
     "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime"
   },
   "nativeAcceptance": {
@@ -71,32 +74,37 @@
     ]
   },
   "linuxSandboxAcceptance": {
-    "workflow": ".github/workflows/evavo-linux-godot-sandbox.yml",
-    "manualDispatchOnly": false,
+    "manualWorkflow": ".github/workflows/evavo-linux-godot-sandbox.yml",
+    "reusableWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
+    "callerContextPreferred": true,
+    "standingCrossRepositoryTokenRequired": false,
+    "repositoryProfile": ".evavo/godot-lab-linux.json",
     "exactLabShaRequired": true,
     "exactTargetShaRequired": true,
+    "callerShaEqualityRequired": true,
     "targetSourceReadOnly": true,
     "ephemeralWorkingCopy": true,
     "networkDisabled": true,
     "rootFilesystemReadOnly": true,
     "capabilitiesDropped": true,
     "noNewPrivileges": true,
+    "boundedCpuMemorySwapPidsFilesAndTime": true,
     "softwareRendering": "mesa-llvmpipe",
-    "display": "xvfb",
+    "display": "xvfb-x11",
     "visualEvidence": [
       "gameplay.avi",
       "ffprobe.json",
-      "contact-sheet.png"
+      "screenshots/frame-01.png through frame-06.png",
+      "contact-sheet.png",
+      "agent-summary.json"
     ],
-    "targetCredentialInsideContainer": false,
-    "reusableWorkflow": true,
-    "currentDefaultBranchTargetShaRequired": true
+    "targetCredentialInsideContainer": false
   },
   "truthBoundaries": [
-    "Source tests prove the Python and policy contract only; they do not prove that Docker, Godot or .NET exists on a runner.",
+    "Source tests prove the Python, shell and workflow contract only; they do not prove that Docker, Godot or .NET exists on a runner.",
     "A headless import does not prove visual quality, input, game feel or a complete playthrough.",
     "A bounded boot proves startup only.",
-    "A recorded movie or contact sheet is visual evidence, not interactive play evidence.",
+    "A recorded movie, screenshot set or contact sheet is visual evidence, not interactive play evidence.",
     "Xvfb and Mesa software rendering do not prove hardware-specific Vulkan behavior or performance.",
     "Godot 4 C# projects require the .NET editor and cannot use the browser export path."
   ],
