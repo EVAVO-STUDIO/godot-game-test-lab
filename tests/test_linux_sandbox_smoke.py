@@ -48,6 +48,8 @@ def test_smoke_workflow_invokes_local_worker_at_the_same_sha() -> None:
     assert "fixtures/linux-smoke/.evavo/godot-lab-linux.json" in workflow
     assert "scripts/godot_input_journey.gd" in workflow
     assert "scripts/run_agent_godot_qa.py" in workflow
+    assert "scripts/run_agent_godot_qa_with_process_exit.py" in workflow
     assert "tests/test_interactive_godot_qa.py" in workflow
+    assert "tests/test_process_exit_journeys.py" in workflow
     assert "workflow_dispatch:" in workflow
     assert "contents: read" in workflow
