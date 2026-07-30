@@ -93,6 +93,28 @@ godot-lab export C:\GitRepos\epochbound `
   --output C:\GitRepos\epochbound\dist\epochbound.exe
 ```
 
+## Exact-SHA native automation
+
+The repository now includes `.github/workflows/evavo-native-godot-validation.yml` for approved self-hosted Windows validation.
+
+The workflow:
+
+- runs only through manual `workflow_dispatch`;
+- requires an exact test-lab `main` SHA;
+- requires `request_source=evavo-development-studio`;
+- accepts only target paths beneath `C:\GitRepos`;
+- uses runner labels `self-hosted`, `Windows`, `X64`, and `evavo-godot-lab`;
+- prepares an isolated Python 3.11 environment;
+- runs compile, Ruff, pytest, doctor and the canonical Godot validation pipeline;
+- compares tracked target-repository status before and after execution;
+- fails if validation changes any tracked game source;
+- uploads bounded evidence for 14 days;
+- has no commit, push, branch, pull-request, deployment or repository-reset operation.
+
+Runner provisioning and local parity are defined in `docs/NATIVE_RUNNER_CONTRACT.md`.
+
+A native run also requires Development Studio to record the exact target game SHA separately. The lab validates the selected working tree but never chooses or updates a game revision itself.
+
 ## Truth boundaries
 
 - A passing headless import is not proof of game feel or visual quality.
@@ -101,7 +123,7 @@ godot-lab export C:\GitRepos\epochbound `
 - Browser interaction should use Godot Web Runtime when the project supports a GDScript Compatibility-renderer web export.
 - Godot 4 C# projects cannot use the browser-export path and must be tested natively.
 - Export commands require valid project export presets and installed export templates.
-- The lab never edits a game repository, creates a branch, commits, pushes or deploys by itself. Development Studio grants and records those effects.
+- The lab never edits tracked game source, creates a branch, commits, pushes or deploys by itself. Development Studio grants and records those effects.
 
 ## Development checks
 
