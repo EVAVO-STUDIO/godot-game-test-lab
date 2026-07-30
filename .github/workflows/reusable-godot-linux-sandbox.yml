@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       target_sha:
-        description: Exact 40-character caller repository main SHA
+        description: Exact 40-character caller repository commit SHA
         required: true
         type: string
       profile_path:
@@ -31,24 +31,42 @@ concurrency:
 
 jobs:
   validate-linux:
-    name: Import, export and render in isolated Linux
+    name: Build, interact, export and visually review on Linux
     runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     steps:
-      - name: Validate immutable inputs
+      - name: Validate immutable caller inputs
         shell: bash
         env:
           LAB_SHA: ${{ inputs.lab_sha }}
           TARGET_SHA: ${{ inputs.target_sha }}
           PROFILE_PATH: ${{ inputs.profile_path }}
+          RETENTION_DAYS: ${{ inputs.retention_days }}
+          TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           [[ "${LAB_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid lab_sha" >&2; exit 1; }
           [[ "${TARGET_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid target_sha" >&2; exit 1; }
-          [[ "${TARGET_SHA}" == "${GITHUB_SHA}" ]] || { echo "target_sha must equal the caller workflow SHA" >&2; exit 1; }
+          [[ "${TARGET_SHA}" == "${GITHUB_SHA}" ]] || {
+            echo "target_sha must equal the caller workflow SHA" >&2
+            exit 1
+          }
+          [[ "${TARGET_DEFAULT_BRANCH}" =~ ^[A-Za-z0-9._/-]+$ ]] || {
+            echo "caller repository default branch is invalid" >&2
+            exit 1
+          }
+          [[ "${GITHUB_REF}" == "refs/heads/${TARGET_DEFAULT_BRANCH}" ]] || {
+            echo "Godot QA must run from the caller default branch" >&2
+            exit 1
+          }
           [[ "${PROFILE_PATH}" != /* && "${PROFILE_PATH}" != *".."* && "${PROFILE_PATH}" != *$'\n'* ]] || {
             echo "profile_path must be a canonical caller-repository path" >&2
+            exit 1
+          }
+          [[ "${RETENTION_DAYS}" =~ ^[0-9]+$ ]] || { echo "Invalid retention_days" >&2; exit 1; }
+          (( RETENTION_DAYS >= 1 && RETENTION_DAYS <= 30 )) || {
+            echo "retention_days must be between 1 and 30" >&2
             exit 1
           }
 
@@ -70,16 +88,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify both exact mainline revisions and clean source
+      - name: Verify exact default-branch revisions and clean source
         shell: bash
         env:
           LAB_SHA: ${{ inputs.lab_sha }}
           TARGET_SHA: ${{ inputs.target_sha }}
+          TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           [[ "$(git -C target-source rev-parse HEAD)" == "${TARGET_SHA}" ]]
           [[ "$(git -C lab-source rev-parse HEAD)" == "${LAB_SHA}" ]]
-          git -C target-source merge-base --is-ancestor "${TARGET_SHA}" origin/main
+          git -C target-source merge-base --is-ancestor "${TARGET_SHA}" "origin/${TARGET_DEFAULT_BRANCH}"
           git -C lab-source merge-base --is-ancestor "${LAB_SHA}" origin/main
           [[ -z "$(git -C target-source status --porcelain=v1 --untracked-files=all)" ]]
           [[ -z "$(git -C lab-source status --porcelain=v1 --untracked-files=all)" ]]
@@ -129,6 +148,9 @@ jobs:
           LAB_SHA: ${{ inputs.lab_sha }}
           TARGET_SHA: ${{ inputs.target_sha }}
           PROFILE_PATH: ${{ inputs.profile_path }}
+          PROFILE_SCHEMA: ${{ steps.profile.outputs.profile_schema_version }}
+          JOURNEY_COUNT: ${{ steps.profile.outputs.journey_count }}
+          REQUIRED_JOURNEYS: ${{ steps.profile.outputs.required_journey_count }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/linux-sandbox
@@ -139,13 +161,16 @@ jobs:
           from pathlib import Path
 
           payload = {
-              "schemaVersion": "1.0",
+              "schemaVersion": "2.0",
               "status": "dispatched",
               "targetRepository": os.environ["GITHUB_REPOSITORY"],
               "targetSha": os.environ["TARGET_SHA"],
               "labRepository": "EVAVO-STUDIO/godot-game-test-lab",
               "labSha": os.environ["LAB_SHA"],
               "profilePath": os.environ["PROFILE_PATH"],
+              "profileSchemaVersion": os.environ["PROFILE_SCHEMA"],
+              "journeyCount": int(os.environ["JOURNEY_COUNT"]),
+              "requiredJourneyCount": int(os.environ["REQUIRED_JOURNEYS"]),
               "callerRunId": os.environ["GITHUB_RUN_ID"],
               "callerRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
           }
@@ -211,11 +236,13 @@ jobs:
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
             --tmpfs /home/godotlab:rw,nosuid,nodev,size=2g,mode=0700,uid=10001,gid=10001 \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/target-source,target=/workspace/source,readonly" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/profile.normalized.json,target=/workspace/profile.normalized.json,readonly" \
             --mount "type=bind,source=${work},target=/workspace/work" \
             --mount "type=bind,source=${artifacts},target=/artifacts" \
             --env EVAVO_TARGET_REPOSITORY="${GITHUB_REPOSITORY}" \
             --env EVAVO_TARGET_SHA="${TARGET_SHA}" \
             --env EVAVO_LAB_SHA="${LAB_SHA}" \
+            --env EVAVO_PROFILE_PATH="/workspace/profile.normalized.json" \
             --env EVAVO_PROJECT_SUBPATH="${PROJECT_SUBPATH}" \
             --env EVAVO_MINIMUM_GODOT_VERSION="${MINIMUM_GODOT_VERSION}" \
             --env EVAVO_VISUAL_SCENE="${VISUAL_SCENE}" \
@@ -242,14 +269,14 @@ jobs:
             exit 1
           fi
 
-      - name: Publish agent-readable summary
+      - name: Publish agent-readable build and journey summary
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           summary="artifacts/linux-sandbox/agent-summary.json"
           if [[ ! -f "${summary}" ]]; then
-            printf '%s\n' '### Godot Linux sandbox' '' '- Agent summary was not produced.' >> "${GITHUB_STEP_SUMMARY}"
+            printf '%s\n' '### Godot Linux agent QA' '' '- Agent summary was not produced.' >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
           python3 - "${summary}" >> "${GITHUB_STEP_SUMMARY}" <<'PY'
@@ -258,18 +285,25 @@ jobs:
           import sys
 
           value = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-          print("### Godot Linux sandbox")
+          print("### Godot Linux agent QA")
           print()
           print(f"- Status: **{value.get('status', 'unknown')}**")
           print(f"- Target SHA: `{value.get('targetSha', '')}`")
           print(f"- Lab SHA: `{value.get('labSha', '')}`")
           print(f"- Project: `{value.get('projectSubpath', '.')}`")
           visual = value.get("visual", {})
-          print(f"- Rendered scene: `{visual.get('scene', '')}`")
-          print(f"- Render frames: {visual.get('frames', 0)} at {visual.get('fps', 0)} FPS")
+          print(f"- Baseline scene: `{visual.get('scene', '')}`")
+          print(f"- Baseline frames: {visual.get('frames', 0)} at {visual.get('fps', 0)} FPS")
+          journeys = value.get("journeys", [])
+          print(f"- Interactive journeys: {len(journeys)}")
+          for journey in journeys:
+              device = journey.get("device", "semantic")
+              print(f"  - `{journey.get('id', '')}`: **{journey.get('status', 'unknown')}** ({device})")
+          boundary = value.get("qualityBoundary", {})
+          print(f"- Physical USB gamepad claimed: {boundary.get('physicalUsbGamepad', False)}")
           findings = value.get("findings", [])
           print(f"- Findings: {len(findings)}")
-          for finding in findings[:10]:
+          for finding in findings[:12]:
               print(f"  - {finding}")
           PY
 
