@@ -134,7 +134,11 @@ def test_profile_rejects_unbounded_or_unsafe_journey_steps(
 
 def test_agent_runner_and_godot_harness_preserve_truth_boundaries() -> None:
     runner = (ROOT / "scripts/run_agent_godot_qa.py").read_text(encoding="utf-8")
+    wrapper = (
+        ROOT / "scripts/run_agent_godot_qa_with_process_exit.py"
+    ).read_text(encoding="utf-8")
     harness = (ROOT / "scripts/godot_input_journey.gd").read_text(encoding="utf-8")
+    sources = runner + "\n" + wrapper + "\n" + harness
 
     for marker in [
         "syntheticKeyboardMouseInput",
@@ -150,8 +154,15 @@ def test_agent_runner_and_godot_harness_preserve_truth_boundaries() -> None:
         "requiredActions",
         "overlappingInteractivePairs",
         "outOfBoundsInteractive",
+        "--evavo-agent-completion=process-exit",
+        "--evavo-agent-require-output=",
+        "--evavo-agent-forbid-output=",
+        "process-exit-completion.json",
+        "journey report was not produced",
+        "required output marker was not observed",
+        "forbidden output marker was observed",
     ]:
-        assert marker in runner or marker in harness
+        assert marker in sources
 
-    assert "--privileged" not in runner
-    assert "/dev/uinput" not in runner
+    assert "--privileged" not in sources
+    assert "/dev/uinput" not in sources
