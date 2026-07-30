@@ -121,6 +121,10 @@ def _read_text(path: Path) -> str:
         return ""
 
 
+def _output_lines(stdout: str, stderr: str) -> set[str]:
+    return set(stdout.splitlines()) | set(stderr.splitlines())
+
+
 def _without_missing_report(findings: list[Any]) -> list[str]:
     return [
         str(finding)
@@ -141,11 +145,11 @@ def _apply_process_exit_contract(
 
     stdout = _read_text(root / "logs" / "journey.stdout.log")
     stderr = _read_text(root / "logs" / "journey.stderr.log")
-    combined = f"{stdout}\n{stderr}"
+    output_lines = _output_lines(stdout, stderr)
     required_markers = list(contract["requiredOutputMarkers"])
     forbidden_markers = list(contract["forbiddenOutputMarkers"])
-    missing_markers = [marker for marker in required_markers if marker not in combined]
-    observed_forbidden = [marker for marker in forbidden_markers if marker in combined]
+    missing_markers = [marker for marker in required_markers if marker not in output_lines]
+    observed_forbidden = [marker for marker in forbidden_markers if marker in output_lines]
 
     process = review.get("process", {})
     if not isinstance(process, dict):
@@ -178,7 +182,7 @@ def _apply_process_exit_contract(
         "timedOut": bool(process.get("timedOut", False)),
         "requiredOutputMarkers": required_markers,
         "observedRequiredOutputMarkers": [
-            marker for marker in required_markers if marker in combined
+            marker for marker in required_markers if marker in output_lines
         ],
         "missingRequiredOutputMarkers": missing_markers,
         "forbiddenOutputMarkers": forbidden_markers,
