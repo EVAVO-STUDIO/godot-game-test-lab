@@ -11,14 +11,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load_script(name: str):
     path = ROOT / "scripts" / name
-    spec = importlib.util.spec_from_file_location(name.replace(".py", ""), path)
+    module_name = name.replace(".py", "")
+    spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def test_profile_reader_accepts_governed_retro_fps_journey(tmp_path: Path) -> None:
+def test_profile_reader_accepts_governed_retro_fps_journey(
+    tmp_path: Path,
+) -> None:
     module = load_script("read_linux_sandbox_profile.py")
     profile = tmp_path / "profile.json"
     profile.write_text(
@@ -38,7 +41,10 @@ def test_profile_reader_accepts_governed_retro_fps_journey(tmp_path: Path) -> No
                     "renderingMethod": "gl_compatibility",
                     "userArguments": ["--compiled-level=bunker_01"],
                 },
-                "export": {"required": True, "preset": "Linux Desktop"},
+                "export": {
+                    "required": True,
+                    "preset": "Linux Desktop",
+                },
             }
         )
         + "\n",
@@ -47,7 +53,9 @@ def test_profile_reader_accepts_governed_retro_fps_journey(tmp_path: Path) -> No
 
     value = module.read_profile(profile)
 
-    assert value["visual"]["userArguments"] == ["--compiled-level=bunker_01"]
+    assert value["visual"]["userArguments"] == [
+        "--compiled-level=bunker_01"
+    ]
     assert value["export"]["preset"] == "Linux Desktop"
 
 
@@ -55,14 +63,17 @@ def test_profile_reader_rejects_duplicate_keys(tmp_path: Path) -> None:
     module = load_script("read_linux_sandbox_profile.py")
     profile = tmp_path / "profile.json"
     profile.write_text(
-        '{"schemaVersion":"1.0","schemaVersion":"1.0"}\n', encoding="utf-8"
+        '{"schemaVersion":"1.0","schemaVersion":"1.0"}\n',
+        encoding="utf-8",
     )
 
     with pytest.raises(module.ProfileError, match="Duplicate JSON key"):
         module.read_profile(profile)
 
 
-def test_profile_reader_rejects_traversal_and_unbounded_arguments(tmp_path: Path) -> None:
+def test_profile_reader_rejects_traversal_and_arguments(
+    tmp_path: Path,
+) -> None:
     module = load_script("read_linux_sandbox_profile.py")
     profile = tmp_path / "profile.json"
     profile.write_text(
@@ -92,9 +103,16 @@ def test_profiled_runner_rejects_ambiguous_arguments_and_scene() -> None:
 
 
 def test_reusable_workflow_uses_caller_context_and_exact_shas() -> None:
-    workflow = (ROOT / ".github/workflows/reusable-godot-linux-sandbox.yml").read_text()
-    entrypoint = (ROOT / "scripts/linux-sandbox-entrypoint.sh").read_text()
-    runner = (ROOT / "scripts/run_profiled_linux_sandbox.py").read_text()
+    workflow_path = (
+        ROOT / ".github/workflows/reusable-godot-linux-sandbox.yml"
+    )
+    workflow = workflow_path.read_text(encoding="utf-8")
+    entrypoint = (
+        ROOT / "scripts/linux-sandbox-entrypoint.sh"
+    ).read_text(encoding="utf-8")
+    runner = (
+        ROOT / "scripts/run_profiled_linux_sandbox.py"
+    ).read_text(encoding="utf-8")
 
     for marker in [
         "workflow_call:",
