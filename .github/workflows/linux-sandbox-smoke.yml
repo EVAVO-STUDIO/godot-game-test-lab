@@ -9,6 +9,7 @@ on:
       - "containers/linux-sandbox/**"
       - "docs/REUSABLE_LINUX_SANDBOX.md"
       - "docs/INTERACTIVE_AGENT_QA.md"
+      - "docs/PROCESS_EXIT_JOURNEYS.md"
       - "evavo.reliability.json"
       - "fixtures/linux-smoke/**"
       - "scripts/godot_input_journey.gd"
