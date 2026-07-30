@@ -1,6 +1,47 @@
 name: EVAVO Linux Godot sandbox
 
 on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        description: Exact 40-character test-lab main commit SHA
+        required: true
+        type: string
+      target_repository:
+        description: Target repository in EVAVO-STUDIO/NAME form
+        required: true
+        type: string
+      expected_target_sha:
+        description: Exact current default-branch target game commit SHA
+        required: true
+        type: string
+      project_subpath:
+        description: Canonical project path inside the target repository
+        required: false
+        default: .
+        type: string
+      engine_flavor:
+        description: auto, standard or mono
+        required: false
+        default: auto
+        type: string
+      visual_frames:
+        description: Bounded Movie Maker frame count
+        required: false
+        default: "180"
+        type: string
+      export_preset:
+        description: Optional declared Linux export preset
+        required: false
+        default: ""
+        type: string
+      request_source:
+        description: Governed dispatcher identity
+        required: true
+        type: string
+    secrets:
+      EVAVO_GODOT_LAB_READ_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -8,11 +49,11 @@ on:
         required: true
         type: string
       target_repository:
-        description: Target repository in OWNER/NAME form
+        description: Target repository in EVAVO-STUDIO/NAME form
         required: true
         type: string
       expected_target_sha:
-        description: Exact 40-character target game commit SHA
+        description: Exact current default-branch target game commit SHA
         required: true
         type: string
       project_subpath:
@@ -72,7 +113,7 @@ jobs:
           set -euo pipefail
           [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid expected_sha" >&2; exit 1; }
           [[ "${EXPECTED_TARGET_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid expected_target_sha" >&2; exit 1; }
-          [[ "${TARGET_REPOSITORY}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "Invalid target_repository" >&2; exit 1; }
+          [[ "${TARGET_REPOSITORY}" =~ ^EVAVO-STUDIO/[A-Za-z0-9_.-]+$ ]] || { echo "Invalid target_repository" >&2; exit 1; }
           [[ "${PROJECT_SUBPATH}" != /* && "${PROJECT_SUBPATH}" != *".."* && "${PROJECT_SUBPATH}" != *$'\n'* ]] || { echo "Invalid project_subpath" >&2; exit 1; }
           [[ "${VISUAL_FRAMES}" =~ ^[0-9]{1,4}$ ]] || { echo "Invalid visual_frames" >&2; exit 1; }
           (( VISUAL_FRAMES <= 1800 )) || { echo "visual_frames exceeds 1800" >&2; exit 1; }
@@ -81,6 +122,7 @@ jobs:
       - name: Check out exact test-lab mainline commit
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
+          repository: EVAVO-STUDIO/godot-game-test-lab
           ref: ${{ inputs.expected_sha }}
           fetch-depth: 0
           persist-credentials: false
@@ -93,6 +135,49 @@ jobs:
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "${EXPECTED_SHA}" ]]
           git merge-base --is-ancestor "${EXPECTED_SHA}" origin/main
+
+      - name: Verify target current default-branch head
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.target_repository }}
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
+          EVAVO_GODOT_LAB_READ_TOKEN: ${{ secrets.EVAVO_GODOT_LAB_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          repository = os.environ["TARGET_REPOSITORY"]
+          expected = os.environ["EXPECTED_TARGET_SHA"]
+          token = os.environ["EVAVO_GODOT_LAB_READ_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "evavo-godot-game-test-lab",
+          }
+
+          def fetch(path: str) -> dict:
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repository}/{path}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          metadata = fetch("")
+          default_branch = metadata.get("default_branch", "")
+          if not default_branch:
+              raise SystemExit("Target repository has no default branch.")
+          head = fetch(f"commits/{default_branch}").get("sha", "")
+          if head != expected:
+              raise SystemExit(
+                  f"Expected target SHA {expected} is not current {default_branch} head {head}."
+              )
+          print(f"Verified {repository}@{head} as current {default_branch} head.")
+          PY
 
       - name: Check out exact target game commit
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0

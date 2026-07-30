@@ -28,10 +28,15 @@ def test_linux_container_is_pinned_and_fail_closed() -> None:
 def test_linux_workflow_enforces_exact_sha_and_sandbox_boundaries() -> None:
     workflow = _read(".github/workflows/evavo-linux-godot-sandbox.yml")
     for marker in [
+        "workflow_call:",
         "expected_sha:",
         "expected_target_sha:",
+        "Verify target current default-branch head",
+        "repository: EVAVO-STUDIO/godot-game-test-lab",
         "request_source:",
         "EVAVO_GODOT_LAB_READ_TOKEN",
+        "^EVAVO-STUDIO/",
+        "api.github.com/repos/{repository}",
         "--network none",
         "--read-only",
         "--cap-drop ALL",

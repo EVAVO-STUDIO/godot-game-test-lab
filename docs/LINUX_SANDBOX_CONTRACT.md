@@ -73,6 +73,6 @@ The AVI and contact sheet are evidence inputs for later agent or human review. T
 
 ## GitHub dispatch
 
-`.github/workflows/evavo-linux-godot-sandbox.yml` is manual-only. Private target repositories require the repository-scoped, read-only secret `EVAVO_GODOT_LAB_READ_TOKEN`. The token is used only by `actions/checkout`; `persist-credentials` is disabled and the token is never passed into Docker.
+`.github/workflows/evavo-linux-godot-sandbox.yml` supports manual dispatch and exact-ref `workflow_call` automation from Development Studio. Private target repositories require the repository-scoped, read-only secret `EVAVO_GODOT_LAB_READ_TOKEN`. The token is used only by `actions/checkout`; `persist-credentials` is disabled and the token is never passed into Docker.
 
-Development Studio should dispatch the workflow with the exact lab and target SHAs, retain the artifact name, inspect `sandbox-report.json`, and route any repair through the target repository's own governed mainline process.
+Development Studio should dispatch or call the workflow with the exact lab SHA and the target repository's current default-branch SHA, retain the artifact name, inspect `sandbox-report.json`, and route any repair through the target repository's own governed mainline process. A reusable caller must pin this workflow by commit SHA rather than a moving branch.

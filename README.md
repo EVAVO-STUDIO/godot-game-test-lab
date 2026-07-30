@@ -98,7 +98,7 @@ godot-lab export C:\GitRepos\epochbound `
 
 ## Isolated Linux agent runner
 
-The canonical Docker-based Linux path is `scripts/Invoke-GodotLabLinuxSandbox.ps1` for a local Docker Desktop runner and `.github/workflows/evavo-linux-godot-sandbox.yml` for an exact-SHA GitHub-hosted run.
+The canonical Docker-based Linux path is `scripts/Invoke-GodotLabLinuxSandbox.ps1` for a local Docker Desktop runner and `.github/workflows/evavo-linux-godot-sandbox.yml` for an exact-SHA GitHub-hosted run. The workflow supports both manual dispatch and reusable `workflow_call` execution from Development Studio, and a caller must pin the lab workflow by commit SHA.
 
 Local example:
 
