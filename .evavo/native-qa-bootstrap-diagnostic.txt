@@ -1,8 +1,12 @@
-trigger_sha=4de08ee46ccdc299ad1f36ff059c4edc3ded3024
-utc=2026-07-31T13:03:01Z
+trigger_sha=a315da769aa43a074c5f166b2287375012a9b64a
+utc=2026-07-31T13:05:00Z
+
+== reconstruction ==
+/home/runner/work/_temp/native-qa-upgrade.py.gz: FAILED
+sha256sum: WARNING: 1 computed checksum did NOT match
 
 == git status ==
-?? .evavo/native-qa-bootstrap-diagnostic.txt
+ M .evavo/native-qa-bootstrap-diagnostic.txt
 
 == git diff check ==
 
