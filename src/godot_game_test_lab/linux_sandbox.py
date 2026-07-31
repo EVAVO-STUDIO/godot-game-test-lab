@@ -5,10 +5,11 @@ import os
 import platform
 import re
 import shutil
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .core import CommandResult, ProjectInventory, inspect_project, run_command
 
@@ -61,8 +62,10 @@ def safe_project_subpath(value: str) -> Path:
         return Path(".")
     candidate = Path(normalized)
     windows_drive = len(normalized) >= 3 and normalized[0].isalpha() and normalized[1:3] == ":/"
-    if windows_drive or candidate.is_absolute() or any(
-        part in ("", ".", "..") for part in candidate.parts
+    if (
+        windows_drive
+        or candidate.is_absolute()
+        or any(part in ("", ".", "..") for part in candidate.parts)
     ):
         raise ValueError("project_subpath must be a canonical relative path without traversal")
     return candidate
@@ -297,9 +300,7 @@ def run_linux_sandbox(
         findings.append(f"Godot executable is missing: {godot}")
     if project.csharp_projects and (dotnet is None or not dotnet.is_file()):
         findings.append("C# project requires an available .NET SDK executable")
-    missing_dotnet = bool(project.csharp_projects) and (
-        dotnet is None or not dotnet.is_file()
-    )
+    missing_dotnet = bool(project.csharp_projects) and (dotnet is None or not dotnet.is_file())
     if not godot.is_file() or missing_dotnet:
         status = "blocked"
     else:

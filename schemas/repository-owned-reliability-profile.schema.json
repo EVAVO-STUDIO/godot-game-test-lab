@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.evavo.dev/godot-lab/repository-owned-reliability-profile.schema.json",
+  "title": "EVAVO Godot Game Test Lab reliability profile",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "toolVersion",
+    "repository",
+    "defaultBranch",
+    "authority",
+    "packageManager",
+    "runtime",
+    "validation",
+    "providerConfirmation",
+    "branchPolicy",
+    "nativeAcceptance",
+    "linuxSandboxAcceptance",
+    "truthBoundaries",
+    "autoRepair",
+    "notes"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.2"
+    },
+    "toolVersion": {
+      "const": "0.4.0"
+    },
+    "repository": {
+      "const": "EVAVO-STUDIO/godot-game-test-lab"
+    },
+    "defaultBranch": {
+      "const": "main"
+    },
+    "authority": {
+      "const": "canonical-native-and-sandboxed-godot-worker"
+    },
+    "packageManager": {
+      "type": "object",
+      "required": [
+        "name",
+        "lockfilePath",
+        "lockfilePolicy",
+        "lockfilePresent",
+        "install",
+        "buildBackend",
+        "directDevelopmentDependencies"
+      ],
+      "properties": {
+        "name": {
+          "const": "pip"
+        },
+        "lockfilePath": {
+          "const": "requirements.lock"
+        },
+        "lockfilePolicy": {
+          "const": "review-first"
+        },
+        "lockfilePresent": {
+          "const": false
+        },
+        "install": {
+          "const": "python -m pip install --disable-pip-version-check .[dev]"
+        },
+        "buildBackend": {
+          "const": "hatchling==1.25.0"
+        },
+        "directDevelopmentDependencies": {
+          "const": [
+            "pytest==8.3.0",
+            "ruff==0.9.0"
+          ]
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "hostedPython",
+        "nativePythonFamily",
+        "minimumGodot",
+        "linuxSandboxBase",
+        "linuxSandboxDotnet"
+      ],
+      "properties": {
+        "hostedPython": {
+          "const": "3.11.15"
+        },
+        "nativePythonFamily": {
+          "const": "3.11.x"
+        },
+        "minimumGodot": {
+          "const": "4.6.2"
+        },
+        "linuxSandboxBase": {
+          "const": "ubuntu:noble-20260610@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+        },
+        "linuxSandboxDotnet": {
+          "const": "8.0"
+        }
+      }
+    },
+    "validation": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "providerConfirmation": {
+      "type": "object",
+      "required": [
+        "workflow",
+        "selfValidationWorkflow",
+        "exactMainShaRequired",
+        "exactHostedPythonRequired",
+        "nativeWindowsEvidenceSeparate",
+        "linuxSandboxEvidenceSeparate"
+      ]
+    },
+    "branchPolicy": {
+      "type": "object",
+      "required": [
+        "mode",
+        "exclusiveResource",
+        "exclusiveLeaseRequired",
+        "forcePushAllowed"
+      ],
+      "properties": {
+        "mode": {
+          "const": "direct-main"
+        },
+        "exclusiveLeaseRequired": {
+          "const": true
+        },
+        "forcePushAllowed": {
+          "const": false
+        }
+      }
+    },
+    "nativeAcceptance": {
+      "type": "object"
+    },
+    "linuxSandboxAcceptance": {
+      "type": "object"
+    },
+    "truthBoundaries": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "autoRepair": {
+      "type": "object",
+      "required": [
+        "allowed",
+        "targetRepositoryWritesRequireDevelopmentStudioGrant",
+        "blockedEffects"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

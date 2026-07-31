@@ -8,9 +8,10 @@ import hashlib
 import json
 import os
 import shutil
+from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 ERROR_MARKERS = (
     "ERROR:",
@@ -58,23 +59,16 @@ def parse_user_arguments(value: str) -> list[str]:
     except JourneyError:
         raise
     except json.JSONDecodeError as exc:
-        raise JourneyError(
-            f"visual user arguments are invalid JSON: {exc}"
-        ) from exc
+        raise JourneyError(f"visual user arguments are invalid JSON: {exc}") from exc
     if not isinstance(parsed, list):
         raise JourneyError("visual user arguments must be a JSON array.")
     if len(parsed) > MAX_ARGUMENTS:
-        raise JourneyError(
-            "visual user arguments may contain at most "
-            f"{MAX_ARGUMENTS} values."
-        )
+        raise JourneyError(f"visual user arguments may contain at most {MAX_ARGUMENTS} values.")
 
     result: list[str] = []
     for index, item in enumerate(parsed):
         if not isinstance(item, str):
-            raise JourneyError(
-                f"visual user argument {index} must be a string."
-            )
+            raise JourneyError(f"visual user argument {index} must be a string.")
         if (
             not item.startswith("--")
             or "\x00" in item
@@ -82,10 +76,7 @@ def parse_user_arguments(value: str) -> list[str]:
             or "\r" in item
             or len(item.encode("utf-8")) > MAX_ARGUMENT_BYTES
         ):
-            raise JourneyError(
-                f"visual user argument {index} must be a bounded "
-                "--prefixed value."
-            )
+            raise JourneyError(f"visual user argument {index} must be a bounded --prefixed value.")
         result.append(item)
     return result
 
@@ -94,20 +85,11 @@ def safe_scene(value: str) -> str:
     scene = value.strip()
     if not scene:
         return ""
-    if (
-        not scene.startswith("res://")
-        or "\\" in scene
-        or "\n" in scene
-        or "\r" in scene
-    ):
-        raise JourneyError(
-            "visual scene must be empty or a canonical res:// path."
-        )
+    if not scene.startswith("res://") or "\\" in scene or "\n" in scene or "\r" in scene:
+        raise JourneyError("visual scene must be empty or a canonical res:// path.")
     parts = scene[6:].split("/")
     if not parts or any(part in ("", ".", "..") for part in parts):
-        raise JourneyError(
-            "visual scene must be empty or a canonical res:// path."
-        )
+        raise JourneyError("visual scene must be empty or a canonical res:// path.")
     return "res://" + "/".join(parts)
 
 
@@ -143,9 +125,7 @@ def _command_findings(result: Any) -> list[str]:
         if marker.lower() in combined:
             findings.append(f"output contains error marker: {marker}")
     if bool(result.timed_out):
-        findings.append(
-            f"timed out after {result.duration_seconds} seconds"
-        )
+        findings.append(f"timed out after {result.duration_seconds} seconds")
     elif result.exit_code != 0:
         findings.append(f"exited with code {result.exit_code}")
     return findings
@@ -276,9 +256,7 @@ def _run_screenshot_extraction(
         artifacts,
         "profiled-visual-screenshots",
     )
-    extract_evidence.extend(
-        path.relative_to(artifacts).as_posix() for path in frames
-    )
+    extract_evidence.extend(path.relative_to(artifacts).as_posix() for path in frames)
 
     contact = visual / "contact-sheet.png"
     sheet = run_command(
@@ -354,10 +332,7 @@ def _run_rendered_journey(
         xvfb,
         "-a",
         "-s",
-        (
-            f"-screen 0 {args.visual_width}x{args.visual_height}x24 "
-            "-nolisten tcp"
-        ),
+        (f"-screen 0 {args.visual_width}x{args.visual_height}x24 -nolisten tcp"),
         str(args.godot),
         "--path",
         str(project_root),
@@ -395,9 +370,7 @@ def _run_rendered_journey(
         "governed-rendered-journey",
     )
     if not movie.is_file() or movie.stat().st_size <= 0:
-        journey_findings.append(
-            "Godot Movie Maker did not produce gameplay.avi"
-        )
+        journey_findings.append("Godot Movie Maker did not produce gameplay.avi")
     else:
         evidence.append(movie.relative_to(artifacts).as_posix())
 
@@ -428,10 +401,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     user_arguments = parse_user_arguments(args.visual_arguments_json)
     rendering_method = args.rendering_method.strip()
     if rendering_method not in ALLOWED_RENDERING_METHODS:
-        raise JourneyError(
-            "rendering method must be gl_compatibility, mobile, "
-            "or forward_plus."
-        )
+        raise JourneyError("rendering method must be gl_compatibility, mobile, or forward_plus.")
 
     base = run_linux_sandbox(
         source,
@@ -490,13 +460,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ):
                 _append_check(checks, findings, check)
 
-    required_statuses = [
-        str(check.get("status", "failed")) for check in checks
-    ]
+    required_statuses = [str(check.get("status", "failed")) for check in checks]
     status = (
         "passed"
-        if required_statuses
-        and all(item == "passed" for item in required_statuses)
+        if required_statuses and all(item == "passed" for item in required_statuses)
         else "failed"
     )
     summary = {

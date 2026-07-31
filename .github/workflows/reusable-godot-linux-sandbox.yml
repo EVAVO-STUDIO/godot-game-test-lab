@@ -103,6 +103,10 @@ jobs:
           [[ -z "$(git -C target-source status --porcelain=v1 --untracked-files=all)" ]]
           [[ -z "$(git -C lab-source status --porcelain=v1 --untracked-files=all)" ]]
 
+      - name: Verify exact test-lab source authority
+        working-directory: lab-source
+        run: python3 scripts/check_repository_toolchain.py --skip-runtime
+
       - name: Read repository-owned sandbox profile
         id: profile
         shell: bash

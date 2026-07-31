@@ -7,8 +7,9 @@ import argparse
 import json
 import math
 import re
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any
 
 VERSION_RE = re.compile(r"^4\.[0-9]+\.[0-9]+$")
 SAFE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -76,9 +77,7 @@ def _load_object(path: Path) -> dict[str, Any]:
     except ProfileError:
         raise
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ProfileError(
-            f"Could not read Linux sandbox profile {path}: {exc}"
-        ) from exc
+        raise ProfileError(f"Could not read Linux sandbox profile {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ProfileError("Linux sandbox profile root must be an object.")
     return value
@@ -93,18 +92,10 @@ def _canonical_relative_path(
     text = str(value if value is not None else "").strip()
     if allow_dot and text in ("", "."):
         return "."
-    if (
-        not text
-        or "\\" in text
-        or "\x00" in text
-        or "\n" in text
-        or "\r" in text
-    ):
+    if not text or "\\" in text or "\x00" in text or "\n" in text or "\r" in text:
         raise ProfileError(f"{label} must be a canonical relative path.")
     path = PurePosixPath(text)
-    if path.is_absolute() or any(
-        part in ("", ".", "..") for part in path.parts
-    ):
+    if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
         raise ProfileError(f"{label} must be a canonical relative path.")
     return path.as_posix()
 
@@ -120,15 +111,11 @@ def _scene_path(value: Any, label: str = "visual.scene") -> str:
         or "\n" in text
         or "\r" in text
     ):
-        raise ProfileError(
-            f"{label} must be an empty value or a canonical res:// path."
-        )
+        raise ProfileError(f"{label} must be an empty value or a canonical res:// path.")
     tail = text[6:]
     parts = tail.split("/")
     if not tail or any(part in ("", ".", "..") for part in parts):
-        raise ProfileError(
-            f"{label} must be an empty value or a canonical res:// path."
-        )
+        raise ProfileError(f"{label} must be an empty value or a canonical res:// path.")
     return "res://" + "/".join(parts)
 
 
@@ -180,7 +167,7 @@ def _bounded_float(
     minimum: float,
     maximum: float,
 ) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, int | float):
         raise ProfileError(f"{label} must be numeric.")
     result = float(value)
     if not math.isfinite(result) or result < minimum or result > maximum:
@@ -213,9 +200,7 @@ def _arguments(value: Any, label: str = "visual.userArguments") -> list[str]:
             or "\r" in item
             or len(item.encode("utf-8")) > MAX_ARGUMENT_BYTES
         ):
-            raise ProfileError(
-                f"{label}[{index}] must be a bounded --prefixed argument."
-            )
+            raise ProfileError(f"{label}[{index}] must be a bounded --prefixed argument.")
         result.append(item)
     return result
 
@@ -225,9 +210,7 @@ def _normalise_required_actions(value: Any, journey_index: int) -> list[dict[str
     if value is None:
         return []
     if not isinstance(value, list) or len(value) > MAX_REQUIRED_ACTIONS:
-        raise ProfileError(
-            f"{label} must be an array with at most {MAX_REQUIRED_ACTIONS} entries."
-        )
+        raise ProfileError(f"{label} must be an array with at most {MAX_REQUIRED_ACTIONS} entries.")
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for index, item in enumerate(value):
@@ -243,9 +226,7 @@ def _normalise_required_actions(value: Any, journey_index: int) -> list[dict[str
             for device_index, device_value in enumerate(raw_devices):
                 device = str(device_value).strip().lower()
                 if device not in ALLOWED_REQUIRED_ACTION_DEVICES:
-                    raise ProfileError(
-                        f"{label}[{index}].devices[{device_index}] is unsupported."
-                    )
+                    raise ProfileError(f"{label}[{index}].devices[{device_index}] is unsupported.")
                 if device not in devices:
                     devices.append(device)
         else:
@@ -313,9 +294,7 @@ def _normalise_step(value: Any, journey_index: int, step_index: int) -> dict[str
                 value.get("holdFrames", 1), f"{label}.holdFrames", 1, 120
             )
     elif step_type in {"joy_button", "joy_button_tap"}:
-        result["deviceId"] = _bounded_int(
-            value.get("deviceId", 0), f"{label}.deviceId", 0, 7
-        )
+        result["deviceId"] = _bounded_int(value.get("deviceId", 0), f"{label}.deviceId", 0, 7)
         result["buttonIndex"] = _bounded_int(
             value.get("buttonIndex"), f"{label}.buttonIndex", 0, 31
         )
@@ -326,13 +305,9 @@ def _normalise_step(value: Any, journey_index: int, step_index: int) -> dict[str
                 value.get("holdFrames", 1), f"{label}.holdFrames", 1, 120
             )
     elif step_type == "joy_axis":
-        result["deviceId"] = _bounded_int(
-            value.get("deviceId", 0), f"{label}.deviceId", 0, 7
-        )
+        result["deviceId"] = _bounded_int(value.get("deviceId", 0), f"{label}.deviceId", 0, 7)
         result["axis"] = _bounded_int(value.get("axis"), f"{label}.axis", 0, 15)
-        result["value"] = _bounded_float(
-            value.get("value"), f"{label}.value", -1.0, 1.0
-        )
+        result["value"] = _bounded_float(value.get("value"), f"{label}.value", -1.0, 1.0)
     elif step_type == "checkpoint":
         result["id"] = _safe_id(value.get("id"), f"{label}.id")
     return result
@@ -357,7 +332,7 @@ def _normalise_assertion(
         if assertion_type == "metadata_equals":
             result["key"] = _bounded_text(value.get("key"), f"{label}.key", 96)
             expected = value.get("value")
-            if not isinstance(expected, (str, int, float, bool)) and expected is not None:
+            if not isinstance(expected, str | int | float | bool) and expected is not None:
                 raise ProfileError(f"{label}.value must be a JSON scalar.")
             result["value"] = expected
     return result
@@ -443,18 +418,14 @@ def _normalise_journeys(value: Any, profile_version: str) -> list[dict[str, Any]
             raise ProfileError(f"{label}.device is unsupported: {device!r}.")
         raw_steps = item.get("steps", [])
         if not isinstance(raw_steps, list) or len(raw_steps) > MAX_JOURNEY_STEPS:
-            raise ProfileError(
-                f"{label}.steps must contain at most {MAX_JOURNEY_STEPS} entries."
-            )
+            raise ProfileError(f"{label}.steps must contain at most {MAX_JOURNEY_STEPS} entries.")
         steps = [
             _normalise_step(step, journey_index, step_index)
             for step_index, step in enumerate(raw_steps)
         ]
         raw_assertions = item.get("assertions", [])
         if not isinstance(raw_assertions, list) or len(raw_assertions) > MAX_ASSERTIONS:
-            raise ProfileError(
-                f"{label}.assertions must contain at most {MAX_ASSERTIONS} entries."
-            )
+            raise ProfileError(f"{label}.assertions must contain at most {MAX_ASSERTIONS} entries.")
         assertions = [
             _normalise_assertion(assertion, journey_index, assertion_index)
             for assertion_index, assertion in enumerate(raw_assertions)
@@ -489,9 +460,7 @@ def read_profile(path: Path) -> dict[str, Any]:
     data = _load_object(path)
     profile_version = str(data.get("schemaVersion", ""))
     if profile_version not in ALLOWED_PROFILE_VERSIONS:
-        raise ProfileError(
-            "Linux sandbox profile schemaVersion must be 1.0 or 2.0."
-        )
+        raise ProfileError("Linux sandbox profile schemaVersion must be 1.0 or 2.0.")
 
     project_subpath = _canonical_relative_path(
         data.get("projectSubpath", "."),
@@ -500,9 +469,7 @@ def read_profile(path: Path) -> dict[str, Any]:
     )
     minimum_version = str(data.get("minimumGodotVersion", "4.6.2")).strip()
     if not VERSION_RE.fullmatch(minimum_version):
-        raise ProfileError(
-            "minimumGodotVersion must be an explicit Godot 4.x.y version."
-        )
+        raise ProfileError("minimumGodotVersion must be an explicit Godot 4.x.y version.")
 
     engine_flavor = str(data.get("engineFlavor", "auto")).strip().lower()
     if engine_flavor not in ALLOWED_ENGINE_FLAVORS:
@@ -511,9 +478,7 @@ def read_profile(path: Path) -> dict[str, Any]:
     visual_value = data.get("visual", {})
     if not isinstance(visual_value, dict):
         raise ProfileError("visual must be an object.")
-    visual_required = _boolean(
-        visual_value.get("required"), "visual.required", True
-    )
+    visual_required = _boolean(visual_value.get("required"), "visual.required", True)
     visual_scene = _scene_path(visual_value.get("scene", ""))
     visual_frames = _bounded_int(
         visual_value.get("frames", 180 if visual_required else 0),
@@ -521,18 +486,10 @@ def read_profile(path: Path) -> dict[str, Any]:
         1 if visual_required else 0,
         1800,
     )
-    visual_fps = _bounded_int(
-        visual_value.get("fps", 30), "visual.fps", 1, 120
-    )
-    visual_width = _bounded_int(
-        visual_value.get("width", 1280), "visual.width", 320, 3840
-    )
-    visual_height = _bounded_int(
-        visual_value.get("height", 720), "visual.height", 180, 2160
-    )
-    rendering_method = str(
-        visual_value.get("renderingMethod", "gl_compatibility")
-    ).strip()
+    visual_fps = _bounded_int(visual_value.get("fps", 30), "visual.fps", 1, 120)
+    visual_width = _bounded_int(visual_value.get("width", 1280), "visual.width", 320, 3840)
+    visual_height = _bounded_int(visual_value.get("height", 720), "visual.height", 180, 2160)
+    rendering_method = str(visual_value.get("renderingMethod", "gl_compatibility")).strip()
     if rendering_method not in ALLOWED_RENDERING_METHODS:
         raise ProfileError(
             "visual.renderingMethod must be gl_compatibility, mobile, or forward_plus."

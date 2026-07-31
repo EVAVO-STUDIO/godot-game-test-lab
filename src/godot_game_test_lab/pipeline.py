@@ -6,10 +6,10 @@ import platform
 import re
 import shutil
 import sys
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 from .core import CommandResult, ProjectInventory, inspect_project, run_command
 
@@ -353,9 +353,7 @@ def doctor_payload(
     def version(executable: Path | None) -> str | None:
         if not executable:
             return None
-        result = run_command(
-            [str(executable), "--version"], working_directory, 30
-        )
+        result = run_command([str(executable), "--version"], working_directory, 30)
         return _version_from_result(result)
 
     return {

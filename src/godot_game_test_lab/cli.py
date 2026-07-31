@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
-from typing import Sequence
 
 from .core import inspect_project
 from .linux_sandbox import run_linux_sandbox
