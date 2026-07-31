@@ -38,7 +38,16 @@ Read `docs/PROJECT_INTEGRITY_AND_RECOVERY.md` before changing validation, projec
 
 ## Native acceptance
 
-For a real project, use a freshly probed Windows x64 runner and supply an absolute target repository path plus an external evidence directory. Run `godot-lab doctor` before `godot-lab validate`, export or recording commands. Bind every run to the exact target default-branch SHA and target reliability profile.
+Read `docs/NATIVE_WINDOWS_AGENT_QA.md` before changing native visual, GPU, window, Movie Maker, journey or interactive-session behavior.
+
+- Use a freshly probed Windows x64 runner in Greg's logged-in interactive session, not Session 0.
+- Bind every run to exact lab and target SHAs and a tracked target-owned journey profile.
+- Use `godot-lab-native-qa` or `scripts/Invoke-GodotLabNativeAgentQA.ps1` for native visual and synthetic-input evidence.
+- Keep native evidence beneath an explicitly allowed external root and outside both source checkouts.
+- Verify all required Godot flags from `--help`; never rely on an unknown option being rejected.
+- A scene selected by `godot-lab run` or `record` must become Godot's positional scene argument. Never pass an invented `--scene` engine option.
+- Preserve Godot engine logs, Movie Maker output, FFprobe metadata, screenshots, contact sheets, checkpoints, hardware probes, requested renderer/driver/GPU index and target mutation evidence.
+- CUDA visibility is auxiliary compute evidence, not Godot renderer or rendered-frame proof.
 
 ## Linux sandbox acceptance
 

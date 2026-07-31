@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "journeys": [
+    {
+      "id": "main-menu-smoke",
+      "required": true,
+      "scene": "",
+      "device": "semantic",
+      "settleFrames": 30,
+      "maxFrames": 600,
+      "fps": 30,
+      "width": 1280,
+      "height": 720,
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "gpuIndex": 0,
+      "userArguments": [],
+      "steps": [
+        {
+          "type": "wait",
+          "frames": 30
+        },
+        {
+          "type": "checkpoint",
+          "id": "main-menu"
+        }
+      ],
+      "assertions": [],
+      "ux": {}
+    }
+  ]
+}

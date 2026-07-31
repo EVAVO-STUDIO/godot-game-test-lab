@@ -8,8 +8,18 @@ on:
         required: true
         type: string
       target_repository_path:
-        description: Absolute Godot project path beneath C:\GitRepos
+        description: Absolute target Git repository path beneath C:\GitRepos
         required: true
+        type: string
+      project_subpath:
+        description: Relative path from the target Git root to project.godot
+        required: true
+        default: .
+        type: string
+      profile_path:
+        description: Optional tracked native QA profile relative to the target Git root
+        required: false
+        default: ""
         type: string
       expected_target_sha:
         description: Exact 40-character target game commit SHA
@@ -37,7 +47,7 @@ jobs:
   validate-native-project:
     name: Validate native Godot project
     runs-on: [self-hosted, Windows, X64, evavo-godot-lab]
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Validate dispatch inputs
@@ -45,6 +55,8 @@ jobs:
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
           TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+          PROFILE_PATH: ${{ inputs.profile_path }}
           EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
           MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
           REQUEST_SOURCE: ${{ inputs.request_source }}
@@ -57,6 +69,16 @@ jobs:
           }
           if ($env:TARGET_REPOSITORY_PATH -notmatch '^[A-Za-z]:\\GitRepos\\[^\r\n]+$') {
             throw 'target_repository_path must be beneath C:\GitRepos.'
+          }
+          $relativePattern = '^(?:\.|[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)*)$'
+          if ($env:PROJECT_SUBPATH -notmatch $relativePattern -or
+              $env:PROJECT_SUBPATH -match '(^|[\\/])\.\.([\\/]|$)') {
+            throw 'project_subpath must be a traversal-free relative path.'
+          }
+          if ($env:PROFILE_PATH -and
+              ($env:PROFILE_PATH -notmatch $relativePattern -or
+               $env:PROFILE_PATH -match '(^|[\\/])\.\.([\\/]|$)')) {
+            throw 'profile_path must be empty or a traversal-free relative path.'
           }
           if ($env:MINIMUM_GODOT_VERSION -notmatch '^4\.[0-9]+\.[0-9]+$') {
             throw 'minimum_godot_version must be an explicit Godot 4.x.y version.'
@@ -110,30 +132,97 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installed native toolchain validation failed.' }
           "python=$python" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Run bounded Godot 4.6.2 native validation
+      - name: Resolve exact target and evidence paths
+        id: paths
+        shell: pwsh
+        env:
+          TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+          PROFILE_PATH: ${{ inputs.profile_path }}
+        run: |
+          $targetRoot = (Resolve-Path $env:TARGET_REPOSITORY_PATH).Path
+          $projectPath = if ($env:PROJECT_SUBPATH -eq '.') {
+            $targetRoot
+          } else {
+            (Resolve-Path (Join-Path $targetRoot $env:PROJECT_SUBPATH)).Path
+          }
+          if (-not (Test-Path (Join-Path $projectPath 'project.godot') -PathType Leaf)) {
+            throw 'The selected project_subpath does not contain project.godot.'
+          }
+          $nativeRoot = Join-Path $env:RUNNER_TEMP `
+            "godot-native-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          New-Item -ItemType Directory -Path $nativeRoot -Force | Out-Null
+          $profile = ''
+          if ($env:PROFILE_PATH) {
+            $profile = (Resolve-Path (Join-Path $targetRoot $env:PROFILE_PATH)).Path
+          }
+          "target_root=$targetRoot" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "project_path=$projectPath" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "profile_path=$profile" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "native_root=$nativeRoot" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "native_artifacts=$(Join-Path $nativeRoot 'evidence')" |
+            Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run bounded Godot native validation
         shell: pwsh
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
-          TARGET_REPOSITORY_PATH: ${{ inputs.target_repository_path }}
+          PROJECT_PATH: ${{ steps.paths.outputs.project_path }}
           EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
           MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
           PYTHON_EXECUTABLE: ${{ steps.python.outputs.python }}
         run: |
           ./scripts/Invoke-GodotLabNativeValidation.ps1 `
-            -TargetRepositoryPath $env:TARGET_REPOSITORY_PATH `
+            -TargetRepositoryPath $env:PROJECT_PATH `
             -ExpectedLabSha $env:EXPECTED_SHA `
             -ExpectedTargetSha $env:EXPECTED_TARGET_SHA `
-            -ArtifactPath (Join-Path $env:GITHUB_WORKSPACE 'artifacts\native') `
+            -ArtifactPath (Join-Path $env:GITHUB_WORKSPACE 'artifacts\native-validation') `
             -PythonExecutable $env:PYTHON_EXECUTABLE `
             -MinimumGodotVersion $env:MINIMUM_GODOT_VERSION `
             -TimeoutSeconds 300 `
             -BootFrames 5
 
-      - name: Upload bounded native evidence
+      - name: Run native Windows visual and input journeys
+        if: ${{ inputs.profile_path != '' }}
+        shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          TARGET_ROOT: ${{ steps.paths.outputs.target_root }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
+          PROFILE_PATH: ${{ steps.paths.outputs.profile_path }}
+          EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
+          MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
+          PYTHON_EXECUTABLE: ${{ steps.python.outputs.python }}
+          NATIVE_ROOT: ${{ steps.paths.outputs.native_root }}
+          NATIVE_ARTIFACTS: ${{ steps.paths.outputs.native_artifacts }}
+        run: |
+          ./scripts/Invoke-GodotLabNativeAgentQA.ps1 `
+            -TargetRepositoryPath $env:TARGET_ROOT `
+            -ProjectSubpath $env:PROJECT_SUBPATH `
+            -ProfilePath $env:PROFILE_PATH `
+            -ExpectedLabSha $env:EXPECTED_SHA `
+            -ExpectedTargetSha $env:EXPECTED_TARGET_SHA `
+            -ArtifactPath $env:NATIVE_ARTIFACTS `
+            -AllowedArtifactRoot $env:NATIVE_ROOT `
+            -PythonExecutable $env:PYTHON_EXECUTABLE `
+            -MinimumGodotVersion $env:MINIMUM_GODOT_VERSION `
+            -TimeoutSeconds 900 `
+            -BootFrames 30
+
+      - name: Upload bounded validation evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: native-godot-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
-          path: artifacts/native
+          name: native-godot-validation-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
+          path: artifacts/native-validation
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload bounded native agent evidence
+        if: ${{ always() && inputs.profile_path != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-godot-agent-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
+          path: ${{ steps.paths.outputs.native_artifacts }}
           if-no-files-found: error
           retention-days: 14
