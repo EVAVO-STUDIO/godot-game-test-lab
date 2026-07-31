@@ -40,6 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p .evavo
+          exec > >(tee .evavo/native-qa-reconstruct.log) 2>&1
           cat .evavo/bootstrap/native-qa-upgrade-{00..04}.b64 \
             | base64 --decode > "${RUNNER_TEMP}/native-qa-upgrade.py.gz"
           printf '%s  %s\n' \
@@ -93,6 +95,7 @@ jobs:
           rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
           find src scripts tests -type d -name __pycache__ -prune -exec rm -rf {} +
           find src scripts tests -type f -name '*.pyc' -delete
+          rm -f .evavo/native-qa-reconstruct.log
           git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all | grep -E '^(\?\?| M|M |A | D|D ) (dist|\.pytest_cache|\.ruff_cache|src/.*\.egg-info|.*__pycache__|.*\.pyc)' || true)"
 
@@ -127,6 +130,8 @@ jobs:
           {
             printf 'trigger_sha=%s\n' "${EXPECTED_HEAD}"
             printf 'utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf '\n== reconstruction ==\n'
+            cat .evavo/native-qa-reconstruct.log 2>/dev/null || true
             printf '\n== git status ==\n'
             git status --short --untracked-files=all
             printf '\n== git diff check ==\n'
