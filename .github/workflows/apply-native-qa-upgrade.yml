@@ -57,6 +57,7 @@ jobs:
           rm -f .evavo/bootstrap/native-qa-upgrade-*.b64
           rmdir .evavo/bootstrap 2>/dev/null || true
           rm -f .github/workflows/apply-native-qa-upgrade.yml
+          rm -f .evavo/native-qa-bootstrap-diagnostic.txt
 
       - name: Verify repository-owned toolchain authority
         shell: bash
@@ -112,4 +113,41 @@ jobs:
           git add --all
           git diff --cached --check
           git commit -m "feat(qa): add native Windows agent journeys and correct scene execution"
+          git push origin HEAD:main
+
+      - name: Retain bounded failure diagnostics
+        if: failure()
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set +e
+          diagnostic='.evavo/native-qa-bootstrap-diagnostic.txt'
+          mkdir -p .evavo
+          {
+            printf 'trigger_sha=%s\n' "${EXPECTED_HEAD}"
+            printf 'utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf '\n== git status ==\n'
+            git status --short --untracked-files=all
+            printf '\n== git diff check ==\n'
+            git diff --check
+            printf '\n== repository toolchain ==\n'
+            python scripts/check_repository_toolchain.py --skip-runtime
+            printf '\n== compile ==\n'
+            python -m compileall -q src scripts tests
+            printf '\n== ruff ==\n'
+            python -m ruff check src scripts tests
+            printf '\n== pytest ==\n'
+            python -m pytest -q
+          } > "${diagnostic}" 2>&1
+          git fetch --no-tags origin main
+          remote_head="$(git rev-parse origin/main)"
+          if [[ "${remote_head}" != "${EXPECTED_HEAD}" ]]; then
+            echo "Not publishing diagnostics because main drifted to ${remote_head}."
+            exit 0
+          fi
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "automation@evavo.com.au"
+          git add "${diagnostic}"
+          git commit -m "diagnose(qa): retain native QA bootstrap failure"
           git push origin HEAD:main
