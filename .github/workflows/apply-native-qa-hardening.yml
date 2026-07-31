@@ -135,7 +135,7 @@ jobs:
             bash -n "${script}"
           done < <(find scripts containers -type f -name '*.sh' -print0)
           pwsh -NoLogo -NoProfile -NonInteractive -Command \
-            '$null = [scriptblock]::Create((Get-Content -Raw "scripts/Invoke-GodotLabNativeAgentQA.ps1"))'
+            '$source = Get-Content -Raw -LiteralPath "scripts/Invoke-GodotLabNativeAgentQA.ps1"; $null = [scriptblock]::Create($source)'
           python - <<'PY'
           import json
           from pathlib import Path
