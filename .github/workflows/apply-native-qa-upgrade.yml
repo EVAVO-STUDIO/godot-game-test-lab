@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: apply-native-godot-qa-main
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply:
