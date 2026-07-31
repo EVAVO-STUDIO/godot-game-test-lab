@@ -54,6 +54,17 @@ jobs:
             '49cbdb86b82d01e8b5945535f512e83be5eba9ec0b16590896bb7f458068ad73' \
             'scripts/apply_native_qa_upgrade.py' \
             | sha256sum --check --strict
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/apply_native_qa_upgrade.py')
+          source = path.read_text(encoding='utf-8')
+          old = '    "\\n\\ndef command_result_payload(\\n",\n'
+          new = '    "\\n\\ndef command_result_payload(",\n'
+          if source.count(old) != 1:
+              raise SystemExit('native QA patch delimiter normalisation was not unique')
+          path.write_text(source.replace(old, new), encoding='utf-8', newline='\n')
+          PY
           python scripts/apply_native_qa_upgrade.py
           rm -f scripts/apply_native_qa_upgrade.py
           rm -f .evavo/bootstrap/native-qa-upgrade-*.b64
