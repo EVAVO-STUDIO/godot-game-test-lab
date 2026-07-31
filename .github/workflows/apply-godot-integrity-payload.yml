@@ -53,6 +53,7 @@ jobs:
           chmod 0755 \
             scripts/linux-sandbox-entrypoint.sh \
             scripts/run_agent_godot_qa_with_integrity.py
+          git checkout -- .github/workflows/linux-sandbox-smoke.yml
 
       - name: Verify repository toolchain authority
         shell: bash
@@ -88,7 +89,6 @@ jobs:
           rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
           rm -f .evavo/bootstrap/godot-integrity-payload-*.b64
           rmdir .evavo/bootstrap 2>/dev/null || true
-          rm -f .github/workflows/apply-godot-integrity-payload.yml
           git diff --check
 
       - name: Commit exact implementation directly to main
