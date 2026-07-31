@@ -1,12 +1,20 @@
-trigger_sha=a315da769aa43a074c5f166b2287375012a9b64a
-utc=2026-07-31T13:05:00Z
+trigger_sha=42425a1efafa45f4797e48152f644bec0fc9b256
+utc=2026-07-31T13:08:18Z
 
 == reconstruction ==
-/home/runner/work/_temp/native-qa-upgrade.py.gz: FAILED
-sha256sum: WARNING: 1 computed checksum did NOT match
+/home/runner/work/_temp/native-qa-upgrade.py.gz: OK
+scripts/apply_native_qa_upgrade.py: OK
+Traceback (most recent call last):
+  File "/home/runner/work/godot-game-test-lab/godot-game-test-lab/scripts/apply_native_qa_upgrade.py", line 237, in <module>
+    replace_block(
+  File "/home/runner/work/godot-game-test-lab/godot-game-test-lab/scripts/apply_native_qa_upgrade.py", line 38, in replace_block
+    raise RuntimeError(f"{path}: block end not found: {end!r}")
+RuntimeError: src/godot_game_test_lab/pipeline.py: block end not found: '\n\ndef command_result_payload(\n'
 
 == git status ==
  M .evavo/native-qa-bootstrap-diagnostic.txt
+ M scripts/apply_native_qa_upgrade.py
+ M src/godot_game_test_lab/pipeline.py
 
 == git diff check ==
 
