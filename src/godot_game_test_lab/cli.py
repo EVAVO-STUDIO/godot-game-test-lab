@@ -7,8 +7,10 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
+from . import __version__
 from .core import inspect_project
-from .linux_sandbox import run_linux_sandbox
+from .integrity import AuditLimits, audit_project, execution_blocking_findings
+from .linux_sandbox import run_linux_sandbox, safe_project_subpath
 from .pipeline import (
     command_result_payload,
     command_succeeded,
@@ -40,8 +42,14 @@ def build_parser() -> argparse.ArgumentParser:
         prog="godot-lab",
         description="EVAVO native Godot build, runtime and evidence worker.",
     )
-    parser.add_argument("--version", action="version", version="godot-game-test-lab 0.3.0")
+    parser.add_argument("--version", action="version", version="godot-game-test-lab 0.4.0")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    capabilities = subparsers.add_parser(
+        "capabilities",
+        help="Describe the stable automation, evidence and truth-boundary surface.",
+    )
+    capabilities.add_argument("--output")
 
     doctor = subparsers.add_parser("doctor", help="Inspect available Godot and .NET tools.")
     doctor.add_argument("--godot")
@@ -54,9 +62,31 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("project")
     inspect.add_argument("--output")
 
+    defaults = AuditLimits()
+    audit = subparsers.add_parser(
+        "audit",
+        help="Statically audit project, scene, resource, path, Git and export integrity.",
+    )
+    audit.add_argument("project")
+    audit.add_argument("--output")
+    audit.add_argument("--max-files", type=int, default=defaults.max_files)
+    audit.add_argument(
+        "--max-total-mib", type=int, default=defaults.max_total_bytes // (1024 * 1024)
+    )
+    audit.add_argument(
+        "--max-text-file-mib",
+        type=int,
+        default=defaults.max_text_file_bytes // (1024 * 1024),
+    )
+    audit.add_argument("--max-findings", type=int, default=defaults.max_findings)
+    audit.add_argument("--warnings-as-errors", action="store_true")
+
     validate = subparsers.add_parser(
         "validate",
-        help="Run .NET build when required, Godot import and a bounded headless boot.",
+        help=(
+            "Run static integrity, .NET build when required, authoritative Godot import, "
+            "recovery diagnosis and a bounded headless boot."
+        ),
     )
     validate.add_argument("project")
     validate.add_argument("--godot")
@@ -65,6 +95,14 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--timeout", type=int, default=300)
     validate.add_argument("--boot-frames", type=int, default=5)
     validate.add_argument("--artifacts")
+    validate.add_argument("--skip-integrity-audit", action="store_true")
+    validate.add_argument("--warnings-as-errors", action="store_true")
+    validate.add_argument("--no-recovery-diagnostic", action="store_true")
+    validate.add_argument(
+        "--allow-major-upgrade",
+        action="store_true",
+        help="Permit a later Godot major version instead of requiring the same major.",
+    )
 
     run = subparsers.add_parser("run", help="Launch a bounded native project run.")
     run.add_argument("project")
@@ -115,6 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
     linux.add_argument("--visual-width", type=int, default=1280)
     linux.add_argument("--visual-height", type=int, default=720)
     linux.add_argument("--export-preset")
+    linux.add_argument("--warnings-as-errors", action="store_true")
 
     return parser
 
@@ -124,20 +163,90 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     try:
+        if args.command == "capabilities":
+            payload = {
+                "schemaVersion": "1.0",
+                "tool": "godot-game-test-lab",
+                "toolVersion": __version__,
+                "minimumGodotVersion": "4.6.2",
+                "projectSelection": "absolute or relative path to an external Godot repository",
+                "commands": [
+                    "audit",
+                    "capabilities",
+                    "doctor",
+                    "export",
+                    "inspect",
+                    "linux-sandbox",
+                    "record",
+                    "run",
+                    "validate",
+                ],
+                "validationStages": [
+                    "bounded static integrity audit",
+                    "Godot version and editor-capability verification",
+                    ".NET build for C# projects",
+                    "authoritative Godot --import",
+                    "recovery-mode import diagnosis after normal import failure",
+                    "bounded headless boot",
+                ],
+                "evidence": [
+                    "report.json",
+                    "integrity-report.json",
+                    "structured finding code, category, repair action and bounded evidence",
+                    "separate stdout and stderr logs",
+                    "Godot engine log files",
+                    "Linux journey movies, screenshots and telemetry when configured",
+                ],
+                "truthBoundaries": [
+                    "static findings are diagnostics; Godot import is authoritative "
+                    "for engine parsing",
+                    "recovery-mode success identifies a suspected disabled editor "
+                    "execution surface",
+                    "headless validation is not visual quality or game-feel approval",
+                    "Linux software rendering is not native Windows GPU performance evidence",
+                    "the lab diagnoses target repositories but does not repair or publish them",
+                ],
+            }
+            _write_json(payload, args.output)
+            return 0
+
         if args.command == "doctor":
             payload = doctor_payload(
                 godot_executable=_path(args.godot),
                 dotnet_executable=_path(args.dotnet),
             )
             _write_json(payload, args.output)
-            return 0 if payload["godot"]["path"] or payload["godotMono"]["path"] else 2
+            return 0 if (
+                payload["godot"]["editorCompatible"]
+                or payload["godotMono"]["editorCompatible"]
+            ) else 2
 
         if args.command == "inspect":
             payload = asdict(inspect_project(Path(args.project)))
             _write_json(payload, args.output)
             return 0
 
+        if args.command == "audit":
+            report = audit_project(
+                Path(args.project),
+                limits=AuditLimits(
+                    max_files=args.max_files,
+                    max_total_bytes=args.max_total_mib * 1024 * 1024,
+                    max_text_file_bytes=args.max_text_file_mib * 1024 * 1024,
+                    max_findings=args.max_findings,
+                ),
+            )
+            passed = report.status == "passed" and (
+                not args.warnings_as_errors or report.warnings == 0
+            )
+            payload = report.to_dict()
+            payload["warnings_as_errors"] = args.warnings_as_errors
+            payload["policy_status"] = "passed" if passed else "failed"
+            _write_json(payload, args.output)
+            return 0 if passed else 2
+
         if args.command == "validate":
+            artifact_root = _path(args.artifacts)
             report = validate_project_pipeline(
                 Path(args.project),
                 godot_executable=_path(args.godot),
@@ -145,9 +254,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 minimum_godot_version=args.minimum_godot_version,
                 timeout_seconds=max(1, args.timeout),
                 boot_frames=max(0, args.boot_frames),
+                run_integrity_audit=not args.skip_integrity_audit,
+                warnings_as_errors=args.warnings_as_errors,
+                recovery_diagnostic=not args.no_recovery_diagnostic,
+                allow_major_upgrade=args.allow_major_upgrade,
+                log_directory=(artifact_root / "engine-logs") if artifact_root else None,
             )
-            if args.artifacts:
-                write_report_bundle(report, Path(args.artifacts))
+            if artifact_root:
+                write_report_bundle(report, artifact_root)
             print(f"{report.to_json()}\n", end="")
             return 0 if report.status == "passed" else 2
 
@@ -200,10 +314,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0 if command_succeeded(result) and payload["exportExists"] else 2
 
         if args.command == "linux-sandbox":
+            source_root = Path(args.source).expanduser().resolve()
+            relative_project = safe_project_subpath(args.project_subpath)
+            artifact_root = Path(args.artifacts).expanduser().resolve()
+            artifact_root.mkdir(parents=True, exist_ok=True)
+            integrity = audit_project(source_root / relative_project)
+            integrity_path = artifact_root / "integrity-report.json"
+            integrity_path.write_text(f"{integrity.to_json()}\n", encoding="utf-8")
+            execution_blockers = execution_blocking_findings(integrity)
+            if integrity.findings_truncated:
+                execution_blockers = [*execution_blockers, None]
+            if execution_blockers:
+                blocker_codes = sorted(
+                    {
+                        finding.code if finding is not None else "limits.findings_truncated"
+                        for finding in execution_blockers
+                    }
+                )
+                payload = {
+                    "schema_version": "1.1",
+                    "status": "blocked",
+                    "project_subpath": args.project_subpath,
+                    "findings": [
+                        "Static integrity evidence is incomplete or unsafe for Godot execution.",
+                        "Execution blockers: " + ", ".join(blocker_codes),
+                    ],
+                    "artifacts": ["integrity-report.json"],
+                }
+                report_path = artifact_root / "sandbox-report.json"
+                report_path.write_text(
+                    json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 2
+
             report = run_linux_sandbox(
-                Path(args.source),
+                source_root,
                 working_root=Path(args.working_root),
-                artifacts_root=Path(args.artifacts),
+                artifacts_root=artifact_root,
                 project_subpath=args.project_subpath,
                 godot_executable=Path(args.godot),
                 dotnet_executable=_path(args.dotnet),
@@ -216,8 +365,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 visual_height=max(180, args.visual_height),
                 export_preset=args.export_preset,
             )
+            integrity_failed = integrity.errors > 0 or (
+                args.warnings_as_errors and integrity.warnings > 0
+            )
+            summary = (
+                f"static-integrity: {integrity.errors} error(s), "
+                f"{integrity.warnings} warning(s)"
+            )
+            report.findings.insert(0, summary)
+            if "integrity-report.json" not in report.artifacts:
+                report.artifacts.append("integrity-report.json")
+            if integrity_failed and report.status == "passed":
+                report.status = "failed"
+            report_path = artifact_root / "sandbox-report.json"
+            report_path.write_text(f"{report.to_json()}\n", encoding="utf-8")
             print(f"{report.to_json()}\n", end="")
-            return 0 if report.status == "passed" else 2
+            return 0 if report.status == "passed" and not integrity_failed else 2
     except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError) as error:
         print(json.dumps({"status": "blocked", "error": str(error)}, indent=2), file=sys.stderr)
         return 2

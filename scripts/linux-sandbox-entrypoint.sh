@@ -2,10 +2,11 @@
 set -euo pipefail
 umask 077
 
-# The process-exit wrapper extends run_agent_godot_qa.py without replacing its
-# canonical import/build/export path. Ordinary journeys retain the original
-# journey-report contract; explicitly governed process-exit journeys may finish
-# through exit code zero plus required and forbidden output markers.
+# run_agent_godot_qa_with_integrity.py delegates to
+# run_agent_godot_qa_with_process_exit.py without replacing the canonical
+# import/build/export and interactive journey path. It audits the read-only
+# exact target first, blocks unsafe execution, and merges structured integrity
+# evidence into sandbox-report.json and agent-summary.json.
 source_root="${EVAVO_SOURCE_ROOT:-/workspace/source}"
 working_root="${EVAVO_WORKING_ROOT:-/workspace/work/project}"
 artifacts_root="${EVAVO_ARTIFACTS_ROOT:-/artifacts}"
@@ -74,4 +75,4 @@ if [[ -n "${export_preset}" ]]; then
     arguments+=(--export-preset "${export_preset}")
 fi
 
-exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_process_exit.py "${arguments[@]}"
+exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py "${arguments[@]}"

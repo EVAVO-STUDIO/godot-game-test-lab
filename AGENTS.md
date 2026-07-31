@@ -22,6 +22,20 @@ python -m pytest
 
 The exact-SHA GitHub source workflow proves only the Python, shell, workflow and policy contract. It does not prove a Windows runner, Linux container build, Godot executable, .NET SDK, target project, import, boot, export, rendered journey, physical controller or human review.
 
+## Cross-repository integrity and recovery
+
+Read `docs/PROJECT_INTEGRITY_AND_RECOVERY.md` before changing validation, project parsing, import, recovery, evidence, or Development Studio integration.
+
+- Run `godot-lab capabilities` and `godot-lab doctor` before selecting an execution lane.
+- Run `godot-lab audit <target>` before native run, recording, export, or repair diagnosis.
+- Use an explicit external artifact directory; do not write retained evidence into tracked target source.
+- Treat static scene/resource findings as diagnostics and Godot editor `--import` as authoritative engine validation.
+- Verify required editor flags from `godot --help`; Godot may silently ignore unknown command-line arguments.
+- If normal import fails, use the retained recovery-mode import as an isolation signal only. Recovery success suspects an editor plugin, `@tool` script, GDExtension, or another disabled import-time surface; it does not prove which surface caused the failure.
+- Keep finding codes, categories, suggested repair actions, paths, lines, evidence and schema versions stable for Development Studio consumers.
+- The Linux sandbox must retain the same `integrity-report.json` gate as native validation.
+- Do not auto-edit a corrupt TSCN/TRES merely to make it parse. Prefer recovery from version control or a known-good authored file, then validate with the matching Godot editor.
+
 ## Native acceptance
 
 For a real project, use a freshly probed Windows x64 runner and supply an absolute target repository path plus an external evidence directory. Run `godot-lab doctor` before `godot-lab validate`, export or recording commands. Bind every run to the exact target default-branch SHA and target reliability profile.
@@ -35,7 +49,7 @@ For a real project, use a freshly probed Windows x64 runner and supply an absolu
 - Build Godot only from official release archives after release-manifest checksum verification.
 - Run as a non-root user with no network, no Linux capabilities, `no-new-privileges`, a read-only root filesystem and bounded CPU, memory, swap, processes, file descriptors and runtime.
 - Never mount the Docker socket, use privileged mode, expose `/dev/uinput`, or pass a GitHub token, deploy secret, signing key or target write credential into the container.
-- Preserve report, stdout, stderr, movie, probe metadata, screenshots, contact sheets, journey checkpoints, InputMap evidence, UI telemetry and objective visual diagnostics.
+- Preserve report, integrity, stdout, stderr, movie, probe metadata, screenshots, contact sheets, journey checkpoints, InputMap evidence, UI telemetry and objective visual diagnostics.
 - Treat Xvfb and Mesa llvmpipe as software-rendered Linux compatibility evidence, not GPU performance or final visual approval.
 - Require the target checkout SHA and status to remain unchanged after the run.
 
@@ -58,7 +72,7 @@ For a real project, use a freshly probed Windows x64 runner and supply an absolu
 - GDScript uses the standard Godot binary unless the repository profile says otherwise.
 - Require Godot 4.6.2 or the repository-declared compatible later version.
 - Run `.NET` build before Godot import for C# projects.
-- Preserve command, exit code, duration, stdout, stderr, timeout and artifact evidence.
+- Preserve command, exit code, duration, bounded stdout, bounded stderr, timeout, engine log and artifact evidence.
 - A headless pass is not visual quality evidence.
 - A bounded boot proves startup only.
 - A movie or contact sheet is not a complete interactive playthrough.
