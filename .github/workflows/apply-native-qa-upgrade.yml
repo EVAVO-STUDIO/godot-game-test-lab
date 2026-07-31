@@ -89,6 +89,28 @@ jobs:
           )
           PY
           python scripts/apply_native_qa_upgrade.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/run_profiled_linux_sandbox.py')
+          source = path.read_text(encoding='utf-8')
+          old = (
+              '            checks, findings, _run_native_export('
+              'args, working / Path(base.project_subpath), artifacts)\n'
+          )
+          new = (
+              '            checks,\n'
+              '            findings,\n'
+              '            _run_native_export(\n'
+              '                args,\n'
+              '                working / Path(base.project_subpath),\n'
+              '                artifacts,\n'
+              '            ),\n'
+          )
+          if source.count(old) != 1:
+              raise SystemExit('native export formatting anchor was not unique')
+          path.write_text(source.replace(old, new), encoding='utf-8', newline='\n')
+          PY
           rm -f scripts/apply_native_qa_upgrade.py
           rm -f .evavo/bootstrap/native-qa-upgrade-*.b64
           rmdir .evavo/bootstrap 2>/dev/null || true
