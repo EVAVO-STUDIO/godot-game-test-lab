@@ -53,9 +53,7 @@ def test_profile_reader_accepts_governed_retro_fps_journey(
 
     value = module.read_profile(profile)
 
-    assert value["visual"]["userArguments"] == [
-        "--compiled-level=bunker_01"
-    ]
+    assert value["visual"]["userArguments"] == ["--compiled-level=bunker_01"]
     assert value["export"]["preset"] == "Linux Desktop"
 
 
@@ -103,16 +101,10 @@ def test_profiled_runner_rejects_ambiguous_arguments_and_scene() -> None:
 
 
 def test_reusable_workflow_uses_caller_context_and_exact_shas() -> None:
-    workflow_path = (
-        ROOT / ".github/workflows/reusable-godot-linux-sandbox.yml"
-    )
+    workflow_path = ROOT / ".github/workflows/reusable-godot-linux-sandbox.yml"
     workflow = workflow_path.read_text(encoding="utf-8")
-    entrypoint = (
-        ROOT / "scripts/linux-sandbox-entrypoint.sh"
-    ).read_text(encoding="utf-8")
-    runner = (
-        ROOT / "scripts/run_profiled_linux_sandbox.py"
-    ).read_text(encoding="utf-8")
+    entrypoint = (ROOT / "scripts/linux-sandbox-entrypoint.sh").read_text(encoding="utf-8")
+    runner = (ROOT / "scripts/run_profiled_linux_sandbox.py").read_text(encoding="utf-8")
 
     for marker in [
         "workflow_call:",
@@ -133,7 +125,7 @@ def test_reusable_workflow_uses_caller_context_and_exact_shas() -> None:
     assert "EVAVO_GODOT_LAB_READ_TOKEN" not in workflow
     assert "docker.sock" not in workflow
     assert "--privileged" not in workflow
-    assert "run_profiled_linux_sandbox.py" in entrypoint
+    assert "run_agent_godot_qa_with_process_exit.py" in entrypoint
     assert "--display-driver" in runner
     assert "--write-movie" in runner
     assert "frame-%02d.png" in runner

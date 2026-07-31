@@ -4,8 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_IMAGE = (
-    "ubuntu:noble-20260610@sha256:"
-    "4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+    "ubuntu:noble-20260610@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
 )
 
 
@@ -61,7 +60,8 @@ def test_entrypoint_requires_read_only_source_and_uses_ephemeral_copy() -> None:
     entrypoint = _read("scripts/linux-sandbox-entrypoint.sh")
     assert "source mount must be read-only" in entrypoint
     assert "EVAVO_WORKING_ROOT" in entrypoint
-    assert "linux-sandbox" in entrypoint
+    assert "run_agent_godot_qa_with_process_exit.py" in entrypoint
+    assert "--working-root" in entrypoint
     assert "export_preset" in entrypoint
 
 

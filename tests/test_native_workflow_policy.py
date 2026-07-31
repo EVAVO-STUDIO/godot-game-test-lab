@@ -4,7 +4,6 @@ import re
 import tomllib
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "evavo-native-godot-validation.yml"
 RUNNER = ROOT / "scripts" / "Invoke-GodotLabNativeValidation.ps1"
@@ -72,25 +71,25 @@ def test_native_wrapper_is_bounded_and_detects_revision_or_source_drift() -> Non
     source = RUNNER.read_text(encoding="utf-8")
 
     for token in (
-        '[string]$ExpectedTargetSha',
+        "[string]$ExpectedTargetSha",
         '[string]$MinimumGodotVersion = "4.6.2"',
         '$allowedRepositoryRoot = (Resolve-Path "C:\\GitRepos").Path',
         'Test-Path (Join-Path $target "project.godot")',
-        'git -C $labRoot rev-parse HEAD',
-        'git -C $target rev-parse --show-toplevel',
-        '$currentTargetSha = (& git -C $gitRoot rev-parse HEAD).Trim()',
-        '$currentTargetSha -ne $ExpectedTargetSha',
-        'targetSha = $currentTargetSha',
-        'status --porcelain=v1 --untracked-files=no',
+        "git -C $labRoot rev-parse HEAD",
+        "git -C $target rev-parse --show-toplevel",
+        "$currentTargetSha = (& git -C $gitRoot rev-parse HEAD).Trim()",
+        "$currentTargetSha -ne $ExpectedTargetSha",
+        "targetSha = $currentTargetSha",
+        "status --porcelain=v1 --untracked-files=no",
         '"-m", "compileall", "src", "tests"',
         '"-m", "ruff", "check", "src", "tests"',
         '"-m", "pytest"',
         '"-m", "godot_game_test_lab.cli", "doctor"',
         '"-m", "godot_game_test_lab.cli", "validate", $target',
         '"--minimum-godot-version", $MinimumGodotVersion',
-        '$receipt.trackedMutationDetected = $trackedAfter -ne $trackedBefore',
-        'Native validation changed tracked files in the target repository.',
-        'if ($validationError)',
+        "$receipt.trackedMutationDetected = $trackedAfter -ne $trackedBefore",
+        "Native validation changed tracked files in the target repository.",
+        "if ($validationError)",
     ):
         assert token in source, token
 
