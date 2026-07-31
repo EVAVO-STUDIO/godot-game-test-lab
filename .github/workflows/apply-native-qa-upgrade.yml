@@ -1,5 +1,7 @@
 name: Apply native Godot QA upgrade
 
+# The workflow is updated once after introduction so GitHub evaluates it from
+# an already-present default-branch workflow definition.
 on:
   push:
     branches:
