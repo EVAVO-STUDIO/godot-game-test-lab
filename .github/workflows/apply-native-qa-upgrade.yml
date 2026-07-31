@@ -63,7 +63,30 @@ jobs:
           new = '    "\\n\\ndef command_result_payload(",\n'
           if source.count(old) != 1:
               raise SystemExit('native QA patch delimiter normalisation was not unique')
-          path.write_text(source.replace(old, new), encoding='utf-8', newline='\n')
+          source = source.replace(old, new)
+          old_block = r'''replace_once(
+              "scripts/test_repository_toolchain.py",
+              '    "scripts/check_repository_toolchain.py",\n',
+              '    "scripts/check_repository_toolchain.py",\n'
+              '    "scripts/Invoke-GodotLabNativeAgentQA.ps1",\n',
+          )
+          '''
+          new_block = r'''replace_once(
+              "scripts/test_repository_toolchain.py",
+              '    "schemas/repository-owned-reliability-profile.schema.json",\n'
+              '    "scripts/check_repository_toolchain.py",\n',
+              '    "schemas/repository-owned-reliability-profile.schema.json",\n'
+              '    "scripts/check_repository_toolchain.py",\n'
+              '    "scripts/Invoke-GodotLabNativeAgentQA.ps1",\n',
+          )
+          '''
+          if source.count(old_block) != 1:
+              raise SystemExit('native QA fixture anchor normalisation was not unique')
+          path.write_text(
+              source.replace(old_block, new_block),
+              encoding='utf-8',
+              newline='\n',
+          )
           PY
           python scripts/apply_native_qa_upgrade.py
           rm -f scripts/apply_native_qa_upgrade.py
