@@ -1,5 +1,6 @@
 schema=1
 gzip_sha256=b6491be1712706c4bd3d48b71b3c34a3b851eede204ccdc4abf55b1b544ed86d
 patch_sha256=23d4bdc72d79b87a55155ed9d687b4adf9d44ff34b282b3225a2e61e553b8987
-chunks=5
+transport_files=8
 payload=deterministic-godot-bot-qa
+retry=1
