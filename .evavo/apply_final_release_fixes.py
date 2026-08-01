@@ -95,7 +95,7 @@ def _preflight_errors() -> list[str]:
                 errors.append("toolchain core exceeds the bounded source limit")
             else:
                 source = CORE_PATH.read_text(encoding="utf-8")
-                if source.startswith("\ufeff"):
+                if source.startswith(chr(0xFEFF)):
                     errors.append("toolchain core contains a UTF-8 BOM")
                 if "def main() -> int:" not in source:
                     errors.append("toolchain core does not expose its expected entrypoint")
@@ -107,7 +107,8 @@ def _preflight_errors() -> list[str]:
 def main() -> int:
     errors = _preflight_errors()
     if errors:
-        print("Godot lab toolchain preflight failed:\n", file=sys.stderr)
+        print("Godot lab toolchain preflight failed:", file=sys.stderr)
+        print(file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
