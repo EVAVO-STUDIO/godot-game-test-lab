@@ -1,5 +1,5 @@
-trigger_sha=969f643d46f1ef71c6d6eb9dec092165995125de
-utc=2026-08-01T03:10:19Z
+trigger_sha=b609f399cc78a3833b0c1f2324388bbdd06cfc15
+utc=2026-08-01T03:17:05Z
 
 == status ==
  M .evavo/agent-audio-upgrade-diagnostic.txt
@@ -30,6 +30,7 @@ utc=2026-08-01T03:10:19Z
  M src/godot_game_test_lab/__init__.py
  M src/godot_game_test_lab/cli.py
  M tests/test_cli.py
+ M tests/test_release_contract.py
 ?? docs/MCP_AGENT_BRIDGE.md
 ?? examples/media-policy.json
 ?? schemas/media-policy.schema.json
@@ -42,91 +43,94 @@ utc=2026-08-01T03:10:19Z
 ?? tests/test_mcp_bridge_contract.py
 ?? tests/test_media_evidence.py
 
-== diff check ==
+== diff ==
 
 == toolchain ==
 Godot lab repository toolchain check passed.
 - source authority validated without a runtime claim
 - Godot, .NET, container, workflow and effect boundaries agree
 
-== compile ==
-
 == ruff ==
 tests/test_mcp_bridge_contract.py:1:1: I001 [*] Import block is un-sorted or un-formatted
-   |
- 1 | / from __future__ import annotations
- 2 | | 
- 3 | | from pathlib import Path
- 4 | | 
- 5 | | import pytest
- 6 | | 
- 7 | | 
- 8 | | 
- 9 | | def test_mcp_source_exposes_visual_audio_and_execution_tools() -> None:
-   | |_^ I001
-10 |       source = Path(__file__).resolve().parents[1] / "src" / "godot_game_test_lab" / "mcp_server.py"
-11 |       text = source.read_text(encoding="utf-8")
-   |
-   = help: Organize imports
+  |
+1 | / from __future__ import annotations
+2 | | 
+3 | | from pathlib import Path
+4 | | 
+5 | | import pytest
+6 | | 
+7 | | def test_mcp_source_exposes_visual_audio_and_execution_tools() -> None:
+  | |_^ I001
+8 |       source = Path(__file__).resolve().parents[1] / "src" / "godot_game_test_lab" / "mcp_server.py"
+9 |       text = source.read_text(encoding="utf-8")
+  |
+  = help: Organize imports
 
 Found 1 error.
 [*] 1 fixable with the `--fix` option.
 
-== focused tests ==
-..s.....                                                                 [100%]
-
-== full tests ==
+== tests ==
 ................F....................................................... [ 48%]
 .........................s.............................................. [ 97%]
-...F                                                                     [100%]
+....                                                                     [100%]
 =================================== FAILURES ===================================
 ________________ test_capabilities_command_is_machine_readable _________________
 
-capsys = <_pytest.capture.CaptureFixture object at 0x7ff571e3ff90>
+capsys = <_pytest.capture.CaptureFixture object at 0x7ff58409f750>
 
     def test_capabilities_command_is_machine_readable(capsys) -> None:
         exit_code = main(["capabilities"])
         payload = json.loads(capsys.readouterr().out)
     
         assert exit_code == 0
->       assert payload["schemaVersion"] == "1.1"
-E       AssertionError: assert '1.2' == '1.1'
+        assert payload["schemaVersion"] == "1.2"
+        assert payload["toolVersion"] == "0.6.0"
+        assert "audit" in payload["commands"]
+>       assert payload["automationEntrypoints"] == {
+            "profileBootstrap": "godot-lab-init-qa",
+            "nativeAuthoredQa": "godot-lab-native-qa",
+            "nativeBotQa": "godot-lab-bot-qa",
+            "nativeValidationWrapper": "scripts/Invoke-GodotLabNativeValidation.ps1",
+            "nativeAuthoredQaWrapper": "scripts/Invoke-GodotLabNativeAgentQA.ps1",
+            "nativeBotQaWrapper": "scripts/Invoke-GodotLabBotQA.ps1",
+            "linuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
+        }
+E       AssertionError: assert {'linuxWorkfl...tive-qa', ...} == {'linuxWorkfl...-bot-qa', ...}
 E         
-E         - 1.1
-E         + 1.2
-
-tests/test_cli.py:77: AssertionError
-____________ test_release_version_is_consistent_across_authorities _____________
-
-    def test_release_version_is_consistent_across_authorities() -> None:
-        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-        reliability = json.loads(
-            (ROOT / "evavo.reliability.json").read_text(encoding="utf-8")
-        )
-        schema = json.loads(
-            (ROOT / "schemas" / "repository-owned-reliability-profile.schema.json").read_text(
-                encoding="utf-8"
-            )
-        )
-    
-        expected = "0.5.0"
->       assert __version__ == expected
-E       AssertionError: assert '0.6.0' == '0.5.0'
+E         Omitting 7 identical items, use -vv to show
+E         Left contains 2 more items:
+E         {'mcpAgentBridge': 'godot-lab-mcp', 'mediaQa': 'godot-lab-media-qa'}
 E         
-E         - 0.5.0
-E         ?   ^
-E         + 0.6.0
-E         ?   ^
+E         Full diff:
+E           {
+E               'linuxWorkflow': '.github/workflows/reusable-godot-linux-sandbox.yml',
+E         +     'mcpAgentBridge': 'godot-lab-mcp',
+E         +     'mediaQa': 'godot-lab-media-qa',
+E               'nativeAuthoredQa': 'godot-lab-native-qa',
+E               'nativeAuthoredQaWrapper': 'scripts/Invoke-GodotLabNativeAgentQA.ps1',
+E               'nativeBotQa': 'godot-lab-bot-qa',
+E               'nativeBotQaWrapper': 'scripts/Invoke-GodotLabBotQA.ps1',
+E               'nativeValidationWrapper': 'scripts/Invoke-GodotLabNativeValidation.ps1',
+E               'profileBootstrap': 'godot-lab-init-qa',
+E           }
 
-tests/test_release_contract.py:24: AssertionError
+tests/test_cli.py:80: AssertionError
 =========================== short test summary info ============================
-FAILED tests/test_cli.py::test_capabilities_command_is_machine_readable - AssertionError: assert '1.2' == '1.1'
+FAILED tests/test_cli.py::test_capabilities_command_is_machine_readable - AssertionError: assert {'linuxWorkfl...tive-qa', ...} == {'linuxWorkfl...-bot-qa', ...}
   
-  - 1.1
-  + 1.2
-FAILED tests/test_release_contract.py::test_release_version_is_consistent_across_authorities - AssertionError: assert '0.6.0' == '0.5.0'
+  Omitting 7 identical items, use -vv to show
+  Left contains 2 more items:
+  {'mcpAgentBridge': 'godot-lab-mcp', 'mediaQa': 'godot-lab-media-qa'}
   
-  - 0.5.0
-  ?   ^
-  + 0.6.0
-  ?   ^
+  Full diff:
+    {
+        'linuxWorkflow': '.github/workflows/reusable-godot-linux-sandbox.yml',
+  +     'mcpAgentBridge': 'godot-lab-mcp',
+  +     'mediaQa': 'godot-lab-media-qa',
+        'nativeAuthoredQa': 'godot-lab-native-qa',
+        'nativeAuthoredQaWrapper': 'scripts/Invoke-GodotLabNativeAgentQA.ps1',
+        'nativeBotQa': 'godot-lab-bot-qa',
+        'nativeBotQaWrapper': 'scripts/Invoke-GodotLabBotQA.ps1',
+        'nativeValidationWrapper': 'scripts/Invoke-GodotLabNativeValidation.ps1',
+        'profileBootstrap': 'godot-lab-init-qa',
+    }
