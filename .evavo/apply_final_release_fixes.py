@@ -170,6 +170,42 @@ if __name__ == "__main__":
         "native workflow dependency assertion",
     )
 
+    replace_once(
+        stage / "src/godot_game_test_lab/dotnet_manager.py",
+        '                raise DotNetProvisionError(f"Timed out waiting for .NET install lock: {path}")\n',
+        '                raise DotNetProvisionError(\n'
+        '                    f"Timed out waiting for .NET install lock: {path}"\n'
+        '                ) from None\n',
+        ".NET lock timeout exception chain",
+    )
+    replace_once(
+        stage / "src/godot_game_test_lab/engine_manager.py",
+        '                raise EngineProvisionError(\n'
+        '                    f"Timed out waiting for engine installation lock: {path}"\n'
+        '                )\n',
+        '                raise EngineProvisionError(\n'
+        '                    f"Timed out waiting for engine installation lock: {path}"\n'
+        '                ) from None\n',
+        "Godot lock timeout exception chain",
+    )
+    workflow_test = stage / "tests/test_workflow_inventory.py"
+    replace_once(
+        workflow_test,
+        '    spec = importlib.util.spec_from_file_location("workflow_guarded_toolchain_checker", CHECKER_PATH)\n',
+        '    spec = importlib.util.spec_from_file_location(\n'
+        '        "workflow_guarded_toolchain_checker", CHECKER_PATH\n'
+        '    )\n',
+        "workflow checker import line",
+    )
+    replace_once(
+        workflow_test,
+        'def test_checker_main_returns_core_result_without_nested_system_exit(monkeypatch: pytest.MonkeyPatch) -> None:\n',
+        'def test_checker_main_returns_core_result_without_nested_system_exit(\n'
+        '    monkeypatch: pytest.MonkeyPatch,\n'
+        ') -> None:\n',
+        "workflow checker regression signature",
+    )
+
     temporary = stage / ".evavo/apply_final_release_fixes.py"
     if temporary.exists() or temporary.is_symlink():
         temporary.unlink()
