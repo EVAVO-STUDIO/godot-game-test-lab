@@ -42,7 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="godot-lab",
         description="EVAVO native Godot build, runtime and evidence worker.",
     )
-    parser.add_argument("--version", action="version", version="godot-game-test-lab 0.4.0")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"godot-game-test-lab {__version__}",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     capabilities = subparsers.add_parser(
@@ -165,7 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "capabilities":
             payload = {
-                "schemaVersion": "1.0",
+                "schemaVersion": "1.1",
                 "tool": "godot-game-test-lab",
                 "toolVersion": __version__,
                 "minimumGodotVersion": "4.6.2",
@@ -181,6 +185,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "run",
                     "validate",
                 ],
+                "automationEntrypoints": {
+                    "profileBootstrap": "godot-lab-init-qa",
+                    "nativeAuthoredQa": "godot-lab-native-qa",
+                    "nativeBotQa": "godot-lab-bot-qa",
+                    "nativeValidationWrapper": (
+                        "scripts/Invoke-GodotLabNativeValidation.ps1"
+                    ),
+                    "nativeAuthoredQaWrapper": (
+                        "scripts/Invoke-GodotLabNativeAgentQA.ps1"
+                    ),
+                    "nativeBotQaWrapper": "scripts/Invoke-GodotLabBotQA.ps1",
+                    "linuxWorkflow": (
+                        ".github/workflows/reusable-godot-linux-sandbox.yml"
+                    ),
+                },
                 "validationStages": [
                     "bounded static integrity audit",
                     "Godot version and editor-capability verification",
@@ -188,6 +207,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "authoritative Godot --import",
                     "recovery-mode import diagnosis after normal import failure",
                     "bounded headless boot",
+                    "target-authored native visual and input journeys",
+                    "deterministic fresh-process bot state exploration",
                 ],
                 "evidence": [
                     "report.json",
@@ -195,6 +216,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "structured finding code, category, repair action and bounded evidence",
                     "separate stdout and stderr logs",
                     "Godot engine log files",
+                    "native-agent-summary.json",
+                    "bot-agent-summary.json",
+                    "run-context.json and source-archive.json",
+                    "deterministic state graphs and exact replay traces",
+                    "screenshots, checkpoints, movies and contact sheets",
+                    "InputMap, UI geometry and bounded performance telemetry",
                     "Linux journey movies, screenshots and telemetry when configured",
                 ],
                 "truthBoundaries": [
@@ -202,8 +229,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "for engine parsing",
                     "recovery-mode success identifies a suspected disabled editor "
                     "execution surface",
+                    "deterministic bot exploration is bounded and does not prove every "
+                    "game state",
+                    "synthetic input proves Godot event routing, not physical controller "
+                    "behavior",
                     "headless validation is not visual quality or game-feel approval",
                     "Linux software rendering is not native Windows GPU performance evidence",
+                    "native visual evidence requires the logged-in interactive Windows session",
                     "the lab diagnoses target repositories but does not repair or publish them",
                 ],
             }
