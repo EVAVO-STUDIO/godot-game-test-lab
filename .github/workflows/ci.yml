@@ -1,4 +1,4 @@
-name: Recover verified managed sandbox source
+name: Recover complete managed sandbox release tree
 
 on:
   pull_request:
@@ -28,7 +28,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Reconstruct and safely extract the exact release archive
+      - name: Reconstruct, verify and apply the exact release overlay
         shell: bash
         env:
           EXPECTED_ARCHIVE_BYTES: '114059'
@@ -81,17 +81,19 @@ jobs:
 
           archive_bytes = base64.b64decode(''.join(parts), validate=True)
           actual_sha = hashlib.sha256(archive_bytes).hexdigest()
-          if len(archive_bytes) != int(os.environ['EXPECTED_ARCHIVE_BYTES']):
-              raise SystemExit(f'archive byte count mismatch: {len(archive_bytes)}')
-          if actual_sha != os.environ['EXPECTED_ARCHIVE_SHA256']:
-              raise SystemExit(f'archive SHA-256 mismatch: {actual_sha}')
+          expected_bytes = int(os.environ['EXPECTED_ARCHIVE_BYTES'])
+          expected_sha = os.environ['EXPECTED_ARCHIVE_SHA256']
+          if len(archive_bytes) != expected_bytes or actual_sha != expected_sha:
+              raise SystemExit(
+                  f'archive identity mismatch: bytes={len(archive_bytes)} sha256={actual_sha}'
+              )
           if manifest.get('archiveBytes') != len(archive_bytes) or manifest.get('archiveSha256') != actual_sha:
               raise SystemExit('manifest archive identity mismatch')
 
           archive_path = Path(os.environ['RUNNER_TEMP']) / 'managed-sandbox-0.7.tar.gz'
           archive_path.write_bytes(archive_bytes)
-          destination_root = root / 'recovered'
-          destination_root.mkdir(mode=0o700)
+          overlay = root / 'recovered-overlay'
+          overlay.mkdir(mode=0o700)
 
           observed: set[str] = set()
           expanded = 0
@@ -127,12 +129,13 @@ jobs:
                       raise SystemExit(f'release member read-size mismatch: {member.name}')
                   if hashlib.sha256(data).hexdigest() != record['sha256']:
                       raise SystemExit(f'release member checksum mismatch: {member.name}')
-                  destination = destination_root.joinpath(*PurePosixPath(member.name).parts)
+                  destination = overlay.joinpath(*PurePosixPath(member.name).parts)
                   destination.parent.mkdir(parents=True, exist_ok=True)
-                  destination.parent.resolve(strict=True).relative_to(destination_root.resolve(strict=True))
+                  destination.parent.resolve(strict=True).relative_to(overlay.resolve(strict=True))
                   destination.write_bytes(data)
-                  destination.chmod(int(str(record['mode']), 8))
-                  if stat.S_IMODE(destination.stat().st_mode) != int(str(record['mode']), 8):
+                  mode = int(str(record['mode']), 8)
+                  destination.chmod(mode)
+                  if stat.S_IMODE(destination.stat().st_mode) != mode:
                       raise SystemExit(f'release member mode mismatch: {member.name}')
 
           receipt = {
@@ -141,33 +144,97 @@ jobs:
               'archiveBytes': len(archive_bytes),
               'archiveSha256': actual_sha,
               'fileCount': len(expected),
-              'files': [
-                  {
-                      'path': name,
-                      'bytes': int(expected[name]['bytes']),
-                      'sha256': str(expected[name]['sha256']),
-                      'mode': str(expected[name]['mode']),
-                  }
-                  for name in sorted(expected)
-              ],
           }
-          (root / 'recovery-receipt.json').write_text(
+          (root / 'overlay-receipt.json').write_text(
               json.dumps(receipt, indent=2, ensure_ascii=False) + '\n',
               encoding='utf-8',
           )
-          print(f"recovered {len(expected)} files from {len(archive_bytes)} verified bytes")
+          print(f"verified {len(expected)} release files from {len(archive_bytes)} archive bytes")
+          PY
+
+          cp -a recovered-overlay/. .
+          rm -rf recovered-overlay
+          rm -rf .evavo/bootstrap
+          rm -f .evavo/agent-audio-upgrade-diagnostic.txt
+          rm -f .evavo/managed-sandbox-0.7-diagnostic.txt
+          rm -f .evavo/managed-sandbox-release-pr.txt
+          rm -f .github/workflows/apply-agent-audio-upgrade.yml
+          rm -f .github/workflows/apply-managed-sandbox-0.7.yml
+          rm -f .github/workflows/dispatch-agent-audio-upgrade.yml
+          test ! -d .evavo/bootstrap
+          test ! -e .github/workflows/apply-managed-sandbox-0.7.yml
+          test ! -e .github/workflows/dispatch-agent-audio-upgrade.yml
+          git diff --check
+
+      - name: Build a complete deterministic source artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import stat
+          from pathlib import Path
+
+          root = Path.cwd().resolve(strict=True)
+          excluded_names = {
+              '.git',
+              'final-source.tar.gz',
+              'final-tree-receipt.json',
+              'overlay-receipt.json',
+          }
+          files: list[dict[str, object]] = []
+          for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
+              current = Path(directory)
+              names[:] = sorted(name for name in names if name not in excluded_names)
+              for name in sorted(filenames):
+                  path = current / name
+                  relative = path.relative_to(root).as_posix()
+                  if relative in excluded_names:
+                      continue
+                  if path.is_symlink() or not path.is_file():
+                      raise SystemExit(f'unsafe final source entry: {relative}')
+                  data = path.read_bytes()
+                  files.append(
+                      {
+                          'path': relative,
+                          'bytes': len(data),
+                          'sha256': hashlib.sha256(data).hexdigest(),
+                          'mode': oct(stat.S_IMODE(path.stat().st_mode)),
+                      }
+                  )
+          receipt = {
+              'schemaVersion': '1.0',
+              'releaseVersion': '0.7.0',
+              'sourceCommit': os.environ.get('GITHUB_SHA'),
+              'fileCount': len(files),
+              'files': files,
+          }
+          Path('final-tree-receipt.json').write_text(
+              json.dumps(receipt, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+          print(f"recorded {len(files)} final source files")
           PY
           tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
-            -czf recovered-source.tar.gz -C recovered .
-          sha256sum recovered-source.tar.gz recovery-receipt.json
+            --exclude=.git \
+            --exclude=final-source.tar.gz \
+            --exclude=final-tree-receipt.json \
+            --exclude=overlay-receipt.json \
+            -czf final-source.tar.gz .
+          sha256sum final-source.tar.gz final-tree-receipt.json overlay-receipt.json
 
-      - name: Upload the verified source and receipt
+      - name: Upload the complete verified source tree
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: managed-sandbox-0.7-source
+          name: managed-sandbox-0.7-complete-source
           path: |
-            recovered-source.tar.gz
-            recovery-receipt.json
+            final-source.tar.gz
+            final-tree-receipt.json
+            overlay-receipt.json
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
