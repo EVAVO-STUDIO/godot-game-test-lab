@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - ".evavo/bootstrap/managed-sandbox-0.7.trigger"
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 permissions:
   actions: write
