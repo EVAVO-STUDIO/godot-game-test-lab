@@ -1,0 +1,26 @@
+name: Dispatch corrected managed Godot sandbox release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".evavo/bootstrap/managed-sandbox-0.7.trigger"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: dispatch-managed-godot-sandbox-0-7
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch validated publisher on current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run apply-managed-sandbox-0.7.yml --ref main
