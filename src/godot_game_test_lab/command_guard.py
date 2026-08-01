@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable
+from typing import Any
 
 _SCENE_SUFFIXES = {".escn", ".scn", ".tscn"}
 _INSTALL_MARKER = "__godot_lab_scene_guard__"

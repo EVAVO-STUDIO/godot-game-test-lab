@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "journeys": [
     {
-      "id": "main-menu-smoke",
+      "id": "main-menu-keyboard",
       "required": true,
       "scene": "",
-      "device": "semantic",
+      "device": "keyboard_mouse",
       "settleFrames": 30,
       "maxFrames": 600,
       "fps": 30,
@@ -15,6 +15,14 @@
       "renderingDriver": "vulkan",
       "gpuIndex": 0,
       "userArguments": [],
+      "requiredActions": [
+        {
+          "name": "ui_accept",
+          "devices": [
+            "keyboard"
+          ]
+        }
+      ],
       "steps": [
         {
           "type": "wait",
@@ -22,11 +30,42 @@
         },
         {
           "type": "checkpoint",
-          "id": "main-menu"
+          "id": "menu-ready"
+        },
+        {
+          "type": "action_tap",
+          "action": "ui_accept",
+          "holdFrames": 1,
+          "strength": 1.0
+        },
+        {
+          "type": "wait",
+          "frames": 30
+        },
+        {
+          "type": "checkpoint",
+          "id": "after-accept"
         }
       ],
-      "assertions": [],
-      "ux": {}
+      "assertions": [
+        {
+          "type": "scene_loaded"
+        }
+      ],
+      "ux": {
+        "captureControlTree": true,
+        "minimumVisibleControls": 1,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "maximumSmallInteractiveTargets": 8,
+        "minimumInteractiveWidth": 24,
+        "minimumInteractiveHeight": 24,
+        "requireFocusOwner": false,
+        "failOnBlackFrame": true,
+        "blackDurationSeconds": 3.0,
+        "failOnFrozenVideo": false,
+        "freezeDurationSeconds": 8.0
+      }
     }
   ]
 }

@@ -1,279 +1,317 @@
 # Godot Game Test Lab
 
-Canonical native Godot build, runtime, interaction, evidence and QA worker for EVAVO Studio repositories.
+Godot Game Test Lab is EVAVO Studio's reusable build, runtime, interaction,
+visual-evidence, and QA worker for Godot repositories. The lab can inspect and
+exercise a game in a completely separate Git repository. It does not need to be
+copied into the game and it never receives authority to edit, commit, push,
+sign, deploy, or publish the target game.
 
-Development Studio owns repository inventory, triage, policy, incident state, repair decisions and publication authority. Godot Game Test Lab owns native Godot execution on freshly probed Windows runners and isolated Linux evidence workers. Godot Web Runtime owns browser-hosted loading, Playwright interaction, screenshots, traces and semantic browser observations.
+Development Studio is the control plane. It selects the exact target repository,
+commit, project subpath, evidence lane, and repair authority. Godot Game Test Lab
+performs native and isolated execution. Godot Web Runtime remains the browser
+lane for compatible web exports.
 
-## Current working surface
+## Capabilities
 
-Version 0.4.0 provides:
+The current surface supports:
 
-- project discovery and inventory;
+- bounded discovery of one `project.godot`, including explicit monorepo
+  subpaths;
 - GDScript versus C# workload detection;
-- standard Godot versus Godot .NET selection;
-- minimum Godot version enforcement, defaulting to 4.6.2;
-- `.NET` discovery and `dotnet build` for C# projects;
-- headless Godot import and parser evidence;
-- bounded headless boot evidence;
-- bounded native windowed or headless runs;
-- command-line debug and release export;
-- deterministic Movie Maker recording with fixed FPS and bounded frames;
-- an isolated Ubuntu 24.04 Linux sandbox with Xvfb and Mesa software rendering;
-- a read-only target mount and ephemeral writable project copy;
-- repository-authored keyboard, mouse and synthetic joypad journeys;
-- InputMap device-coverage evidence;
-- scene, node, focus, visibility and metadata assertions;
-- named journey checkpoints, screenshots, video and contact sheets;
-- deterministic UI geometry, clipping, focus, target-size and overlap telemetry;
-- black-segment and frozen-segment video diagnostics;
-- JSON reports and separate stdout/stderr evidence logs;
-- dependency-free runtime code with pinned pytest and Ruff development gates.
+- standard Godot versus Godot .NET editor selection;
+- Godot 4.6.2 minimum-version enforcement with compatible later 4.x releases;
+- `.NET` discovery and `dotnet build` before C# import;
+- static project, scene, resource, path, Git, LFS, and common asset-integrity
+  diagnosis;
+- authoritative headless Godot import and recovery-mode isolation;
+- bounded boot, debug/release export, and deterministic Movie Maker recording;
+- safe explicit scene execution using Godot's positional project argument;
+- repository-owned keyboard, mouse, semantic action, and synthetic gamepad
+  journeys;
+- InputMap coverage, scene/node/focus/visibility/metadata assertions;
+- named checkpoints, screenshots, contact sheets, FFprobe metadata, black-video
+  diagnostics, and frozen-video diagnostics;
+- exact-SHA native Windows runs in Greg's logged-in interactive session;
+- requested rendering method, rendering driver, and GPU index evidence;
+- isolated Linux Xvfb/Mesa llvmpipe compatibility runs;
+- bounded stdout/stderr, process-tree termination, evidence byte limits, exact
+  source archives, and SHA-256 artifact inventories;
+- a cross-process Windows desktop lease so concurrent agents cannot compete for
+  the same interactive desktop.
+
+## Repository layout
+
+The lab and target remain separate:
+
+```text
+C:\GitRepos\godot-game-test-lab
+C:\GitRepos\Brass_Brine
+C:\GitRepos\another-game
+D:\Prototypes\nested-monorepo
+C:\GodotLabEvidence\<game>\<run-id>
+```
+
+Retained evidence must be outside both the lab checkout and the target checkout.
+The exact native worker refuses dirty lab or target repositories because a dirty
+working tree cannot truthfully be represented by a commit SHA. Git submodules
+currently fail closed; the exact `git archive` worker does not silently omit
+submodule content.
 
 ## Installation
 
 ```powershell
 Set-Location C:\GitRepos\godot-game-test-lab
+
+git pull --ff-only origin main
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip --version
-python -m pip install -e ".[dev]"
+python -m pip install --disable-pip-version-check -e ".[dev]"
+
+godot-lab capabilities
+godot-lab doctor
+godot-lab-native-qa --help
 ```
 
-Set the native tools explicitly when they are not on `PATH`:
+Generated Python package metadata is ignored by Git, so an editable installation
+does not invalidate the clean-checkout gate.
+
+Set native tools explicitly when they are not discoverable:
 
 ```powershell
 $env:GODOT_BIN = "C:\Tools\Godot\Godot_v4.6.2-stable_win64_console.exe"
-$env:GODOT_MONO_BIN = "C:\Tools\GodotMono\Godot_v4.6.2-stable_mono_win64_console.exe"
+$env:GODOT_MONO_BIN = `
+  "C:\Tools\GodotMono\Godot_v4.6.2-stable_mono_win64_console.exe"
 $env:DOTNET_BIN = "C:\Program Files\dotnet\dotnet.exe"
 ```
 
-## Agent entrypoints
+Install both standard and .NET Godot editors when the estate contains both
+GDScript and C# games. FFmpeg and FFprobe are required for native screenshot,
+contact-sheet, black-segment, freeze-segment, and media-metadata evidence.
+`nvidia-smi`, `vulkaninfo`, and `nvcc` are optional environment probes.
 
-Inspect runner tools:
+## Cross-repository validation
 
 ```powershell
-godot-lab doctor
+$Game = "C:\GitRepos\Brass_Brine"
+$Evidence = "C:\GodotLabEvidence\Brass_Brine\validation-$(Get-Date -Format yyyyMMdd-HHmmss)"
+
+godot-lab inspect $Game
+
+godot-lab audit $Game `
+  --output "$Evidence\integrity-report.json"
+
+godot-lab validate $Game `
+  --artifacts "$Evidence\validation"
 ```
 
-Inspect a project without executing it:
+The validation order is:
+
+1. bounded project inventory and static integrity;
+2. Godot identity, version, flavour, and CLI-capability verification;
+3. `.NET` identity and `dotnet build` for C# projects;
+4. authoritative Godot editor import;
+5. recovery-mode import after normal-import failure;
+6. bounded boot after clean import;
+7. separate JSON, stdout, stderr, and engine-log evidence.
+
+Static findings are diagnostics. The matching Godot editor remains authoritative
+for parsing and import. Recovery success identifies a likely import-time
+extension surface; it does not by itself identify which plugin, `@tool` script,
+or GDExtension caused the failure.
+
+## Explicit scene runs
+
+The Lab CLI accepts a convenient `--scene` option, validates the resource, and
+converts it to Godot's positional scene argument before execution:
 
 ```powershell
-godot-lab inspect C:\GitRepos\Brass_Brine
-```
+godot-lab run C:\GitRepos\Brass_Brine `
+  --scene res://tests/native_smoke.tscn `
+  --frames 300
 
-Run the canonical native validation pipeline and retain evidence:
-
-```powershell
-godot-lab validate C:\GitRepos\Brass_Brine `
-  --artifacts C:\GitRepos\Brass_Brine\.qa\latest
-```
-
-The native validation order is:
-
-1. project inventory;
-2. exact Godot identity and version;
-3. Godot .NET requirement for C# projects;
-4. `.NET` identity and `dotnet build` where required;
-5. Godot headless editor import;
-6. bounded headless main-scene boot;
-7. JSON report plus command logs.
-
-Launch a bounded run:
-
-```powershell
-godot-lab run C:\GitRepos\epochbound --frames 600
-```
-
-Record deterministic native visual evidence:
-
-```powershell
-godot-lab record C:\GitRepos\epochbound `
-  --output C:\GitRepos\epochbound\.qa\epochbound-smoke.avi `
+godot-lab record C:\GitRepos\Brass_Brine `
+  --scene res://tests/native_smoke.tscn `
+  --output C:\GodotLabEvidence\Brass_Brine\native-smoke.avi `
   --frames 300 `
   --fps 30
 ```
 
-Export a declared preset:
+The worker rejects traversal, missing scenes, symlinks, duplicate selectors, and
+non-scene resources. An unknown Godot option being ignored is never accepted as
+proof that a requested scene ran.
+
+## Native Windows agent QA
+
+A game owns a tracked profile, normally:
+
+```text
+<game>\.evavo\godot-lab-native.json
+```
+
+Start from `examples/native-agent-qa.profile.json` and validate it against
+`schemas/native-agent-qa-profile.schema.json`. The worker accepts profile schema
+1.0 for migration but normalizes every run to schema 2.0.
 
 ```powershell
-godot-lab export C:\GitRepos\epochbound `
-  --preset "Windows Desktop" `
-  --output C:\GitRepos\epochbound\dist\epochbound.exe
+$Lab = "C:\GitRepos\godot-game-test-lab"
+$Game = "C:\GitRepos\Brass_Brine"
+$EvidenceRoot = "C:\GodotLabEvidence"
+$Run = Join-Path $EvidenceRoot "Brass_Brine\$(Get-Date -Format yyyyMMdd-HHmmss)"
+
+Set-Location $Lab
+
+.\scripts\Invoke-GodotLabNativeAgentQA.ps1 `
+  -TargetRepositoryPath $Game `
+  -ProjectSubpath "." `
+  -ProfilePath ".evavo\godot-lab-native.json" `
+  -ExpectedLabSha (git rev-parse HEAD) `
+  -ExpectedTargetSha (git -C $Game rev-parse HEAD) `
+  -ArtifactPath $Run `
+  -AllowedArtifactRoot $EvidenceRoot `
+  -PythonExecutable ".\.venv\Scripts\python.exe" `
+  -MinimumGodotVersion "4.6.2" `
+  -TimeoutSeconds 900 `
+  -BootFrames 30 `
+  -WindowPosition "32,32"
 ```
 
-## Reusable Linux agent QA
+Renderer, rendering-driver, GPU-index, resolution, FPS, steps, assertions, and
+visual policies belong in the tracked target profile. They are not ungoverned
+wrapper overrides.
 
-Each active Godot repository should call `.github/workflows/reusable-godot-linux-sandbox.yml` from its own repository context. The game commits `.evavo/godot-lab-linux.json` and pins the lab workflow to an exact lab commit SHA.
+The native worker:
 
-Caller example:
+1. verifies exact clean lab and target SHAs;
+2. verifies the profile is a tracked regular file;
+3. acquires the single native-desktop lease;
+4. confirms Explorer is in the worker's nonzero Windows session;
+5. creates a bounded, link-free, Windows-portable exact `git archive` copy;
+6. runs the canonical validation CLI behind a whole-process watchdog;
+7. verifies visual CLI capabilities through `godot --help`;
+8. runs target-owned deterministic journeys in the ephemeral copy;
+9. limits total runtime, output retention, evidence bytes, files, and
+   resolution-by-frame work;
+10. captures process, Godot, hardware, media, checkpoint, and visual evidence;
+11. verifies the original target checkout remains unchanged before returning.
 
-```yaml
-name: Godot Linux Agent QA
+A normal self-hosted runner installed as a Windows service is usually in Session
+0 and is rejected for visible-desktop evidence. Launch the approved runner in
+Greg's logged-in account. Only one native desktop run may hold the lease at a
+time.
 
-on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-  workflow_dispatch:
+## Native profile bounds
 
-permissions:
-  contents: read
+Profiles fail closed on unknown fields, duplicate journey/action/checkpoint IDs,
+non-finite numbers, lifecycle-argument overrides, unsafe checkpoint names, and
+incompatible renderer/driver combinations. Current bounds include:
 
-jobs:
-  linux-agent-qa:
-    uses: EVAVO-STUDIO/godot-game-test-lab/.github/workflows/reusable-godot-linux-sandbox.yml@LAB_SHA
-    with:
-      lab_sha: LAB_SHA
-      target_sha: ${{ github.sha }}
-      profile_path: .evavo/godot-lab-linux.json
-      retention_days: 14
-```
+- 16 journeys per profile;
+- 256 steps and 128 assertions per journey;
+- 32 checkpoints per journey;
+- 600 seconds maximum represented duration per journey;
+- 3840×2160 maximum declared resolution;
+- 60 FPS maximum;
+- per-journey and whole-profile pixel-frame budgets;
+- explicit total run-time and artifact-byte budgets at the worker boundary.
 
-The standard caller path:
-
-- checks out the exact caller commit with Git LFS content;
-- verifies it is a clean ancestor of the caller repository's actual default branch;
-- checks out the exact public lab commit;
-- reads and normalizes the repository-owned profile;
-- builds a manifest-verified Godot image;
-- runs without network or repository credentials;
-- performs import, build, boot, optional export, baseline rendering and declared journeys;
-- verifies that the caller checkout remains unchanged;
-- uploads bounded agent-readable evidence.
-
-It uses the caller repository's normal read context and does **not** require a standing cross-repository private-repository token. The separate administrative dispatcher workflow remains available only for centrally initiated legacy/manual jobs and is not the estate adoption standard.
-
-## Interactive journey profile
-
-Profile schema `2.0` adds bounded journeys. A journey can send Godot action, key, mouse and joypad events; wait; capture checkpoints; require InputMap device coverage; and assert scene, node, focus, visibility or metadata state.
-
-```json
-{
-  "schemaVersion": "2.0",
-  "projectSubpath": ".",
-  "minimumGodotVersion": "4.6.2",
-  "engineFlavor": "standard",
-  "visual": {
-    "required": true,
-    "scene": "res://main.tscn",
-    "frames": 180,
-    "fps": 30,
-    "width": 1280,
-    "height": 720,
-    "renderingMethod": "gl_compatibility",
-    "userArguments": []
-  },
-  "export": {
-    "required": false,
-    "preset": ""
-  },
-  "journeys": [
-    {
-      "id": "menu-keyboard",
-      "required": true,
-      "device": "keyboard_mouse",
-      "requiredActions": [
-        {"name": "ui_accept", "devices": ["keyboard"]}
-      ],
-      "steps": [
-        {"type": "action_tap", "action": "ui_accept"},
-        {"type": "wait", "frames": 30},
-        {"type": "checkpoint", "id": "menu-accepted"}
-      ],
-      "assertions": [
-        {"type": "scene_loaded"}
-      ],
-      "ux": {
-        "maximumOutOfBoundsInteractive": 0,
-        "requireFocusOwner": true,
-        "failOnBlackFrame": true
-      }
-    }
-  ]
-}
-```
-
-See `docs/INTERACTIVE_AGENT_QA.md` for the full contract and evidence boundary.
-
-## Isolated Linux worker
-
-The Linux image:
-
-- starts from a dated Ubuntu 24.04 image pinned by exact digest;
-- verifies official Godot editor and export-template archives against the release SHA-512 manifest;
-- automatically selects standard Godot or the .NET editor from the target workload;
-- includes .NET SDK 8 for C# compilation;
-- mounts target source read-only and performs all imports/builds in an ephemeral copy;
-- runs as a non-root user with no network, capabilities or elevated privileges;
-- uses a read-only root filesystem, bounded resources and temporary filesystems;
-- renders through Xvfb X11 and Mesa llvmpipe;
-- never receives repository, deployment, signing or store credentials.
+Black and frozen segments are always measured when FFmpeg is available. They
+become failures only when the target profile explicitly enables the corresponding
+policy, preventing intentional splash fades or static screens from becoming
+false failures.
 
 ## Evidence
 
-A complete schema-2 run may contain:
+A native run may retain:
 
-- `dispatch.json` and the normalized profile;
-- Docker build and image metadata;
-- `sandbox-report.json` for import/build/boot/export stages;
-- baseline `visual/gameplay.avi`, screenshots, contact sheet and `ffprobe.json`;
-- one directory per journey;
-- per-journey stdout and stderr;
-- `journey-report.json` with steps, assertions, InputMap and UI telemetry;
-- `visual-ux-review.json` with objective visual findings;
-- named checkpoint PNGs;
-- per-journey movie, screenshots, contact sheet and probe metadata;
-- `agent-summary.json` with exact SHAs, commands, findings, truth boundaries, artifact byte counts and SHA-256 identities.
+```text
+<native-run>\
+  native-agent-summary.json
+  run-context.json
+  source-archive.json
+  profile.normalized.json
+  hardware.json
+  validation\
+    report.json
+    integrity-report.json
+    engine-logs\
+  journeys\<id>\
+    journey.normalized.json
+    journey-report.json
+    godot.log
+    gameplay.avi
+    ffprobe.json
+    contact-sheet.png
+    screenshots\
+    checkpoints\
+  logs\
+```
 
-## Exact-SHA native automation
+`native-agent-summary.json` records the exact SHAs, source/profile hashes,
+project subpath, desktop lease, session state, validation result, requested
+renderer/driver/GPU index, process receipts, findings, budget consumption,
+target mutation state, and a SHA-256 inventory of retained evidence. Large
+stdout, stderr, and engine logs are bounded while they are produced or read,
+rather than being accumulated without limit first.
 
-The repository includes `.github/workflows/evavo-native-godot-validation.yml` for approved self-hosted Windows validation.
+A blocked or interrupted run attempts to retain a bounded non-pass summary when
+the requested evidence directory is safe and belongs to that run.
 
-The workflow:
+## Isolated Linux agent QA
 
-- runs only through manual `workflow_dispatch`;
-- requires an exact test-lab `main` SHA;
-- requires the exact target game repository SHA;
-- requires `request_source=evavo-development-studio`;
-- accepts only target paths beneath `C:\GitRepos`;
-- uses runner labels `self-hosted`, `Windows`, `X64`, and `evavo-godot-lab`;
-- prepares an isolated Python 3.11 environment using pinned build and validation dependencies;
-- refuses to run unless the target checkout `HEAD` matches `expected_target_sha`;
-- runs compile, Ruff, pytest, doctor and the canonical Godot validation pipeline;
-- compares tracked target-repository status before and after execution;
-- fails if validation changes any tracked game source;
-- uploads bounded evidence for 14 days;
-- has no checkout reset, target commit, push, PR, deployment or publication authority.
+Each game should call
+`.github/workflows/reusable-godot-linux-sandbox.yml` from its own repository
+context and pin an exact Lab SHA and exact caller SHA. The Linux lane mounts the
+target read-only, works in an ephemeral copy, runs without network or repository
+credentials, and renders through Xvfb and Mesa llvmpipe.
 
-Runner provisioning and local parity are defined in `docs/NATIVE_RUNNER_CONTRACT.md`.
+Linux software rendering is deterministic compatibility evidence. It is not
+native Windows GPU, physical-controller, performance, or human visual evidence.
+See `docs/REUSABLE_LINUX_SANDBOX.md`, `docs/INTERACTIVE_AGENT_QA.md`, and
+`docs/LINUX_SANDBOX_CONTRACT.md`.
+
+## Exact-SHA GitHub automation
+
+`.github/workflows/evavo-native-godot-validation.yml` is the manual,
+Development-Studio-dispatched Windows lane. It requires exact Lab and target
+SHAs, an explicit project subpath, and the approved self-hosted labels:
+
+```text
+self-hosted, Windows, X64, evavo-godot-lab
+```
+
+Supplying a tracked native profile enables the native visual/input stage.
+Without a profile, the workflow performs validation only. The workflow has no
+target commit, push, branch, deployment, signing, or publication authority.
 
 ## Truth boundaries
 
-- A passing headless import is not proof of game feel or visual quality.
-- A bounded boot proves startup only; it does not prove complete gameplay.
-- A recorded movie or contact sheet is visual evidence, not a complete playthrough.
-- Synthetic keyboard and mouse events prove the declared Godot event path, not real-device latency.
-- Synthetic joypad events prove InputMap coverage and event handling, not physical USB enumeration or controller certification.
-- Xvfb with Mesa software rendering does not prove hardware-specific Vulkan behavior or performance.
-- Deterministic layout telemetry catches objective clipping, focus, overlap and target-size defects but does not replace human art direction or accessibility review.
-- Browser interaction should use Godot Web Runtime when the project supports a GDScript Compatibility-renderer web export.
-- Godot 4 C# projects cannot use the browser-export path and must be tested natively.
-- Export commands require valid project export presets and installed export templates.
-- The lab never edits tracked game source, creates a target branch, commits, pushes or deploys by itself. Development Studio grants and records those effects.
+- A static audit does not replace matching-editor import.
+- A bounded boot proves startup only.
+- A screenshot, movie, or contact sheet is not a complete playthrough.
+- Synthetic keyboard/mouse events prove the declared Godot event path, not
+  real-device latency.
+- Synthetic joypad events do not certify a physical controller, Steam Input,
+  rumble, wireless behaviour, or device-specific latency.
+- Requested GPU index and adapter logs do not automatically prove performance,
+  thermals, frame pacing, or that every subsystem executed on that adapter.
+- CUDA is auxiliary compute capability, not Godot's rendering backend.
+- UI geometry checks do not replace accessibility, game-feel, art-direction, or
+  human QA review.
+- The Lab diagnoses and retains evidence. Target repair and publication require
+  a separate Development Studio grant and the target repository's own lease.
 
 ## Development checks
 
 ```powershell
-python -m compileall src scripts tests
+python scripts/check_repository_toolchain.py
+python scripts/test_repository_toolchain.py
+python -m compileall -q src scripts tests
 python -m ruff check src scripts tests
-bash -n scripts/*.sh
 python -m pytest
+python -m pip wheel --no-deps --wheel-dir dist .
 ```
 
-Source tests validate the Python, shell, workflow and policy contract without claiming a real Godot or Docker run. Actual import, build, boot, export, rendered journey and input evidence exists only after the exact-SHA workflow or equivalent local sandbox execution completes.
-
-## Mainline policy
-
-Automated work is committed directly to `main` only after relevant checks pass. No automated feature or repair branches are created. Force-push is forbidden. See `AGENTS.md`, `CLAUDE.md` and `evavo.reliability.json`.
+Source tests prove the Python, shell, workflow, and policy contract only. Native
+Godot, Windows desktop, driver, GPU, target-game, and visual facts exist only
+after a real exact-SHA worker run retains them.

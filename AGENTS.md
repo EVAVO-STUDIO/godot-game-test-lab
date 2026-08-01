@@ -1,92 +1,125 @@
 # Godot Game Test Lab Agent Instructions
 
-This repository is the canonical EVAVO native Godot execution worker. Development Studio owns portfolio inventory, incident classification, repair authority, repository publication and target-repository effects. Godot Web Runtime owns browser-hosted interaction evidence.
+This repository is the canonical EVAVO native Godot execution worker.
+Development Studio owns portfolio inventory, incident classification, repair
+authority, repository publication, and target-repository effects. Godot Web
+Runtime owns browser-hosted interaction evidence.
 
 ## Mainline rules
 
-- Automated work stays on `main`; do not create branches, pull requests or repositories.
-- Publish this repository only through the governed Development Studio mainline process or an equivalent exact-scope direct-main operation.
-- Require `repository-main:EVAVO-STUDIO/godot-game-test-lab`, a clean current `main`, the committed `evavo.reliability.json` profile and no remote-head drift.
-- Never force-push, broadly stage, bypass hooks or overwrite concurrent work.
+- Automated work stays on `main`; do not create branches, pull requests, or
+  replacement repositories.
+- Publish only through the governed Development Studio process or an equivalent
+  exact-scope, non-forced direct-main operation.
+- Require `repository-main:EVAVO-STUDIO/godot-game-test-lab`, a current clean
+  `main`, the committed `evavo.reliability.json`, and no remote-head drift.
+- Never force-push, broadly stage, bypass hooks, or overwrite concurrent work.
 - Preserve unrelated work and stop on a dirty or drifting repository.
-- Do not create another Godot QA repository or duplicate these capabilities elsewhere.
 
 ## Source checks
 
 ```powershell
-python -m compileall src scripts tests
+python scripts/check_repository_toolchain.py
+python scripts/test_repository_toolchain.py
+python -m compileall -q src scripts tests
 python -m ruff check src scripts tests
-bash -n scripts/*.sh
 python -m pytest
+python -m pip wheel --no-deps --wheel-dir dist .
 ```
 
-The exact-SHA GitHub source workflow proves only the Python, shell, workflow and policy contract. It does not prove a Windows runner, Linux container build, Godot executable, .NET SDK, target project, import, boot, export, rendered journey, physical controller or human review.
+Hosted source validation proves the Python, shell, workflow, and policy contract
+only. It does not prove a Windows session, Linux container, Godot executable,
+.NET SDK, target game, import, boot, export, GPU, rendered journey, controller,
+or human review.
 
 ## Cross-repository integrity and recovery
 
-Read `docs/PROJECT_INTEGRITY_AND_RECOVERY.md` before changing validation, project parsing, import, recovery, evidence, or Development Studio integration.
+Read `docs/PROJECT_INTEGRITY_AND_RECOVERY.md` before changing validation,
+project parsing, import, recovery, evidence, or Development Studio integration.
 
-- Run `godot-lab capabilities` and `godot-lab doctor` before selecting an execution lane.
-- Run `godot-lab audit <target>` before native run, recording, export, or repair diagnosis.
-- Use an explicit external artifact directory; do not write retained evidence into tracked target source.
-- Treat static scene/resource findings as diagnostics and Godot editor `--import` as authoritative engine validation.
-- Verify required editor flags from `godot --help`; Godot may silently ignore unknown command-line arguments.
-- If normal import fails, use the retained recovery-mode import as an isolation signal only. Recovery success suspects an editor plugin, `@tool` script, GDExtension, or another disabled import-time surface; it does not prove which surface caused the failure.
-- Keep finding codes, categories, suggested repair actions, paths, lines, evidence and schema versions stable for Development Studio consumers.
-- The Linux sandbox must retain the same `integrity-report.json` gate as native validation.
-- Do not auto-edit a corrupt TSCN/TRES merely to make it parse. Prefer recovery from version control or a known-good authored file, then validate with the matching Godot editor.
+- Run `godot-lab capabilities` and `godot-lab doctor` before selecting a lane.
+- Run `godot-lab audit <target>` before native execution or repair diagnosis.
+- Use an explicit external artifact directory; retained evidence must not be
+  written into tracked Lab or target source.
+- Treat static scene/resource findings as diagnostics and matching-editor
+  `--import` as authoritative engine validation.
+- Verify required editor flags from `godot --help`; Godot may ignore unknown
+  command-line arguments.
+- Recovery success is an isolation signal, not a proven root cause.
+- Keep finding codes, categories, paths, lines, repair actions, evidence, and
+  schema versions stable for Development Studio consumers.
+- Never auto-delete arbitrary TSCN/TRES sections to make a file parse.
 
-## Native acceptance
+## Native Windows agent QA
 
-Read `docs/NATIVE_WINDOWS_AGENT_QA.md` before changing native visual, GPU, window, Movie Maker, journey or interactive-session behavior.
+Read `docs/NATIVE_WINDOWS_AGENT_QA.md` before changing the native profile,
+runner, process supervision, desktop session, graphics, or visual evidence.
 
-- Use a freshly probed Windows x64 runner in Greg's logged-in interactive session, not Session 0.
-- Bind every run to exact lab and target SHAs and a tracked target-owned journey profile.
-- Use `godot-lab-native-qa` or `scripts/Invoke-GodotLabNativeAgentQA.ps1` for native visual and synthetic-input evidence.
-- Keep native evidence beneath an explicitly allowed external root and outside both source checkouts.
-- Verify all required Godot flags from `--help`; never rely on an unknown option being rejected.
-- A scene selected by `godot-lab run` or `record` must become Godot's positional scene argument. Never pass an invented `--scene` engine option.
-- Preserve Godot engine logs, Movie Maker output, FFprobe metadata, screenshots, contact sheets, checkpoints, hardware probes, requested renderer/driver/GPU index and target mutation evidence.
-- CUDA visibility is auxiliary compute evidence, not Godot renderer or rendered-frame proof.
+- Require exact clean Lab and target SHAs. A dirty checkout cannot be represented
+  by `HEAD`.
+- Require the profile to be a tracked regular file and normalize it strictly.
+- The exact archive lane fails closed on submodules until a governed
+  materialization contract exists.
+- Keep Lab, target, allowed evidence root, and run-specific evidence directory
+  disjoint.
+- Acquire the single native desktop lease before native visual execution.
+- Require Explorer in the same nonzero Windows session for a desktop-evidence
+  claim; Session 0 is invalid.
+- Enforce whole-process time, output, artifact-byte, file-count, and
+  resolution-by-frame budgets.
+- Drain stdout/stderr while processes run and terminate the complete process
+  tree on timeout or evidence overflow.
+- Validate checkpoint IDs and all retained evidence paths; never follow evidence
+  symlinks.
+- Keep full logs separate from compact process receipts in the final summary.
+- Recheck the original target checkout on every exit path.
+- Black/freeze diagnostics are objective evidence. They become failures only
+  through explicit target-owned profile policy.
 
 ## Linux sandbox acceptance
 
-- Use only `EVAVO-STUDIO/godot-game-test-lab` for reusable Linux Godot execution.
-- Prefer the caller-context reusable workflow from each game repository; do not require a standing cross-repository private-repository token.
-- Bind the run to the exact lab SHA, exact caller SHA and caller repository's actual default branch.
-- Mount target source and the normalized profile read-only and perform all Godot and .NET writes in an ephemeral copy.
-- Build Godot only from official release archives after release-manifest checksum verification.
-- Run as a non-root user with no network, no Linux capabilities, `no-new-privileges`, a read-only root filesystem and bounded CPU, memory, swap, processes, file descriptors and runtime.
-- Never mount the Docker socket, use privileged mode, expose `/dev/uinput`, or pass a GitHub token, deploy secret, signing key or target write credential into the container.
-- Preserve report, integrity, stdout, stderr, movie, probe metadata, screenshots, contact sheets, journey checkpoints, InputMap evidence, UI telemetry and objective visual diagnostics.
-- Treat Xvfb and Mesa llvmpipe as software-rendered Linux compatibility evidence, not GPU performance or final visual approval.
-- Require the target checkout SHA and status to remain unchanged after the run.
+- Use only this repository for reusable Linux Godot execution.
+- Prefer the caller-context reusable workflow from each game repository.
+- Bind runs to exact Lab and caller SHAs and the caller's real default branch.
+- Mount target source and normalized profile read-only; write only to an
+  ephemeral copy and bounded artifact directory.
+- Verify official Godot release archives against release manifests.
+- Run non-root with no network, Linux capabilities, Docker socket, `/dev/uinput`,
+  deployment secret, signing key, or target write credential.
+- Preserve integrity, command, engine, movie, screenshot, checkpoint, InputMap,
+  UI, and summary evidence.
+- Treat Xvfb/Mesa llvmpipe as Linux compatibility evidence, not Windows GPU or
+  final visual approval.
 
 ## Interactive journey rules
 
-- Schema `2.0` journeys must be bounded, deterministic and owned by the target game profile.
-- Inject Godot `InputEvent` objects through `Input.parse_input_event()`; do not use shell automation to masquerade as engine input evidence.
-- Concrete keyboard, mouse or joypad events are required when the journey claims device mapping coverage.
-- Synthetic joypad events prove InputMap coverage and Godot event handling only. Never claim a physical controller pass, USB enumeration, Steam Input, rumble or device-specific latency from this lane.
-- Required journeys fail closed. Optional journey failures remain visible findings and may not be silently discarded.
-- Capture named checkpoints around meaningful transitions rather than relying only on a final frame.
-- Use machine-checkable assertions where the game exposes stable node, metadata or focus contracts.
-- UI geometry telemetry may identify clipping, overlap, focus and target-size defects; it is not human UX, accessibility or art-direction approval.
-- Black and frozen video diagnostics are objective screen evidence only; allow intentional static or dark scenes through an explicit target-owned profile rule.
+- Schema-2 journeys are bounded, deterministic, and owned by the target game.
+- Inject Godot `InputEvent` objects through `Input.parse_input_event()`.
+- Required journeys fail closed. Optional failures remain visible findings.
+- Capture named checkpoints around meaningful transitions.
+- Use machine-checkable assertions only where the game exposes stable
+  contracts.
+- Synthetic joypad events prove InputMap/event handling only, never physical
+  controller enumeration, Steam Input, rumble, or latency.
+- UI geometry telemetry is not human UX, accessibility, game-feel, or art
+  approval.
 
 ## Runtime rules
 
 - Detect C# from `.csproj` files.
-- C# requires Godot .NET and `.NET`; a standard Godot binary is invalid.
-- GDScript uses the standard Godot binary unless the repository profile says otherwise.
-- Require Godot 4.6.2 or the repository-declared compatible later version.
+- C# requires Godot .NET and `.NET`; a standard editor is invalid.
+- Require Godot 4.6.2 or a repository-declared compatible later 4.x release.
 - Run `.NET` build before Godot import for C# projects.
-- Preserve command, exit code, duration, bounded stdout, bounded stderr, timeout, engine log and artifact evidence.
-- A headless pass is not visual quality evidence.
-- A bounded boot proves startup only.
-- A movie or contact sheet is not a complete interactive playthrough.
-- Use Godot Web Runtime for browser input, DOM/browser traces and semantic web gameplay observations when a compatible export exists.
+- Preserve command, exit, duration, bounded output, timeout, engine log, and
+  artifact evidence.
+- Convert the Lab CLI's `--scene` option to Godot's validated positional scene
+  argument; do not pass an invented engine option.
+- A bounded boot proves startup only. A movie is not a complete playthrough.
 
 ## Repair boundary
 
-The worker may diagnose and retain evidence. It must never edit, commit, push, deploy or mutate a target game without a separate governed Development Studio execution grant and the target repository's own exclusive mainline lease. Every repair claim must cite the exact target SHA and the evidence boundary that actually passed.
+The worker may diagnose and retain evidence. It must never edit, commit, push,
+deploy, sign, or publish a target game without a separate Development Studio
+execution grant and the target repository's exclusive mainline lease. Every
+repair claim must cite the exact target SHA and the evidence boundary that
+actually passed.

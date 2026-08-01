@@ -28,12 +28,14 @@ def base_profile() -> dict:
 def test_profile_normalization_is_bounded_and_explicit() -> None:
     value = normalize_profile(base_profile())
     journey = value["journeys"][0]
-    assert value["schemaVersion"] == "1.0"
+    assert value["schemaVersion"] == "2.0"
     assert journey["required"] is True
     assert journey["fps"] == 30
     assert journey["width"] == 1280
     assert journey["renderingMethod"] == "forward_plus"
     assert journey["renderingDriver"] == "vulkan"
+    assert journey["estimatedFrames"] == 34
+    assert journey["ux"]["failOnBlackFrame"] is False
 
 
 def test_profile_rejects_duplicate_journeys_and_lifecycle_arguments() -> None:
@@ -74,7 +76,9 @@ def test_strict_profile_loader_rejects_duplicate_and_non_finite_json(tmp_path: P
     from godot_game_test_lab.native_qa import _load_json_object
 
     duplicate = tmp_path / "duplicate.json"
-    duplicate.write_text('{"schemaVersion":"1.0","schemaVersion":"2.0"}', encoding="utf-8")
+    duplicate.write_text(
+        '{"schemaVersion":"1.0","schemaVersion":"2.0"}', encoding="utf-8"
+    )
     with pytest.raises(NativeQaError, match="Duplicate JSON key"):
         _load_json_object(duplicate, "profile")
 
@@ -93,18 +97,26 @@ def test_exact_git_archive_copy_is_link_free_and_bounded(tmp_path: Path) -> None
     source.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=source, check=True)
     subprocess.run(["git", "config", "user.name", "Fixture"], cwd=source, check=True)
-    subprocess.run(["git", "config", "user.email", "fixture@example.com"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "fixture@example.com"],
+        cwd=source,
+        check=True,
+    )
     (source / "project.godot").write_text("config_version=5\n", encoding="utf-8")
     (source / "main.tscn").write_text(
         '[gd_scene format=3]\n[node name="Main" type="Node"]\n', encoding="utf-8"
     )
     subprocess.run(["git", "add", "."], cwd=source, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "fixture"], cwd=source, check=True)
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
+    sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=source, text=True
+    ).strip()
 
     destination = tmp_path / "work" / "repository"
-    _archive_checkout(source, sha, destination, 30)
+    receipt = _archive_checkout(source, sha, destination, 30)
 
+    assert receipt["files"] == 2
+    assert receipt["bytes"] > 0
     assert (destination / "project.godot").is_file()
     assert (destination / "main.tscn").is_file()
     assert not any(path.is_symlink() for path in destination.rglob("*"))

@@ -18,63 +18,78 @@
     "journeys": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 64,
+      "maxItems": 16,
       "items": {
         "$ref": "#/$defs/journey"
       }
     }
   },
   "$defs": {
+    "safeId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "boundedString": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^[^\\r\\n\\u0000]*$"
+    },
     "journey": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "id"
       ],
       "properties": {
         "id": {
-          "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          "$ref": "#/$defs/safeId"
         },
         "required": {
           "type": "boolean",
           "default": true
         },
         "scene": {
-          "type": "string",
+          "$ref": "#/$defs/boundedString",
           "default": ""
         },
         "device": {
-          "type": "string",
+          "enum": [
+            "keyboard",
+            "keyboard_mouse",
+            "mouse",
+            "semantic",
+            "synthetic_gamepad"
+          ],
           "default": "semantic"
         },
         "settleFrames": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 1800,
+          "maximum": 600,
           "default": 30
         },
         "maxFrames": {
           "type": "integer",
           "minimum": 30,
-          "maximum": 18000,
+          "maximum": 7200,
           "default": 900
         },
         "fps": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 120,
+          "maximum": 60,
           "default": 30
         },
         "width": {
           "type": "integer",
           "minimum": 320,
-          "maximum": 7680,
+          "maximum": 3840,
           "default": 1280
         },
         "height": {
           "type": "integer",
           "minimum": 180,
-          "maximum": 4320,
+          "maximum": 2160,
           "default": 720
         },
         "renderingMethod": {
@@ -104,31 +119,574 @@
           "maxItems": 32,
           "items": {
             "type": "string",
-            "pattern": "^--[^\\r\\n\\u0000]{1,254}$"
+            "minLength": 3,
+            "maxLength": 256,
+            "pattern": "^--[^\\r\\n\\u0000]+$"
+          },
+          "default": []
+        },
+        "requiredActions": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/requiredAction"
           },
           "default": []
         },
         "steps": {
           "type": "array",
-          "maxItems": 512,
+          "maxItems": 256,
           "items": {
-            "type": "object"
+            "$ref": "#/$defs/step"
           },
           "default": []
         },
         "assertions": {
           "type": "array",
-          "maxItems": 256,
+          "maxItems": 128,
           "items": {
-            "type": "object"
+            "$ref": "#/$defs/assertion"
           },
           "default": []
         },
         "ux": {
-          "type": "object",
-          "default": {}
+          "$ref": "#/$defs/ux"
         }
       }
+    },
+    "requiredAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\r\\n\\u0000]+$"
+        },
+        "devices": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 5,
+          "items": {
+            "enum": [
+              "action",
+              "gamepad",
+              "keyboard",
+              "mouse",
+              "other"
+            ]
+          },
+          "default": []
+        }
+      }
+    },
+    "step": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/waitStep"
+        },
+        {
+          "$ref": "#/$defs/actionStep"
+        },
+        {
+          "$ref": "#/$defs/actionTapStep"
+        },
+        {
+          "$ref": "#/$defs/keyStep"
+        },
+        {
+          "$ref": "#/$defs/keyTapStep"
+        },
+        {
+          "$ref": "#/$defs/mouseMoveStep"
+        },
+        {
+          "$ref": "#/$defs/mouseButtonStep"
+        },
+        {
+          "$ref": "#/$defs/mouseClickStep"
+        },
+        {
+          "$ref": "#/$defs/joyButtonStep"
+        },
+        {
+          "$ref": "#/$defs/joyButtonTapStep"
+        },
+        {
+          "$ref": "#/$defs/joyAxisStep"
+        },
+        {
+          "$ref": "#/$defs/checkpointStep"
+        }
+      ]
+    },
+    "waitStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "wait"
+        },
+        "frames": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1800,
+          "default": 1
+        }
+      }
+    },
+    "actionStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "action"
+      ],
+      "properties": {
+        "type": {
+          "const": "action"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "pressed": {
+          "type": "boolean",
+          "default": true
+        },
+        "strength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        }
+      }
+    },
+    "actionTapStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "action"
+      ],
+      "properties": {
+        "type": {
+          "const": "action_tap"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "holdFrames": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600,
+          "default": 1
+        },
+        "strength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        }
+      }
+    },
+    "keyStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "physicalKeycode"
+      ],
+      "properties": {
+        "type": {
+          "const": "key"
+        },
+        "physicalKeycode": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "pressed": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "keyTapStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "physicalKeycode"
+      ],
+      "properties": {
+        "type": {
+          "const": "key_tap"
+        },
+        "physicalKeycode": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "holdFrames": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600,
+          "default": 1
+        }
+      }
+    },
+    "position": {
+      "type": "number",
+      "minimum": -32768,
+      "maximum": 32768
+    },
+    "mouseMoveStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "mouse_move"
+        },
+        "x": {
+          "$ref": "#/$defs/position"
+        },
+        "y": {
+          "$ref": "#/$defs/position"
+        },
+        "relativeX": {
+          "$ref": "#/$defs/position"
+        },
+        "relativeY": {
+          "$ref": "#/$defs/position"
+        }
+      }
+    },
+    "mouseButtonStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "buttonIndex"
+      ],
+      "properties": {
+        "type": {
+          "const": "mouse_button"
+        },
+        "buttonIndex": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "pressed": {
+          "type": "boolean",
+          "default": true
+        },
+        "x": {
+          "$ref": "#/$defs/position"
+        },
+        "y": {
+          "$ref": "#/$defs/position"
+        }
+      }
+    },
+    "mouseClickStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "buttonIndex"
+      ],
+      "properties": {
+        "type": {
+          "const": "mouse_click"
+        },
+        "buttonIndex": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "holdFrames": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600,
+          "default": 1
+        },
+        "x": {
+          "$ref": "#/$defs/position"
+        },
+        "y": {
+          "$ref": "#/$defs/position"
+        }
+      }
+    },
+    "joyButtonStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "buttonIndex"
+      ],
+      "properties": {
+        "type": {
+          "const": "joy_button"
+        },
+        "deviceId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "default": 0
+        },
+        "buttonIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "pressed": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "joyButtonTapStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "buttonIndex"
+      ],
+      "properties": {
+        "type": {
+          "const": "joy_button_tap"
+        },
+        "deviceId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "default": 0
+        },
+        "buttonIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "holdFrames": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600,
+          "default": 1
+        }
+      }
+    },
+    "joyAxisStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "axis"
+      ],
+      "properties": {
+        "type": {
+          "const": "joy_axis"
+        },
+        "deviceId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "default": 0
+        },
+        "axis": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 31
+        },
+        "value": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "default": 0
+        }
+      }
+    },
+    "checkpointStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id"
+      ],
+      "properties": {
+        "type": {
+          "const": "checkpoint"
+        },
+        "id": {
+          "$ref": "#/$defs/safeId"
+        }
+      }
+    },
+    "assertion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "focus_present",
+                "scene_loaded"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "action"
+          ],
+          "properties": {
+            "type": {
+              "const": "input_action_exists"
+            },
+            "action": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "path"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "node_exists",
+                "node_visible"
+              ]
+            },
+            "path": {
+              "$ref": "#/$defs/boundedString"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "path",
+            "key",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "const": "metadata_equals"
+            },
+            "path": {
+              "$ref": "#/$defs/boundedString"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "value": true
+          }
+        }
+      ]
+    },
+    "ux": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "captureControlTree": {
+          "type": "boolean",
+          "default": true
+        },
+        "failOnBlackFrame": {
+          "type": "boolean",
+          "default": false
+        },
+        "failOnFrozenVideo": {
+          "type": "boolean",
+          "default": false
+        },
+        "blackDurationSeconds": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 60,
+          "default": 2
+        },
+        "freezeDurationSeconds": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 120,
+          "default": 5
+        },
+        "minimumVisibleControls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 512,
+          "default": 0
+        },
+        "maximumOutOfBoundsInteractive": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 192,
+          "default": 0
+        },
+        "maximumOverlappingInteractivePairs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024,
+          "default": 0
+        },
+        "requireFocusOwner": {
+          "type": "boolean",
+          "default": false
+        },
+        "minimumInteractiveWidth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4096,
+          "default": 24
+        },
+        "minimumInteractiveHeight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4096,
+          "default": 24
+        },
+        "maximumSmallInteractiveTargets": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 192,
+          "default": 8
+        }
+      },
+      "default": {}
     }
   }
 }
