@@ -1,0 +1,242 @@
+name: Apply MCP and synchronized audio agent upgrade
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".evavo/bootstrap/agent-audio-upgrade.ready"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-godot-agent-audio-upgrade-main
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    name: Validate and publish the MCP and audio bridge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out exact triggering main commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.11.15
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11.15"
+
+      - name: Reconstruct, verify and apply the bounded upgrade payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .evavo/bootstrap/agent-audio-upgrade-00.b64 \
+            | base64 --decode > "${RUNNER_TEMP}/agent-audio-upgrade.tar.gz"
+          printf '%s  %s\n' \
+            'd0e0253109d88a5d65c7dfec0ca35e945b56b1afdc724bf0fda7d424120a191c' \
+            "${RUNNER_TEMP}/agent-audio-upgrade.tar.gz" \
+            | sha256sum --check --strict
+          PAYLOAD="${RUNNER_TEMP}/agent-audio-upgrade.tar.gz" python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import tarfile
+          from pathlib import Path, PurePosixPath
+
+          expected = {
+              "docs/MCP_AGENT_BRIDGE.md",
+              "examples/media-policy.json",
+              "schemas/media-policy.schema.json",
+              "scripts/Write-GodotLabMcpConfig.ps1",
+              "scripts/apply_agent_audio_upgrade.py",
+              "src/godot_game_test_lab/agent_bridge.py",
+              "src/godot_game_test_lab/mcp_server.py",
+              "src/godot_game_test_lab/media_cli.py",
+              "src/godot_game_test_lab/media_evidence.py",
+              "tests/test_agent_bridge.py",
+              "tests/test_mcp_bridge_contract.py",
+              "tests/test_media_evidence.py",
+          }
+          root = Path.cwd().resolve(strict=True)
+          payload = Path(os.environ["PAYLOAD"])
+          observed: set[str] = set()
+          total = 0
+          with tarfile.open(payload, mode="r:gz") as archive:
+              members = archive.getmembers()
+              for member in members:
+                  pure = PurePosixPath(member.name)
+                  if (
+                      pure.is_absolute()
+                      or any(part in {"", ".", ".."} for part in pure.parts)
+                      or not member.isfile()
+                      or member.size < 0
+                      or member.size > 4 * 1024 * 1024
+                  ):
+                      raise SystemExit(f"unsafe upgrade member: {member.name}")
+                  if member.name in observed:
+                      raise SystemExit(f"duplicate upgrade member: {member.name}")
+                  observed.add(member.name)
+                  total += member.size
+              if observed != expected:
+                  raise SystemExit(
+                      f"upgrade member mismatch; missing={sorted(expected - observed)}; "
+                      f"extra={sorted(observed - expected)}"
+                  )
+              if total > 8 * 1024 * 1024:
+                  raise SystemExit("upgrade expanded-byte limit exceeded")
+              for member in members:
+                  destination = root.joinpath(*PurePosixPath(member.name).parts)
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  source = archive.extractfile(member)
+                  if source is None:
+                      raise SystemExit(f"could not read upgrade member: {member.name}")
+                  temporary = destination.with_name(destination.name + ".evavo-tmp")
+                  with source, temporary.open("xb") as output:
+                      output.write(source.read())
+                  temporary.replace(destination)
+          PY
+          python scripts/apply_agent_audio_upgrade.py
+          rm -f scripts/apply_agent_audio_upgrade.py
+          rm -f .evavo/bootstrap/agent-audio-upgrade-*.b64
+          rm -f .evavo/bootstrap/agent-audio-upgrade.ready
+          rmdir .evavo/bootstrap 2>/dev/null || true
+          rm -f .github/workflows/apply-agent-audio-upgrade.yml
+          rm -f .evavo/agent-audio-upgrade-diagnostic.txt
+
+      - name: Verify repository-owned toolchain authority
+        run: |
+          set -euo pipefail
+          python scripts/check_repository_toolchain.py
+          python scripts/test_repository_toolchain.py
+
+      - name: Install pinned development dependencies
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: python -m pip install --disable-pip-version-check ".[dev]"
+
+      - name: Verify installed development toolchain
+        run: python scripts/check_repository_toolchain.py --installed
+
+      - name: Install the pinned MCP agent bridge
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: python -m pip install --disable-pip-version-check ".[agent]"
+
+      - name: Verify installed MCP SDK identity
+        run: python scripts/check_repository_toolchain.py --agent-installed
+
+      - name: Compile, lint, parse and test the complete source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q src scripts tests
+          python -m ruff check src scripts tests
+          while IFS= read -r -d '' script; do
+            bash -n "${script}"
+          done < <(find scripts containers -type f -name '*.sh' -print0)
+          pwsh -NoLogo -NoProfile -NonInteractive -Command \
+            '$files = @("scripts/Write-GodotLabMcpConfig.ps1", "scripts/Invoke-GodotLabBotQA.ps1", "scripts/Invoke-GodotLabNativeAgentQA.ps1"); foreach ($file in $files) { $source = Get-Content -Raw -LiteralPath $file; $null = [scriptblock]::Create($source) }'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for relative in (
+              "schemas/media-policy.schema.json",
+              "examples/media-policy.json",
+              "evavo.reliability.json",
+              "schemas/repository-owned-reliability-profile.schema.json",
+          ):
+              json.loads(Path(relative).read_text(encoding="utf-8"))
+          PY
+          python -m pytest
+          python -m pip wheel --no-deps --wheel-dir dist .
+
+      - name: Build the MCP server with root restrictions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/mcp-evidence"
+          python -m godot_game_test_lab.mcp_server \
+            --lab-root . \
+            --allowed-root . \
+            --evidence-root "${RUNNER_TEMP}/mcp-evidence" \
+            --allow-noninteractive \
+            --self-test
+
+      - name: Clean generated outputs and verify exact patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
+          find src scripts tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          find src scripts tests -type f -name '*.pyc' -delete
+          test ! -e .github/workflows/apply-agent-audio-upgrade.yml
+          test ! -e scripts/apply_agent_audio_upgrade.py
+          test ! -d .evavo/bootstrap
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all | grep -E '^(\?\?| M|M |A | D|D ) (dist|\.pytest_cache|\.ruff_cache|src/.*\.egg-info|.*__pycache__|.*\.pyc)' || true)"
+
+      - name: Commit the validated 0.6.0 upgrade directly to main
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          remote_head="$(git rev-parse origin/main)"
+          if [[ "${remote_head}" != "${EXPECTED_HEAD}" ]]; then
+            echo "Remote main drifted from ${EXPECTED_HEAD} to ${remote_head}." >&2
+            exit 1
+          fi
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "automation@evavo.com.au"
+          git add --all
+          git diff --cached --check
+          git commit -m "feat(agent): add MCP visual and synchronized audio QA"
+          git push origin HEAD:main
+
+      - name: Retain bounded failure diagnostics
+        if: failure()
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set +e
+          diagnostic='.evavo/agent-audio-upgrade-diagnostic.txt'
+          mkdir -p .evavo
+          {
+            printf 'trigger_sha=%s\n' "${EXPECTED_HEAD}"
+            printf 'utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf '\n== status ==\n'
+            git status --short --untracked-files=all
+            printf '\n== diff check ==\n'
+            git diff --check
+            printf '\n== toolchain ==\n'
+            python scripts/check_repository_toolchain.py --skip-runtime
+            printf '\n== compile ==\n'
+            python -m compileall -q src scripts tests
+            printf '\n== ruff ==\n'
+            python -m ruff check src scripts tests
+            printf '\n== focused tests ==\n'
+            python -m pytest -q tests/test_media_evidence.py tests/test_agent_bridge.py tests/test_mcp_bridge_contract.py
+            printf '\n== full tests ==\n'
+            python -m pytest -q
+          } > "${diagnostic}" 2>&1
+          git fetch --no-tags origin main
+          remote_head="$(git rev-parse origin/main)"
+          if [[ "${remote_head}" != "${EXPECTED_HEAD}" ]]; then
+            echo "Not publishing diagnostics because main drifted to ${remote_head}."
+            exit 0
+          fi
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "automation@evavo.com.au"
+          git add "${diagnostic}"
+          git commit -m "diagnose(agent): retain MCP and audio upgrade failure"
+          git push origin HEAD:main
