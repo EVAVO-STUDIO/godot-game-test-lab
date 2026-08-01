@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.2",
-  "toolVersion": "0.4.0",
+  "toolVersion": "0.5.0",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "defaultBranch": "main",
   "authority": "canonical-native-and-sandboxed-godot-worker",
