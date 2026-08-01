@@ -17,16 +17,20 @@ def main() -> int:
         raise SystemExit(f"final source staging directory is missing or unsafe: {stage}")
 
     checker = stage / "scripts/check_repository_toolchain.py"
-    core = stage / "scripts/check_repository_toolchain_core.py"
-    checker_source = checker.read_text(encoding="utf-8")
-    checker_source = checker_source.replace(
+    replace_once(
+        checker,
+        '    require_tokens(\n'
+        '        "scripts/Install-GodotLab.ps1",\n'
+        '        (\n'
         '            "engine bootstrap",\n',
+        '    require_tokens(\n'
+        '        "scripts/Install-GodotLab.ps1",\n'
+        '        (\n'
         '            \'"engine", "bootstrap"\',\n',
-        1,
+        "Windows installer bootstrap token",
     )
-    if '            "engine bootstrap",\n' in checker_source:
-        raise SystemExit("Windows installer command assertion was not uniquely repaired")
-    core.write_text(checker_source, encoding="utf-8", newline="\n")
+    core = stage / "scripts/check_repository_toolchain_core.py"
+    core.write_text(checker.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
 
     wrapper = '''#!/usr/bin/env python3
 """Preflight the immutable workflow boundary, then run the toolchain core."""
@@ -91,7 +95,7 @@ def _preflight_errors() -> list[str]:
                 errors.append("toolchain core exceeds the bounded source limit")
             else:
                 source = CORE_PATH.read_text(encoding="utf-8")
-                if source.startswith("\\ufeff"):
+                if source.startswith("\ufeff"):
                     errors.append("toolchain core contains a UTF-8 BOM")
                 if "def main() -> int:" not in source:
                     errors.append("toolchain core does not expose its expected entrypoint")
@@ -103,7 +107,7 @@ def _preflight_errors() -> list[str]:
 def main() -> int:
     errors = _preflight_errors()
     if errors:
-        print("Godot lab toolchain preflight failed:\\n", file=sys.stderr)
+        print("Godot lab toolchain preflight failed:\n", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
