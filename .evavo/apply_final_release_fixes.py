@@ -206,6 +206,63 @@ if __name__ == "__main__":
         "workflow checker regression signature",
     )
 
+    replace_once(
+        stage / "scripts/Build-GodotLabSandboxes.ps1",
+        '        throw "$Command failed with exit code $LASTEXITCODE: $($Arguments -join \' \')"\n',
+        '        throw "$Command failed with exit code ${LASTEXITCODE}: $($Arguments -join \' \')"\n',
+        "sandbox image builder PowerShell interpolation",
+    )
+    sandbox_wrapper = stage / "scripts/Invoke-GodotLabSandbox.ps1"
+    replace_once(
+        sandbox_wrapper,
+        '        throw "$Command failed with exit code $LASTEXITCODE: $($Arguments -join \' \')"\n',
+        '        throw "$Command failed with exit code ${LASTEXITCODE}: $($Arguments -join \' \')"\n',
+        "sandbox runner PowerShell exit-code interpolation",
+    )
+    replace_once(
+        sandbox_wrapper,
+        '        throw "Git command failed in $Root: $($Arguments -join \' \')"\n',
+        '        throw "Git command failed in ${Root}: $($Arguments -join \' \')"\n',
+        "sandbox runner PowerShell path interpolation",
+    )
+    powershell_test = stage / "tests/test_powershell_contract.py"
+    if powershell_test.exists() or powershell_test.is_symlink():
+        raise SystemExit("PowerShell interpolation regression test path already exists")
+    powershell_test.write_text(
+        '''from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+AMBIGUOUS_VARIABLE_COLON = re.compile(r"(?<!\\{)\\$([A-Za-z_][A-Za-z0-9_]*):")
+POWERSHELL_SCOPES = {
+    "alias",
+    "env",
+    "function",
+    "global",
+    "local",
+    "private",
+    "script",
+    "using",
+    "variable",
+}
+
+
+def test_powershell_strings_do_not_use_ambiguous_variable_colons() -> None:
+    findings: list[str] = []
+    for path in sorted((ROOT / "scripts").glob("*.ps1")):
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for match in AMBIGUOUS_VARIABLE_COLON.finditer(line):
+                if match.group(1).casefold() in POWERSHELL_SCOPES:
+                    continue
+                findings.append(f"{path.name}:{line_number}: ${match.group(1)}:")
+    assert findings == []
+''',
+        encoding="utf-8",
+        newline="\n",
+    )
+
     temporary = stage / ".evavo/apply_final_release_fixes.py"
     if temporary.exists() or temporary.is_symlink():
         temporary.unlink()
