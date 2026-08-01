@@ -3,4 +3,4 @@ archive_sha256=054caa759241ed1f708b4cb9ac0099831406f5d053975f9aa139ded54989f5de
 chunks=12
 purpose=mcp-visual-audio-agent-bridge
 version=0.6.0
-retry=1
+retry=2
