@@ -1,0 +1,365 @@
+{
+  "schemaVersion": "1.0",
+  "releaseVersion": "0.7.0",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 3729,
+      "sha256": "f94c0d56755844f0ae52d0de220095d234ae6972af6bbe238e2046133c212abc",
+      "mode": "0o644"
+    },
+    {
+      "path": ".github/workflows/evavo-mainline-confirmation.yml",
+      "bytes": 6057,
+      "sha256": "725a03fca2e5897712beaeee6e87af13fc2dcdfaa18fe241d0f591d896b65a53",
+      "mode": "0o644"
+    },
+    {
+      "path": ".github/workflows/evavo-native-godot-validation.yml",
+      "bytes": 12091,
+      "sha256": "b1be99910e5ed511a29c60c2226e19cfd3b00837b3ffb821a0701831ac883dcd",
+      "mode": "0o644"
+    },
+    {
+      "path": ".python-version",
+      "bytes": 8,
+      "sha256": "db82937e1f1830581a9553c7814f5c5fcacb6dfdef8310b43e9a812c887acaf5",
+      "mode": "0o644"
+    },
+    {
+      "path": "AGENT_QUICKSTART.md",
+      "bytes": 5758,
+      "sha256": "598a92a9b78cded21650125f480a9bf8ef6a2db53f28cea3b22d5b0f90c750a8",
+      "mode": "0o644"
+    },
+    {
+      "path": "README.md",
+      "bytes": 14923,
+      "sha256": "a8f04809cfd5a3d7c5f7431be7912c71f6a85812fb3eeb5dd1634ca9e987f6d1",
+      "mode": "0o644"
+    },
+    {
+      "path": "containers/linux-sandbox/Dockerfile",
+      "bytes": 8362,
+      "sha256": "8ca50ec6ed387c355cf07772f083e09054391b43a5e8772ec30aeb45d8749f04",
+      "mode": "0o644"
+    },
+    {
+      "path": "containers/linux-sandbox/README.md",
+      "bytes": 1595,
+      "sha256": "452b5f5ac5e2a560bdc3ee2c0d1aa69242ad5c1449a995488e96eb49f8da6aac",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/MANAGED_GODOT_ENGINES.md",
+      "bytes": 8499,
+      "sha256": "92f38f39f0311ffacdd5097cef0f0e50dfd02b3aaf796f00b2db4fafa4be8f4a",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/MCP_AGENT_BRIDGE.md",
+      "bytes": 6562,
+      "sha256": "a1fd06b9f74e704b00ef4f9bd04b1ee1ea285018b3ada895632028393e89d51b",
+      "mode": "0o644"
+    },
+    {
+      "path": "evavo.reliability.json",
+      "bytes": 12510,
+      "sha256": "e3dfeaaf974c5229ca70b9e0f3a4abfe7290a2f2033952b6e27e5913f25a6e27",
+      "mode": "0o644"
+    },
+    {
+      "path": "examples/linux-sandbox.profile.json",
+      "bytes": 1221,
+      "sha256": "acd79e4bf70135e3b7b241684a17467d88d0f9fc1634b4dfe7d3fd4c406b8476",
+      "mode": "0o644"
+    },
+    {
+      "path": "examples/media-policy.json",
+      "bytes": 305,
+      "sha256": "9cd4cf249c37fb2ab011fa31f99f30326116c0735bff7c6c2baba67639bae5eb",
+      "mode": "0o644"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 1329,
+      "sha256": "4df88189be04a0ec6e9751581221cc097c03ee3b1b7008bf6c5c19474d6f77d5",
+      "mode": "0o644"
+    },
+    {
+      "path": "schemas/media-policy.schema.json",
+      "bytes": 1332,
+      "sha256": "9077262f884b7d6ed11f9b7d488a6696d34b1c1b45b0019eadee8295351a5972",
+      "mode": "0o644"
+    },
+    {
+      "path": "schemas/repository-owned-reliability-profile.schema.json",
+      "bytes": 4161,
+      "sha256": "749531085db0859143ece299a84b5258e15d5d34e75eff4c7d5d753feeccd1a1",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Build-GodotLabSandboxes.ps1",
+      "bytes": 3118,
+      "sha256": "b990ca7a99d375ffa19adb584f37a41e68dc0c8847fa7bbc8a94c1b90e967a8d",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Install-GodotLab.ps1",
+      "bytes": 13616,
+      "sha256": "81f29be419baa0647602bb88cabaa8ae9ec8f081f5633853db4cdd015b435015",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Invoke-GodotLabLinuxSandbox.ps1",
+      "bytes": 2774,
+      "sha256": "aabd18a1c56c2f34d8f7ba8b3c9349d435765544270eb470aad94d1b222b3061",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Invoke-GodotLabSandbox.ps1",
+      "bytes": 12173,
+      "sha256": "573188dcfa4b37523347f38b47db43a0c3ee65dcdce28c46b24bc413049e2ca6",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Register-GodotLabMcpWorker.ps1",
+      "bytes": 4757,
+      "sha256": "634221f8b88751b8edb864ac1041f04224c27016b4e86a1a8a5105065e40ab28",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Start-GodotLabMcp.ps1",
+      "bytes": 1169,
+      "sha256": "49e1eabd68d3705aa3a8df3617de4df722ae6317d902b94046a83a9857d656b4",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Unregister-GodotLabMcpWorker.ps1",
+      "bytes": 515,
+      "sha256": "75c651c73acfe05280f7ec58fa0aa70f7c9b8d74456c8cccbd954b02114daf29",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/Write-GodotLabMcpConfig.ps1",
+      "bytes": 2978,
+      "sha256": "5ac9e52dc854b66baf8327cacfeede5012bac875df9b5a8a056528ecd35d0c83",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/build-godot-lab-sandboxes.sh",
+      "bytes": 2756,
+      "sha256": "6f19b480e3ec97b229309dc3cb50f677dc56f5a1c4ec9570e1f32b91c0529509",
+      "mode": "0o755"
+    },
+    {
+      "path": "scripts/check_repository_toolchain.py",
+      "bytes": 23469,
+      "sha256": "f7275e520adb45fc03a731c373bdd3263a4a58e7a1f3ff597d24456162b20150",
+      "mode": "0o644"
+    },
+    {
+      "path": "scripts/install-godot-lab.sh",
+      "bytes": 7339,
+      "sha256": "d9247cf2a5a290e3d060c1ce96629bd65a5fba47ae7a01daaa547e2832a0371c",
+      "mode": "0o755"
+    },
+    {
+      "path": "scripts/invoke-godot-lab-sandbox.sh",
+      "bytes": 10027,
+      "sha256": "531e0eefc31d35f7ee3630bd96dae0150e78a8394a57fc505de52ad38f8eccb7",
+      "mode": "0o755"
+    },
+    {
+      "path": "scripts/run-godot-lab-linux-sandbox.sh",
+      "bytes": 293,
+      "sha256": "72b60e876931f3638a5beee7a4bb5f829603a40b085f727eaf67174abc9276fa",
+      "mode": "0o755"
+    },
+    {
+      "path": "scripts/test_repository_toolchain.py",
+      "bytes": 8438,
+      "sha256": "6e6a57bdd1b7dcbb0fabee71bab7ca684595603146e78399837d71c2b9ec4823",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/__init__.py",
+      "bytes": 191,
+      "sha256": "4a20c2312fd51128a691c45f00e52cb7e98a028ed6f42be4185e1481790e5c4a",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/agent_bridge.py",
+      "bytes": 32114,
+      "sha256": "c254d3a4b341ea9e1a14d2b31474c0bc4dded4b7d5ffdd844533eb334107d028",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/bot_qa.py",
+      "bytes": 7154,
+      "sha256": "a766bde7f7395fe5ad2c5df412c88ade760e0c22cf9b898ca7b29bb86c842fe5",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/cli.py",
+      "bytes": 23913,
+      "sha256": "adc77fd16c5a1e47d175fd4e8434b101feb01957f3179560b72aaace63234a9c",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/dotnet_manager.py",
+      "bytes": 31674,
+      "sha256": "6e5e817f05c8927479109af8ecf953209a848632d2576959d7357189a29e1bba",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/engine_cli.py",
+      "bytes": 11443,
+      "sha256": "f9a5b3b797a53c3f1698a4a7a4ef6badde29e03ae9f8d25a5d84d6e61a6af449",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/engine_manager.py",
+      "bytes": 59300,
+      "sha256": "6e3b866c0d5574c59b8f6e99f6152452255702652c7cac65078e7009916b1b41",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/godot-engine-lock.json",
+      "bytes": 311,
+      "sha256": "12634dc0c2b5b698f32b956eac613078eb97261d6036f8e941cacde61a83ca74",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/local_sandbox.py",
+      "bytes": 46104,
+      "sha256": "20e265c63d18f23426645da75c23bb64d5903f4f5a8954cc36eb85315c0fae48",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/mcp_server.py",
+      "bytes": 15427,
+      "sha256": "70212c63fae0f60b4ced6173948a71a2266a512b76fd743590e3d4551fe95b65",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/media_cli.py",
+      "bytes": 2762,
+      "sha256": "0e46de1613cea1124adff3144d79ddfa8f18c1c68884f1bf84768ef222d57d42",
+      "mode": "0o644"
+    },
+    {
+      "path": "src/godot_game_test_lab/media_evidence.py",
+      "bytes": 27856,
+      "sha256": "7212f66dba6eb8a261e54ddd06555378721329022f46eb09c85d8abc190b77de",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_agent_bridge.py",
+      "bytes": 10339,
+      "sha256": "ae851abc61bd3dd0bb91b17c58dd517d18a94f17b4773cbe94a565727ca7cbb2",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_bot_summary_gate.py",
+      "bytes": 3855,
+      "sha256": "c99031a5bc0da3d2fb4f0c9cbca6d2df49d6913698d927a6888883e283d2474a",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_cli.py",
+      "bytes": 6629,
+      "sha256": "c182c2430a12d769e15f2945bd46af249463df706b741044af324a5a47e3c8b3",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_dotnet_manager.py",
+      "bytes": 8747,
+      "sha256": "e3269f18d5f65594a99ad8267b4c5e43a2a861f6020329a24f98b65e58b1f409",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_engine_cli.py",
+      "bytes": 1202,
+      "sha256": "78aeae5b524451b4d4553ddc65f82258247b0ca0cb7cac44e39d87e67c57711b",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_engine_manager.py",
+      "bytes": 19470,
+      "sha256": "7337ab971ff9cc955be5b446bec438711a4c1b2deacb1408843afeacbfd35637",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_local_sandbox.py",
+      "bytes": 5536,
+      "sha256": "ec19615fe8887242b1f4d7b070e975b5b8b9173497574cd008656a09649a89b7",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_mcp_bridge_contract.py",
+      "bytes": 1482,
+      "sha256": "33454161b12cd4a70c24fbf6014ac0a6a69e565319ce633d643f8d1733a67837",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_media_evidence.py",
+      "bytes": 3534,
+      "sha256": "cc03582b7fc80a8776c94d063f05070dccf49241b57e9bbfce6f83d0401a62bf",
+      "mode": "0o644"
+    },
+    {
+      "path": "tests/test_release_contract.py",
+      "bytes": 832,
+      "sha256": "0d04f90f7011930b3da84356fe620536cedfd7b21a9accf1a293709e8f7b7f30",
+      "mode": "0o644"
+    }
+  ],
+  "removePaths": [
+    ".github/workflows/apply-agent-audio-upgrade.yml",
+    ".github/workflows/dispatch-agent-audio-upgrade.yml",
+    ".github/workflows/apply-managed-sandbox-0.7.yml",
+    ".evavo/agent-audio-upgrade-diagnostic.txt",
+    ".evavo/managed-sandbox-0.7-diagnostic.txt",
+    ".evavo/bootstrap/agent-audio-upgrade-00.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-01.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-02.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-03.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-04.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-05.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-06.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-07.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-08.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-09.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-10.b64",
+    ".evavo/bootstrap/agent-audio-upgrade-11.b64",
+    ".evavo/bootstrap/agent-audio-upgrade.ready",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-000.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-001.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-002.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-003.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-004.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-005.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-006.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-007.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-008.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-009.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-010.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-011.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-012.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-013.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-014.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-015.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-016.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-017.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-018.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-019.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-020.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7-small-021.b64",
+    ".evavo/bootstrap/managed-sandbox-0.7.manifest.json"
+  ],
+  "archiveSha256": "c6a6ed63d7fe8078591430c2a0fb93c066bf37b3e5347f8c5744cd2d2891ce51",
+  "archiveBytes": 114059,
+  "chunks": 22,
+  "chunkSize": "7000 Base64 characters except final remainder; each Git file may end with one newline"
+}
