@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths: [".evavo/bootstrap/agent-audio-upgrade.ready"]
+  issues:
+    types: [opened]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +17,7 @@ concurrency:
 
 jobs:
   apply:
+    if: github.event_name != 'issues' || (github.actor == 'EVAVO-STUDIO' && github.event.issue.title == 'EVAVO internal automation trigger 0.6.0 21d11b0')
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
