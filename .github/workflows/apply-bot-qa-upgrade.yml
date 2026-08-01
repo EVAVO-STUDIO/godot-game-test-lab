@@ -34,9 +34,20 @@ jobs:
           python-version: "3.11.15"
 
       - name: Reconstruct, verify and apply exact bot QA patch
+        shell: bash
         run: |
           set -euo pipefail
-          cat .evavo/bootstrap/bot-qa-upgrade-{00..04}.b64 \
+          mkdir -p .evavo
+          exec > >(tee .evavo/bot-qa-reconstruct.log) 2>&1
+          cat \
+            .evavo/bootstrap/bot-qa-upgrade-00.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-01-part-0.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-01-part-1.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-01-part-2.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-01-part-3.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-02.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-03.b64 \
+            .evavo/bootstrap/bot-qa-upgrade-04.b64 \
             | base64 --decode > "${RUNNER_TEMP}/bot-qa-upgrade.py.gz"
           printf '%s  %s\n' \
             'b6491be1712706c4bd3d48b71b3c34a3b851eede204ccdc4abf55b1b544ed86d' \
@@ -54,8 +65,10 @@ jobs:
           rm -f .evavo/bootstrap/bot-qa-upgrade.ready
           rmdir .evavo/bootstrap 2>/dev/null || true
           rm -f .github/workflows/apply-bot-qa-upgrade.yml
+          rm -f .evavo/bot-qa-upgrade-diagnostic.txt
 
       - name: Verify repository-owned toolchain authority
+        shell: bash
         run: |
           set -euo pipefail
           python scripts/check_repository_toolchain.py
@@ -103,6 +116,7 @@ jobs:
           rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
           find src scripts tests -type d -name __pycache__ -prune -exec rm -rf {} +
           find src scripts tests -type f -name '*.pyc' -delete
+          rm -f .evavo/bot-qa-reconstruct.log
           test ! -e scripts/apply_bot_qa_upgrade.py
           test ! -e .github/workflows/apply-bot-qa-upgrade.yml
           git diff --check
@@ -139,6 +153,8 @@ jobs:
           {
             printf 'trigger_sha=%s\n' "${EXPECTED_HEAD}"
             printf 'utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf '\n== reconstruction ==\n'
+            cat .evavo/bot-qa-reconstruct.log 2>/dev/null || true
             printf '\n== status ==\n'
             git status --short --untracked-files=all
             printf '\n== diff check ==\n'
