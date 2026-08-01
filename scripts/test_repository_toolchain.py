@@ -26,6 +26,7 @@ FILES = [
     "pyproject.toml",
     "schemas/repository-owned-reliability-profile.schema.json",
     "scripts/check_repository_toolchain.py",
+    "src/godot_game_test_lab/__init__.py",
 ]
 
 
@@ -86,6 +87,17 @@ def main() -> int:
         if exact.returncode != 0:
             raise AssertionError(exact.stderr or exact.stdout)
 
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/__init__.py",
+            lambda value: value.replace(
+                '__version__ = "0.5.0"',
+                '__version__ = "0.5.1"',
+            ),
+        ),
+        "package version drift",
+    )
     exercise(
         lambda root: (root / ".python-version").write_text("3.11.14\n", encoding="utf-8"),
         "hosted Python drift",

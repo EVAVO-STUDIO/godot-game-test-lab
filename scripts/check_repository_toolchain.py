@@ -171,8 +171,12 @@ def main() -> int:
     if pyproject.get("build-system", {}).get("requires") != ["hatchling==1.25.0"]:
         fail("pyproject.toml must pin hatchling==1.25.0")
     project = pyproject.get("project", {})
-    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.4.0":
+    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.5.0":
         fail("pyproject.toml project identity changed")
+    package_source = read_text("src/godot_game_test_lab/__init__.py", 64_000)
+    if '__version__ = "0.5.0"' not in package_source:
+        fail("package runtime version changed")
+
     if project.get("requires-python") != ">=3.11":
         fail("pyproject.toml Python compatibility declaration changed")
     if project.get("dependencies") != []:
@@ -189,7 +193,7 @@ def main() -> int:
     profile = canonical_json("evavo.reliability.json")
     if (
         profile.get("schemaVersion") != "1.2"
-        or profile.get("toolVersion") != "0.4.0"
+        or profile.get("toolVersion") != "0.5.0"
         or profile.get("repository") != "EVAVO-STUDIO/godot-game-test-lab"
         or profile.get("defaultBranch") != "main"
         or profile.get("authority") != "canonical-native-and-sandboxed-godot-worker"
@@ -270,6 +274,13 @@ def main() -> int:
         != "EVAVO-STUDIO/godot-game-test-lab"
     ):
         fail("repository-owned reliability schema identity changed")
+    if (
+        schema.get("properties", {})
+        .get("toolVersion", {})
+        .get("const")
+        != "0.5.0"
+    ):
+        fail("repository-owned reliability tool version changed")
 
     dockerfile = require_tokens(
         "containers/linux-sandbox/Dockerfile",
