@@ -109,6 +109,7 @@ jobs:
           rm -f .evavo/bootstrap/native-qa-hardening.ready
           rmdir .evavo/bootstrap 2>/dev/null || true
           rm -f .github/workflows/apply-native-qa-hardening.yml
+          rm -f .evavo/native-qa-hardening-diagnostic.txt
 
       - name: Verify repository-owned toolchain authority
         shell: bash
@@ -177,15 +178,19 @@ jobs:
           git commit -m "fix(qa): harden exact native Godot evidence runs"
           git push origin HEAD:main
 
-      - name: Retain failure diagnostics
+      - name: Retain bounded failure diagnostics
         if: failure()
         shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
         run: |
           set +e
-          mkdir -p artifacts/bootstrap-diagnostics
+          diagnostic='.evavo/native-qa-hardening-diagnostic.txt'
+          mkdir -p .evavo
           {
-            printf 'trigger_sha=%s\n' "${GITHUB_SHA}"
+            printf 'trigger_sha=%s\n' "${EXPECTED_HEAD}"
             printf 'utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf 'python=%s\n' "$(python --version 2>&1)"
             printf '\n== status ==\n'
             git status --short --untracked-files=all
             printf '\n== diff check ==\n'
@@ -196,15 +201,31 @@ jobs:
             python -m compileall -q src scripts tests
             printf '\n== ruff ==\n'
             python -m ruff check src scripts tests
+            printf '\n== PowerShell parse ==\n'
+            pwsh -NoLogo -NoProfile -NonInteractive -Command \
+              '$source = Get-Content -Raw -LiteralPath "scripts/Invoke-GodotLabNativeAgentQA.ps1"; $null = [scriptblock]::Create($source)'
             printf '\n== focused tests ==\n'
             python -m pytest -q tests/test_native_qa.py tests/test_native_qa_hardening.py
-          } > artifacts/bootstrap-diagnostics/diagnostic.txt 2>&1
+            printf '\n== full tests ==\n'
+            python -m pytest -q
+          } > "${diagnostic}" 2>&1
+          git fetch --no-tags origin main
+          remote_head="$(git rev-parse origin/main)"
+          if [[ "${remote_head}" != "${EXPECTED_HEAD}" ]]; then
+            echo "Not publishing diagnostics because main drifted to ${remote_head}."
+            exit 0
+          fi
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "automation@evavo.com.au"
+          git add "${diagnostic}"
+          git commit -m "diagnose(qa): retain native QA hardening failure"
+          git push origin HEAD:main
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-qa-hardening-${{ github.sha }}
-          path: artifacts/bootstrap-diagnostics
-          if-no-files-found: error
+          path: .evavo/native-qa-hardening-diagnostic.txt
+          if-no-files-found: warn
           retention-days: 7
