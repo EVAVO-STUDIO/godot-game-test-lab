@@ -6,6 +6,7 @@ from __future__ import annotations
 import runpy
 import sys
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path.cwd().resolve(strict=True)
 CORE = ROOT / "scripts" / "check_repository_toolchain_core.py"
@@ -81,6 +82,14 @@ def _preflight_errors() -> list[str]:
     return errors
 
 
+def _load_core_main() -> Callable[[], int]:
+    namespace = runpy.run_path(str(CORE), run_name="godot_lab_toolchain_core")
+    core_main = namespace.get("main")
+    if not callable(core_main):
+        raise RuntimeError("canonical toolchain core does not expose callable main")
+    return core_main
+
+
 def main() -> int:
     errors = _preflight_errors()
     if errors:
@@ -88,8 +97,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    runpy.run_path(str(CORE), run_name="__main__")
-    return 0
+    return int(_load_core_main()())
 
 
 if __name__ == "__main__":
