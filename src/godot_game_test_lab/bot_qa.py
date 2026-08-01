@@ -5,17 +5,131 @@ import json
 import re
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from .bot_profile import normalize_bot_profile
-from .native_qa_common import NativeQaError
+from .native_qa_common import NativeQaError, _canonical_json
 
-__all__ = ["NativeQaError", "build_parser", "main", "normalize_bot_profile", "run_bot_qa"]
+__all__ = [
+    "NativeQaError",
+    "build_parser",
+    "enforce_exploration_evidence",
+    "main",
+    "normalize_bot_profile",
+    "run_bot_qa",
+]
 
 
 def run_bot_qa(args: argparse.Namespace) -> dict[str, object]:
     from .bot_runner import run_bot_qa as run
 
     return run(args)
+
+
+def _list_value(value: object) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _int_value(value: object, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def enforce_exploration_evidence(summary: dict[str, object]) -> dict[str, object]:
+    """Fail required campaigns that never prove a changed state or replay it."""
+    campaigns = summary.get("campaigns")
+    if not isinstance(campaigns, list):
+        return summary
+
+    required_failure = False
+    for raw_campaign in campaigns:
+        if not isinstance(raw_campaign, dict) or raw_campaign.get("required") is not True:
+            continue
+
+        campaign: dict[str, Any] = raw_campaign
+        transitions = [
+            item
+            for item in _list_value(campaign.get("transitions"))
+            if isinstance(item, dict)
+        ]
+        replays = [
+            item
+            for item in _list_value(campaign.get("representativeReplays"))
+            if isinstance(item, dict)
+        ]
+        changed_transitions = [
+            item
+            for item in transitions
+            if item.get("result") == "new-state"
+            and str(item.get("to", ""))
+            and str(item.get("to", "")) != str(item.get("from", ""))
+            and len(_list_value(item.get("trace"))) > 0
+        ]
+        nonbaseline_replays = [
+            item
+            for item in replays
+            if item.get("status") == "passed"
+            and _int_value(item.get("depth")) >= 1
+            and len(_list_value(item.get("trace"))) > 0
+            and len(_list_value(item.get("evidence"))) > 0
+        ]
+
+        gate_findings: list[str] = []
+        if _int_value(campaign.get("stateCount")) < 2 or not changed_transitions:
+            gate_findings.append(
+                "required bot campaign did not prove a changed runtime state"
+            )
+        if not nonbaseline_replays:
+            gate_findings.append(
+                "required bot campaign did not retain a passing non-baseline replay"
+            )
+        if not gate_findings:
+            continue
+
+        required_failure = True
+        campaign["status"] = "failed"
+        campaign_findings = [
+            str(item) for item in _list_value(campaign.get("findings"))
+        ]
+        campaign["findings"] = sorted(set([*campaign_findings, *gate_findings]))
+        campaign_failures = [
+            item
+            for item in _list_value(campaign.get("failures"))
+            if isinstance(item, dict)
+        ]
+        campaign_failures.append(
+            {
+                "source": "bot-summary-exploration-gate",
+                "trace": [],
+                "findings": gate_findings,
+                "evidence": [],
+            }
+        )
+        campaign["failures"] = campaign_failures
+
+    if required_failure:
+        summary["status"] = "failed"
+        findings = [str(item) for item in _list_value(summary.get("findings"))]
+        findings.append(
+            "one or more required bot campaigns lacked changed-state or non-baseline replay evidence"
+        )
+        summary["findings"] = sorted(set(findings))
+    return summary
+
+
+def _write_enforced_summary(args: argparse.Namespace, summary: dict[str, object]) -> None:
+    summary_path = (
+        Path(args.artifacts).expanduser().resolve(strict=False)
+        / "bot-agent-summary.json"
+    )
+    if summary_path.exists() and summary_path.is_symlink():
+        raise NativeQaError("bot-agent-summary.json may not be a symbolic link")
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(_canonical_json(summary), encoding="utf-8", newline="\n")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,7 +178,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if re.fullmatch(r"-?[0-9]{1,5},-?[0-9]{1,5}", args.window_position) is None:
         raise SystemExit("--window-position must use X,Y integer coordinates")
     try:
-        summary = run_bot_qa(args)
+        summary = enforce_exploration_evidence(run_bot_qa(args))
+        _write_enforced_summary(args, summary)
     except (NativeQaError, FileNotFoundError, OSError, ValueError) as error:
         print(json.dumps({"status": "blocked", "error": str(error)}, sort_keys=True))
         return 2
