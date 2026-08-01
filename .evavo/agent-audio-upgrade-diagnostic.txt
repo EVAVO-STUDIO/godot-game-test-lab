@@ -1,8 +1,46 @@
-trigger_sha=9f56d5c6aff7cf38fbf6ced0081cc0d5a18f7df2
-utc=2026-08-01T02:56:45Z
+trigger_sha=969f643d46f1ef71c6d6eb9dec092165995125de
+utc=2026-08-01T03:10:19Z
 
 == status ==
-?? .evavo/agent-audio-upgrade-diagnostic.txt
+ M .evavo/agent-audio-upgrade-diagnostic.txt
+ D .evavo/bootstrap/agent-audio-upgrade-00.b64
+ D .evavo/bootstrap/agent-audio-upgrade-01.b64
+ D .evavo/bootstrap/agent-audio-upgrade-02.b64
+ D .evavo/bootstrap/agent-audio-upgrade-03.b64
+ D .evavo/bootstrap/agent-audio-upgrade-04.b64
+ D .evavo/bootstrap/agent-audio-upgrade-05.b64
+ D .evavo/bootstrap/agent-audio-upgrade-06.b64
+ D .evavo/bootstrap/agent-audio-upgrade-07.b64
+ D .evavo/bootstrap/agent-audio-upgrade-08.b64
+ D .evavo/bootstrap/agent-audio-upgrade-09.b64
+ D .evavo/bootstrap/agent-audio-upgrade-10.b64
+ D .evavo/bootstrap/agent-audio-upgrade-11.b64
+ D .evavo/bootstrap/agent-audio-upgrade.ready
+ D .github/workflows/apply-agent-audio-upgrade.yml
+ M .github/workflows/ci.yml
+ M .github/workflows/evavo-mainline-confirmation.yml
+ M AGENTS.md
+ M CLAUDE.md
+ M README.md
+ M evavo.reliability.json
+ M pyproject.toml
+ M schemas/repository-owned-reliability-profile.schema.json
+ M scripts/check_repository_toolchain.py
+ M scripts/test_repository_toolchain.py
+ M src/godot_game_test_lab/__init__.py
+ M src/godot_game_test_lab/cli.py
+ M tests/test_cli.py
+?? docs/MCP_AGENT_BRIDGE.md
+?? examples/media-policy.json
+?? schemas/media-policy.schema.json
+?? scripts/Write-GodotLabMcpConfig.ps1
+?? src/godot_game_test_lab/agent_bridge.py
+?? src/godot_game_test_lab/mcp_server.py
+?? src/godot_game_test_lab/media_cli.py
+?? src/godot_game_test_lab/media_evidence.py
+?? tests/test_agent_bridge.py
+?? tests/test_mcp_bridge_contract.py
+?? tests/test_media_evidence.py
 
 == diff check ==
 
@@ -14,10 +52,81 @@ Godot lab repository toolchain check passed.
 == compile ==
 
 == ruff ==
-/opt/hostedtoolcache/Python/3.11.15/x64/bin/python: No module named ruff
+tests/test_mcp_bridge_contract.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+   |
+ 1 | / from __future__ import annotations
+ 2 | | 
+ 3 | | from pathlib import Path
+ 4 | | 
+ 5 | | import pytest
+ 6 | | 
+ 7 | | 
+ 8 | | 
+ 9 | | def test_mcp_source_exposes_visual_audio_and_execution_tools() -> None:
+   | |_^ I001
+10 |       source = Path(__file__).resolve().parents[1] / "src" / "godot_game_test_lab" / "mcp_server.py"
+11 |       text = source.read_text(encoding="utf-8")
+   |
+   = help: Organize imports
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
 
 == focused tests ==
-/opt/hostedtoolcache/Python/3.11.15/x64/bin/python: No module named pytest
+..s.....                                                                 [100%]
 
 == full tests ==
-/opt/hostedtoolcache/Python/3.11.15/x64/bin/python: No module named pytest
+................F....................................................... [ 48%]
+.........................s.............................................. [ 97%]
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+________________ test_capabilities_command_is_machine_readable _________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7ff571e3ff90>
+
+    def test_capabilities_command_is_machine_readable(capsys) -> None:
+        exit_code = main(["capabilities"])
+        payload = json.loads(capsys.readouterr().out)
+    
+        assert exit_code == 0
+>       assert payload["schemaVersion"] == "1.1"
+E       AssertionError: assert '1.2' == '1.1'
+E         
+E         - 1.1
+E         + 1.2
+
+tests/test_cli.py:77: AssertionError
+____________ test_release_version_is_consistent_across_authorities _____________
+
+    def test_release_version_is_consistent_across_authorities() -> None:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        reliability = json.loads(
+            (ROOT / "evavo.reliability.json").read_text(encoding="utf-8")
+        )
+        schema = json.loads(
+            (ROOT / "schemas" / "repository-owned-reliability-profile.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    
+        expected = "0.5.0"
+>       assert __version__ == expected
+E       AssertionError: assert '0.6.0' == '0.5.0'
+E         
+E         - 0.5.0
+E         ?   ^
+E         + 0.6.0
+E         ?   ^
+
+tests/test_release_contract.py:24: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_cli.py::test_capabilities_command_is_machine_readable - AssertionError: assert '1.2' == '1.1'
+  
+  - 1.1
+  + 1.2
+FAILED tests/test_release_contract.py::test_release_version_is_consistent_across_authorities - AssertionError: assert '0.6.0' == '0.5.0'
+  
+  - 0.5.0
+  ?   ^
+  + 0.6.0
+  ?   ^
