@@ -1,13 +1,11 @@
 name: Dispatch corrected managed Godot sandbox release
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".evavo/bootstrap/managed-sandbox-0.7.trigger"
-  schedule:
-    - cron: "*/5 * * * *"
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
   workflow_dispatch:
 
 permissions:
@@ -20,10 +18,16 @@ concurrency:
 
 jobs:
   dispatch:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.actor == 'EVAVO-STUDIO' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'agent/managed-sandbox-release-0.7' &&
+       github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Dispatch validated publisher on current main
+      - name: Dispatch the manifest-bound publisher from trusted main
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run apply-managed-sandbox-0.7.yml --ref main
