@@ -1,54 +1,287 @@
-name: Recover complete managed sandbox release tree
+name: Validate and publish managed Godot sandbox 0.7
 
 on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: recover-managed-sandbox-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: publish-managed-godot-sandbox-0-7
+  cancel-in-progress: false
 
 jobs:
-  recover-source:
+  validate-and-publish:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'agent/managed-sandbox-release-0.7')
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/managed-sandbox-release-0.7' &&
+      github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 60
 
     steps:
-      - name: Check out the trusted same-repository branch
+      - name: Check out the trusted same-repository candidate
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Prepare the complete verified source tree outside the checkout
+      - name: Set up Python 3.11.15
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11.15"
+
+      - name: Recover the exact source and apply reviewed integration fixes
         shell: bash
         run: |
           set -euo pipefail
           python .evavo/recover_complete_release.py
-          test -d "${RUNNER_TEMP}/final-source-tree"
-          test ! -e "${RUNNER_TEMP}/final-source-tree/.evavo/bootstrap"
-          test ! -e "${RUNNER_TEMP}/final-source-tree/.github/workflows/apply-managed-sandbox-0.7.yml"
-          test ! -e "${RUNNER_TEMP}/final-source-tree/.github/workflows/dispatch-agent-audio-upgrade.yml"
-          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
-            -czf final-source.tar.gz -C "${RUNNER_TEMP}/final-source-tree" .
-          sha256sum final-source.tar.gz final-tree-receipt.json overlay-receipt.json
+          python .evavo/apply_final_release_fixes.py
+          stage="${RUNNER_TEMP}/final-source-tree"
+          test -d "${stage}"
+          test ! -e "${stage}/.evavo/bootstrap"
+          test ! -e "${stage}/.evavo/recover_complete_release.py"
+          test ! -e "${stage}/.evavo/apply_final_release_fixes.py"
+          test ! -e "${stage}/.github/workflows/apply-managed-sandbox-0.7.yml"
+          test ! -e "${stage}/.github/workflows/dispatch-agent-audio-upgrade.yml"
+          test ! -e "${stage}/scripts/test_repository_toolchain_core.py"
+          test -f "${stage}/scripts/check_repository_toolchain.py"
+          test -f "${stage}/scripts/check_repository_toolchain_core.py"
+          grep -F 'version = "0.7.0"' "${stage}/pyproject.toml"
+          grep -F '__version__ = "0.7.0"' "${stage}/src/godot_game_test_lab/__init__.py"
 
-      - name: Upload the complete verified source tree
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: managed-sandbox-0.7-complete-source
-          path: |
-            final-source.tar.gz
-            final-tree-receipt.json
-            overlay-receipt.json
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+      - name: Verify source authority and adversarial fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/final-source-tree"
+          python scripts/check_repository_toolchain.py
+          python scripts/test_repository_toolchain.py
+
+      - name: Install and verify the pinned validation toolchain
+        shell: bash
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/final-source-tree"
+          python -m pip install --disable-pip-version-check ".[dev]"
+          python scripts/check_repository_toolchain.py --installed
+          python -m pip install --disable-pip-version-check ".[agent]"
+          python scripts/check_repository_toolchain.py --agent-installed
+
+      - name: Compile, lint and parse all entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/final-source-tree"
+          python -m compileall -q src scripts tests
+          python -m ruff check src scripts tests
+          while IFS= read -r -d '' script; do
+            bash -n "${script}"
+          done < <(find scripts containers -type f -name '*.sh' -print0)
+          pwsh -NoLogo -NoProfile -NonInteractive -Command \
+            '$ErrorActionPreference="Stop"; Get-ChildItem scripts -Filter *.ps1 | ForEach-Object { $null=[scriptblock]::Create((Get-Content -Raw -LiteralPath $_.FullName)) }'
+
+      - name: Run the complete Python test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/final-source-tree"
+          python -m pytest
+
+      - name: Build and independently install the production wheel
+        shell: bash
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: |
+          set -euo pipefail
+          stage="${RUNNER_TEMP}/final-source-tree"
+          wheelhouse="${RUNNER_TEMP}/wheelhouse"
+          venv="${RUNNER_TEMP}/wheel-validation"
+          mkdir -p "${wheelhouse}"
+          cd "${stage}"
+          python -m pip wheel --no-deps --wheel-dir "${wheelhouse}" .
+          mapfile -t wheels < <(find "${wheelhouse}" -maxdepth 1 -type f -name '*.whl' -print | sort)
+          test "${#wheels[@]}" -eq 1
+          python -m venv "${venv}"
+          "${venv}/bin/python" -m pip install --disable-pip-version-check \
+            "${wheels[0]}" "mcp==1.28.1"
+          "${venv}/bin/godot-lab" capabilities > "${RUNNER_TEMP}/wheel-capabilities.json"
+          "${venv}/bin/godot-lab-engine" --help >/dev/null
+          "${venv}/bin/godot-lab-sandbox" --help >/dev/null
+          "${venv}/bin/godot-lab-native-qa" --help >/dev/null
+          "${venv}/bin/godot-lab-bot-qa" --help >/dev/null
+          "${venv}/bin/godot-lab-init-qa" --help >/dev/null
+          "${venv}/bin/godot-lab-media-qa" --help >/dev/null
+          "${venv}/bin/godot-lab-mcp" \
+            --lab-root "${stage}" \
+            --allowed-root "${stage}" \
+            --evidence-root "${RUNNER_TEMP}/wheel-mcp-evidence" \
+            --engine-root "${RUNNER_TEMP}/wheel-engines" \
+            --allow-noninteractive \
+            --self-test
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(
+              Path(os.environ["RUNNER_TEMP"]).joinpath("wheel-capabilities.json").read_text()
+          )
+          assert value["toolVersion"] == "0.7.0"
+          expected = value["automationEntrypoints"]
+          assert expected["managedEngine"] == "godot-lab-engine"
+          assert expected["localSandbox"] == "godot-lab-sandbox"
+          assert expected["mcpAgentBridge"] == "godot-lab-mcp"
+          PY
+
+      - name: Verify managed engine policy and empty-cache behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/final-source-tree"
+          set +e
+          python -m godot_game_test_lab.cli engine status \
+            --root "${RUNNER_TEMP}/managed-engines"
+          status_code=$?
+          set -e
+          test "${status_code}" -eq 2
+          python - <<'PY'
+          from godot_game_test_lab.engine_manager import load_engine_lock
+
+          lock = load_engine_lock()
+          assert lock.minimum_version == "4.6.2"
+          assert lock.default_version == "4.6.3"
+          assert lock.channels == {"4.6": "4.6.3", "4.7": "4.7.1"}
+          PY
+
+      - name: Build Godot 4.6.3 and run the real no-network Linux QA fixture
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          stage="${RUNNER_TEMP}/final-source-tree"
+          profile="${RUNNER_TEMP}/profile.normalized.json"
+          artifacts="${RUNNER_TEMP}/linux-sandbox-artifacts"
+          work="${RUNNER_TEMP}/linux-sandbox-work"
+          image="evavo-godot-lab-release:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          container="evavo-godot-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm -f "${container}" >/dev/null 2>&1 || true
+            docker image rm "${image}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT INT TERM
+          cd "${stage}"
+          python scripts/read_linux_sandbox_profile.py \
+            --profile fixtures/linux-smoke/.evavo/godot-lab-linux.json \
+            --output "${profile}" >/dev/null
+          mkdir -p "${artifacts}" "${work}"
+          chmod 0777 "${artifacts}" "${work}"
+          docker build \
+            --pull \
+            --build-arg GODOT_VERSION=4.6.3 \
+            --build-arg GODOT_FLAVOR=standard \
+            --tag "${image}" \
+            --file containers/linux-sandbox/Dockerfile \
+            .
+          timeout --signal=TERM --kill-after=15s 2700s docker run --rm \
+            --name "${container}" \
+            --stop-timeout 10 \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 1024 \
+            --cpus 4 \
+            --memory 10g \
+            --memory-swap 10g \
+            --ulimit core=0 \
+            --ulimit nofile=4096:4096 \
+            --shm-size 1g \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
+            --tmpfs /home/godotlab:rw,nosuid,nodev,size=2g,mode=0700,uid=10001,gid=10001 \
+            --mount "type=bind,source=${stage},target=/workspace/source,readonly" \
+            --mount "type=bind,source=${profile},target=/workspace/profile.normalized.json,readonly" \
+            --mount "type=bind,source=${work},target=/workspace/work" \
+            --mount "type=bind,source=${artifacts},target=/artifacts" \
+            --env EVAVO_TARGET_REPOSITORY=EVAVO-STUDIO/godot-game-test-lab-fixture \
+            --env "EVAVO_TARGET_SHA=${CANDIDATE_SHA}" \
+            --env "EVAVO_LAB_SHA=${CANDIDATE_SHA}" \
+            --env EVAVO_PROFILE_PATH=/workspace/profile.normalized.json \
+            --env EVAVO_PROJECT_SUBPATH=fixtures/linux-smoke \
+            --env EVAVO_MINIMUM_GODOT_VERSION=4.6.2 \
+            --env EVAVO_TIMEOUT_SECONDS=600 \
+            --env EVAVO_BOOT_FRAMES=30 \
+            --env EVAVO_VISUAL_SCENE=res://main.tscn \
+            --env EVAVO_VISUAL_FRAMES=180 \
+            --env EVAVO_VISUAL_FPS=30 \
+            --env EVAVO_VISUAL_WIDTH=960 \
+            --env EVAVO_VISUAL_HEIGHT=540 \
+            --env EVAVO_RENDERING_METHOD=gl_compatibility \
+            --env EVAVO_VISUAL_ARGUMENTS_JSON='[]' \
+            "${image}"
+          python - "${artifacts}/agent-summary.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert summary["status"] == "passed", summary
+          journeys = summary.get("journeys", [])
+          assert len(journeys) == 4, journeys
+          assert all(item.get("status") == "passed" for item in journeys), journeys
+          boundary = summary.get("qualityBoundary", {})
+          assert boundary.get("syntheticKeyboardMouseInput") is True
+          assert boundary.get("syntheticGamepadEvents") is True
+          assert boundary.get("physicalUsbGamepad") is False
+          PY
+
+      - name: Clean generated files and recheck the exact staged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="${RUNNER_TEMP}/final-source-tree"
+          cd "${stage}"
+          rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
+          find src scripts tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          find src scripts tests -type f -name '*.pyc' -delete
+          test ! -d .evavo/bootstrap
+          test ! -e .evavo/recover_complete_release.py
+          test ! -e .evavo/apply_final_release_fixes.py
+          test ! -e .github/workflows/apply-managed-sandbox-0.7.yml
+          test ! -e .github/workflows/dispatch-agent-audio-upgrade.yml
+          python scripts/check_repository_toolchain.py
+          python scripts/test_repository_toolchain.py
+
+      - name: Fast-forward main with the exact validated source
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          stage="${RUNNER_TEMP}/final-source-tree"
+          git fetch --no-tags origin main
+          remote_head="$(git rev-parse origin/main)"
+          if [[ "${remote_head}" != "${EXPECTED_MAIN_SHA}" ]]; then
+            echo "Remote main drifted from ${EXPECTED_MAIN_SHA} to ${remote_head}." >&2
+            exit 1
+          fi
+          git checkout --detach "${remote_head}"
+          rsync -a --delete --exclude=.git "${stage}/" ./
+          test ! -d .evavo/bootstrap
+          test ! -e .github/workflows/apply-managed-sandbox-0.7.yml
+          test ! -e .github/workflows/dispatch-agent-audio-upgrade.yml
+          test ! -e .evavo/recover_complete_release.py
+          test ! -e .evavo/apply_final_release_fixes.py
+          python scripts/check_repository_toolchain.py
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "automation@evavo.com.au"
+          git add --all
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git commit -m "feat(sandbox): add managed Godot toolchains and agent QA"
+          git push origin HEAD:main
