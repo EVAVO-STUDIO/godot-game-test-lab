@@ -21,6 +21,8 @@ dev = [
 [project.scripts]
 godot-lab = "godot_game_test_lab.cli:main"
 godot-lab-native-qa = "godot_game_test_lab.native_qa:main"
+godot-lab-bot-qa = "godot_game_test_lab.bot_qa:main"
+godot-lab-init-qa = "godot_game_test_lab.profile_bootstrap:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]

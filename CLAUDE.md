@@ -35,3 +35,5 @@ Never edit, commit, push, deploy, sign, or publish a target game without a
 separate Development Studio grant and the target repository's own exclusive
 mainline lease. Every claim must identify the exact target SHA and the evidence
 boundary that passed.
+
+Deterministic bot QA uses `godot-lab-init-qa` and `godot-lab-bot-qa`. It performs bounded runtime UI graph exploration and InputMap fuzzing in fresh processes with isolated user data. Preserve exact trace evidence and deny destructive actions. Synthetic device events are not physical-controller certification or human visual approval.

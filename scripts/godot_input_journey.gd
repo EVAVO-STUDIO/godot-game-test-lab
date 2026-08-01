@@ -4,12 +4,15 @@ const REPORT_SCHEMA_VERSION := 1
 const MAX_CONTROL_RECORDS := 512
 const MAX_INTERACTIVE_RECORDS := 192
 const MAX_OVERLAP_PAIRS := 1024
+const MAX_PERFORMANCE_SAMPLES := 2048
+const PERFORMANCE_SAMPLE_INTERVAL := 5
 
 var _journey: Dictionary = {}
 var _result: Dictionary = {}
 var _failures := PackedStringArray()
 var _step_results: Array[Dictionary] = []
 var _checkpoint_records: Array[Dictionary] = []
+var _performance_samples: Array[Dictionary] = []
 var _elapsed_frames := 0
 var _max_frames := 900
 var _report_path := ""
@@ -365,8 +368,91 @@ func _wait_frames(count: int) -> void:
     for _index in range(maxi(0, count)):
         await process_frame
         _elapsed_frames += 1
+        if _elapsed_frames % PERFORMANCE_SAMPLE_INTERVAL == 0:
+            _sample_performance()
         if _elapsed_frames >= _max_frames:
             return
+
+
+func _sample_performance() -> void:
+    if _performance_samples.size() >= MAX_PERFORMANCE_SAMPLES:
+        return
+    _performance_samples.append({
+        "frame": _elapsed_frames,
+        "fps": Performance.get_monitor(Performance.TIME_FPS),
+        "processMs": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+        "physicsMs": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+        "memoryStaticBytes": Performance.get_monitor(Performance.MEMORY_STATIC),
+        "objectCount": Performance.get_monitor(Performance.OBJECT_COUNT),
+        "nodeCount": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+        "drawCalls": Performance.get_monitor(
+            Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME
+        ),
+    })
+
+
+func _metric_summary(key: String) -> Dictionary:
+    var values: Array[float] = []
+    var total := 0.0
+    for sample: Dictionary in _performance_samples:
+        var value := float(sample.get(key, 0.0))
+        values.append(value)
+        total += value
+    if values.is_empty():
+        return {"samples": 0}
+    values.sort()
+    var p95_index := clampi(
+        int(ceil(float(values.size()) * 0.95)) - 1,
+        0,
+        values.size() - 1
+    )
+    return {
+        "samples": values.size(),
+        "minimum": values[0],
+        "mean": total / float(values.size()),
+        "p95": values[p95_index],
+        "maximum": values[values.size() - 1],
+    }
+
+
+func _summarize_performance() -> Dictionary:
+    return {
+        "sampleIntervalFrames": PERFORMANCE_SAMPLE_INTERVAL,
+        "sampleCount": _performance_samples.size(),
+        "fps": _metric_summary("fps"),
+        "processMs": _metric_summary("processMs"),
+        "physicsMs": _metric_summary("physicsMs"),
+        "memoryStaticBytes": _metric_summary("memoryStaticBytes"),
+        "objectCount": _metric_summary("objectCount"),
+        "nodeCount": _metric_summary("nodeCount"),
+        "drawCalls": _metric_summary("drawCalls"),
+    }
+
+
+func _input_event_record(event: InputEvent, category: String) -> Dictionary:
+    var record := {
+        "type": event.get_class(),
+        "category": category,
+        "device": event.device,
+    }
+    if event is InputEventKey:
+        var key_event := event as InputEventKey
+        record["keycode"] = int(key_event.keycode)
+        record["physicalKeycode"] = int(key_event.physical_keycode)
+        record["unicode"] = int(key_event.unicode)
+    elif event is InputEventMouseButton:
+        record["buttonIndex"] = int((event as InputEventMouseButton).button_index)
+    elif event is InputEventJoypadButton:
+        record["buttonIndex"] = int((event as InputEventJoypadButton).button_index)
+    elif event is InputEventJoypadMotion:
+        var motion := event as InputEventJoypadMotion
+        record["axis"] = int(motion.axis)
+        record["axisValue"] = motion.axis_value
+    elif event is InputEventAction:
+        var action_event := event as InputEventAction
+        record["action"] = String(action_event.action)
+        record["strength"] = action_event.strength
+    return record
 
 
 func _collect_input_map() -> Dictionary:
@@ -378,11 +464,7 @@ func _collect_input_map() -> Dictionary:
         for event: InputEvent in InputMap.action_get_events(action_name):
             var category := _event_category(event)
             coverage[category] = int(coverage.get(category, 0)) + 1
-            event_records.append({
-                "type": event.get_class(),
-                "category": category,
-                "device": event.device,
-            })
+            event_records.append(_input_event_record(event, category))
         actions.append({
             "name": action_name,
             "deadzone": InputMap.action_get_deadzone(action_name),
@@ -411,6 +493,7 @@ func _collect_ui_telemetry() -> Dictionary:
             "path": String(control.get_path()),
             "class": control.get_class(),
             "name": control.name,
+            "text": _control_text(control),
             "x": rect.position.x,
             "y": rect.position.y,
             "width": rect.size.x,
@@ -480,6 +563,22 @@ func _collect_ui_telemetry() -> Dictionary:
     return telemetry
 
 
+func _control_text(control: Control) -> String:
+    if control is Button:
+        return (control as Button).text
+    if control is LinkButton:
+        return (control as LinkButton).text
+    if control is LineEdit:
+        return (control as LineEdit).text
+    if control is TextEdit:
+        return (control as TextEdit).text
+    if control is Label:
+        return (control as Label).text
+    if control is RichTextLabel:
+        return (control as RichTextLabel).get_parsed_text()
+    return ""
+
+
 func _is_interactive_control(control: Control) -> bool:
     if control.focus_mode != Control.FOCUS_NONE:
         return true
@@ -536,6 +635,7 @@ func _finish() -> void:
     _result["checkpoints"] = _checkpoint_records
     _result["inputMap"] = _collect_input_map()
     _result["ui"] = ui_telemetry
+    _result["performance"] = _summarize_performance()
     _result["failures"] = Array(_failures)
     _write_report()
     quit(0 if _failures.is_empty() else 1)

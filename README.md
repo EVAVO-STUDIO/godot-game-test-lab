@@ -315,3 +315,24 @@ python -m pip wheel --no-deps --wheel-dir dist .
 Source tests prove the Python, shell, workflow, and policy contract only. Native
 Godot, Windows desktop, driver, GPU, target-game, and visual facts exist only
 after a real exact-SHA worker run retains them.
+
+## Deterministic autonomous bot QA
+
+Any Godot repository can generate a strict starter profile and run bounded runtime exploration:
+
+```powershell
+godot-lab-init-qa C:\GitRepos\Brass_Brine `
+  --output .evavo\godot-lab-bot.json `
+  --report .evavo\godot-lab-bot.discovery.json
+
+.\scripts\Invoke-GodotLabBotQA.ps1 `
+  -TargetRepositoryPath C:\GitRepos\Brass_Brine `
+  -ProjectSubpath . `
+  -ProfilePath .evavo\godot-lab-bot.json `
+  -ExpectedLabSha (git rev-parse HEAD) `
+  -ExpectedTargetSha (git -C C:\GitRepos\Brass_Brine rev-parse HEAD) `
+  -ArtifactPath C:\GodotLabEvidence\Brass_Brine\bot-latest `
+  -AllowedArtifactRoot C:\GodotLabEvidence
+```
+
+The bot runs canonical validation first, discovers runtime controls and InputMap events, replays mouse, keyboard, semantic and synthetic gamepad traces in fresh processes with isolated user data, records screenshots and representative movies, and retains a reproducible state graph. See `docs/AUTONOMOUS_BOT_QA.md`.

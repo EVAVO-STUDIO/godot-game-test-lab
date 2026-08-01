@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "campaigns": [
+    {
+      "id": "ui-graph",
+      "required": true,
+      "scene": "",
+      "mode": "mixed",
+      "seed": 1871,
+      "devices": [
+        "mouse",
+        "keyboard",
+        "gamepad",
+        "semantic"
+      ],
+      "maxStates": 16,
+      "maxDepth": 4,
+      "maxRuns": 48,
+      "maxActionsPerState": 12,
+      "settleFrames": 20,
+      "stallLimit": 12,
+      "checkpointEveryState": true,
+      "recordRepresentativePaths": true,
+      "maxRepresentativePaths": 4,
+      "maxFrames": 900,
+      "fps": 30,
+      "width": 1280,
+      "height": 720,
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "gpuIndex": 0,
+      "userArguments": [],
+      "actionAllowlist": [],
+      "actionDenylist": [
+        "delete",
+        "erase",
+        "format",
+        "purchase",
+        "quit",
+        "reset",
+        "uninstall"
+      ],
+      "blockedText": [
+        "buy",
+        "checkout",
+        "delete",
+        "erase",
+        "format",
+        "overwrite",
+        "purchase",
+        "quit",
+        "reset",
+        "uninstall"
+      ],
+      "ux": {
+        "captureControlTree": true,
+        "failOnBlackFrame": false,
+        "failOnFrozenVideo": false,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "maximumSmallInteractiveTargets": 8
+      }
+    },
+    {
+      "id": "input-fuzz",
+      "required": false,
+      "scene": "",
+      "mode": "action_fuzz",
+      "seed": 24372,
+      "devices": [
+        "keyboard",
+        "gamepad",
+        "semantic"
+      ],
+      "maxStates": 8,
+      "maxDepth": 3,
+      "maxRuns": 24,
+      "maxActionsPerState": 16,
+      "settleFrames": 10,
+      "stallLimit": 16,
+      "checkpointEveryState": true,
+      "recordRepresentativePaths": true,
+      "maxRepresentativePaths": 2,
+      "maxFrames": 600,
+      "fps": 30,
+      "width": 1280,
+      "height": 720,
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "gpuIndex": 0,
+      "userArguments": [],
+      "actionAllowlist": [],
+      "actionDenylist": [
+        "delete",
+        "erase",
+        "format",
+        "purchase",
+        "quit",
+        "reset",
+        "uninstall"
+      ],
+      "blockedText": [
+        "buy",
+        "checkout",
+        "delete",
+        "erase",
+        "format",
+        "overwrite",
+        "purchase",
+        "quit",
+        "reset",
+        "uninstall"
+      ],
+      "ux": {
+        "captureControlTree": true,
+        "failOnBlackFrame": false,
+        "failOnFrozenVideo": false,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "maximumSmallInteractiveTargets": 8
+      }
+    }
+  ]
+}

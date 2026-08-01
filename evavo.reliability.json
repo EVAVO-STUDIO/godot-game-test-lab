@@ -74,7 +74,8 @@
     "linuxVisualEvidence": "xvfb-x11-mesa-llvmpipe-movie-maker",
     "linuxInputEvidence": "godot-inputevent-parse-input-event",
     "linuxVideoDiagnostics": "ffprobe-ffmpeg-blackdetect-freezedetect",
-    "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime"
+    "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime",
+    "nativeBotEvidence": "godot-lab-bot-qa-deterministic-ui-graph-and-input-fuzz"
   },
   "nativeAcceptance": {
     "requiredRunner": "freshly-probed-windows-x64",
@@ -97,7 +98,10 @@
       "repository-specific probes",
       "declared export when required",
       "native movie or screenshot evidence when required",
-      "physical-controller or human review when required"
+      "physical-controller or human review when required",
+      "target-owned deterministic bot profile when autonomous exploration is requested",
+      "fresh-process UI graph and InputMap trace replay",
+      "isolated user-data and bounded bot evidence"
     ]
   },
   "linuxSandboxAcceptance": {
@@ -193,7 +197,9 @@
     "Synthetic joypad events prove InputMap coverage and Godot event handling, not physical USB enumeration, Steam Input, rumble or controller certification.",
     "UI geometry telemetry detects deterministic clipping, overlap, focus and target-size defects but does not replace human art direction, accessibility or UX approval.",
     "Xvfb and Mesa software rendering do not prove hardware-specific Vulkan behavior or performance.",
-    "Godot 4 C# projects require the .NET editor and cannot use the browser export path."
+    "Godot 4 C# projects require the .NET editor and cannot use the browser export path.",
+    "Deterministic bot exploration is bounded and does not prove every gameplay state is reachable.",
+    "Fresh-process synthetic input does not certify physical controllers, accessibility, game feel or human visual quality."
   ],
   "autoRepair": {
     "allowed": true,

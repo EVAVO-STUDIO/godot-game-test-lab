@@ -123,3 +123,12 @@ deploy, sign, or publish a target game without a separate Development Studio
 execution grant and the target repository's exclusive mainline lease. Every
 repair claim must cite the exact target SHA and the evidence boundary that
 actually passed.
+
+## Deterministic bot QA rules
+
+- Use `godot-lab-init-qa` to create a target-owned starter profile; review and commit it in the game repository before authoritative bot execution.
+- Run `godot-lab-bot-qa` or `scripts/Invoke-GodotLabBotQA.ps1` only after canonical validation passes.
+- Keep destructive, account, purchase, save-wiping, quit and release actions in the profile deny lists.
+- Bot probes must use fresh processes, isolated user-data roots, exact SHAs, a desktop lease and external bounded evidence.
+- Preserve every failed trace, screenshot, engine log and process receipt needed to replay the defect.
+- Synthetic keyboard, mouse and gamepad events prove the Godot input path only; never claim physical-controller or human visual approval.
