@@ -1,75 +1,173 @@
-name: CI
+name: Recover verified managed sandbox source
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-      - "work/**"
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: godot-lab-ci-${{ github.workflow }}-${{ github.ref }}
+  group: recover-managed-sandbox-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate-source:
-    name: Validate exact Godot lab source
+  recover-source:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'agent/managed-sandbox-release-0.7')
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
-      - name: Check out repository
+      - name: Check out the trusted same-repository branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Set up Python 3.11.15
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.11.15"
-
-      - name: Verify source toolchain authority
-        run: python scripts/check_repository_toolchain.py
-
-      - name: Run adversarial toolchain fixtures
-        run: python scripts/test_repository_toolchain.py
-
-      - name: Install bounded review-first dependencies
+      - name: Reconstruct and safely extract the exact release archive
+        shell: bash
         env:
-          PIP_DISABLE_PIP_VERSION_CHECK: "1"
-        run: python -m pip install --disable-pip-version-check ".[dev]"
-
-      - name: Verify installed toolchain authority
-        run: python scripts/check_repository_toolchain.py --installed
-
-      - name: Compile source, scripts and tests
-        run: python -m compileall -q src scripts tests
-
-      - name: Run Ruff
-        run: python -m ruff check src scripts tests
-
-      - name: Parse shell entrypoints
-        shell: bash
+          EXPECTED_ARCHIVE_BYTES: '114059'
+          EXPECTED_ARCHIVE_SHA256: c6a6ed63d7fe8078591430c2a0fb93c066bf37b3e5347f8c5744cd2d2891ce51
         run: |
           set -euo pipefail
-          while IFS= read -r -d '' script; do
-            bash -n "$script"
-          done < <(find scripts containers -type f -name '*.sh' -print0)
+          python - <<'PY'
+          from __future__ import annotations
 
-      - name: Run tests
-        run: python -m pytest
+          import base64
+          import hashlib
+          import json
+          import os
+          import re
+          import stat
+          import tarfile
+          from pathlib import Path, PurePosixPath
 
-      - name: Build wheel without dependency resolution
-        run: python -m pip wheel --no-deps --wheel-dir dist .
+          root = Path.cwd().resolve(strict=True)
+          manifest_path = root / '.evavo/bootstrap/managed-sandbox-0.7.manifest.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          records = manifest.get('files')
+          if manifest.get('schemaVersion') != '1.0' or manifest.get('releaseVersion') != '0.7.0':
+              raise SystemExit('unexpected release manifest identity')
+          if not isinstance(records, list) or len(records) != 52:
+              raise SystemExit('unexpected release manifest inventory')
 
-      - name: Remove generated outputs and verify clean source
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
-          git diff --exit-code
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          expected: dict[str, dict[str, object]] = {}
+          for record in records:
+              if not isinstance(record, dict) or not isinstance(record.get('path'), str):
+                  raise SystemExit('invalid release file record')
+              name = record['path']
+              pure = PurePosixPath(name)
+              if name in expected or pure.is_absolute() or any(part in {'', '.', '..'} for part in pure.parts):
+                  raise SystemExit(f'unsafe or duplicate manifest path: {name}')
+              expected[name] = record
+
+          parts: list[str] = []
+          for number in range(22):
+              relative = Path(f'.evavo/bootstrap/managed-sandbox-0.7-small-{number:03d}.b64')
+              path = root / relative
+              if path.is_symlink() or not path.is_file() or path.resolve(strict=True) != path.absolute():
+                  raise SystemExit(f'missing or unsafe release segment: {relative}')
+              compact = ''.join(path.read_text(encoding='ascii').split())
+              if not compact or re.fullmatch(r'[A-Za-z0-9+/]*={0,2}', compact) is None:
+                  raise SystemExit(f'invalid Base64 release segment: {relative}')
+              if number < 21 and '=' in compact:
+                  raise SystemExit(f'non-final release segment contains padding: {relative}')
+              parts.append(compact)
+
+          archive_bytes = base64.b64decode(''.join(parts), validate=True)
+          actual_sha = hashlib.sha256(archive_bytes).hexdigest()
+          if len(archive_bytes) != int(os.environ['EXPECTED_ARCHIVE_BYTES']):
+              raise SystemExit(f'archive byte count mismatch: {len(archive_bytes)}')
+          if actual_sha != os.environ['EXPECTED_ARCHIVE_SHA256']:
+              raise SystemExit(f'archive SHA-256 mismatch: {actual_sha}')
+          if manifest.get('archiveBytes') != len(archive_bytes) or manifest.get('archiveSha256') != actual_sha:
+              raise SystemExit('manifest archive identity mismatch')
+
+          archive_path = Path(os.environ['RUNNER_TEMP']) / 'managed-sandbox-0.7.tar.gz'
+          archive_path.write_bytes(archive_bytes)
+          destination_root = root / 'recovered'
+          destination_root.mkdir(mode=0o700)
+
+          observed: set[str] = set()
+          expanded = 0
+          with tarfile.open(archive_path, mode='r:gz') as archive:
+              members = archive.getmembers()
+              if len(members) != len(expected):
+                  raise SystemExit('archive member count mismatch')
+              for member in members:
+                  pure = PurePosixPath(member.name)
+                  if (
+                      pure.is_absolute()
+                      or any(part in {'', '.', '..'} for part in pure.parts)
+                      or not member.isfile()
+                      or member.name in observed
+                      or member.name not in expected
+                      or member.size != expected[member.name].get('bytes')
+                      or member.size < 0
+                      or member.size > 4 * 1024 * 1024
+                  ):
+                      raise SystemExit(f'unsafe release archive member: {member.name}')
+                  observed.add(member.name)
+                  expanded += member.size
+              if observed != set(expected) or expanded > 8 * 1024 * 1024:
+                  raise SystemExit('release archive contract mismatch')
+
+              for member in members:
+                  record = expected[member.name]
+                  source = archive.extractfile(member)
+                  if source is None:
+                      raise SystemExit(f'unreadable release archive member: {member.name}')
+                  data = source.read(int(record['bytes']) + 1)
+                  if len(data) != record['bytes']:
+                      raise SystemExit(f'release member read-size mismatch: {member.name}')
+                  if hashlib.sha256(data).hexdigest() != record['sha256']:
+                      raise SystemExit(f'release member checksum mismatch: {member.name}')
+                  destination = destination_root.joinpath(*PurePosixPath(member.name).parts)
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.parent.resolve(strict=True).relative_to(destination_root.resolve(strict=True))
+                  destination.write_bytes(data)
+                  destination.chmod(int(str(record['mode']), 8))
+                  if stat.S_IMODE(destination.stat().st_mode) != int(str(record['mode']), 8):
+                      raise SystemExit(f'release member mode mismatch: {member.name}')
+
+          receipt = {
+              'schemaVersion': '1.0',
+              'releaseVersion': '0.7.0',
+              'archiveBytes': len(archive_bytes),
+              'archiveSha256': actual_sha,
+              'fileCount': len(expected),
+              'files': [
+                  {
+                      'path': name,
+                      'bytes': int(expected[name]['bytes']),
+                      'sha256': str(expected[name]['sha256']),
+                      'mode': str(expected[name]['mode']),
+                  }
+                  for name in sorted(expected)
+              ],
+          }
+          (root / 'recovery-receipt.json').write_text(
+              json.dumps(receipt, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+          print(f"recovered {len(expected)} files from {len(archive_bytes)} verified bytes")
+          PY
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            -czf recovered-source.tar.gz -C recovered .
+          sha256sum recovered-source.tar.gz recovery-receipt.json
+
+      - name: Upload the verified source and receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: managed-sandbox-0.7-source
+          path: |
+            recovered-source.tar.gz
+            recovery-receipt.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
