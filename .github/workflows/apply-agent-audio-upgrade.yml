@@ -90,12 +90,23 @@ jobs:
               if source.count(old) != 1:
                   raise SystemExit(f"stale-contract anchor changed: {relative}")
               path.write_text(source.replace(old, new), encoding="utf-8", newline="\n")
+          path = Path("tests/test_cli.py")
+          source = path.read_text(encoding="utf-8")
+          old = '        "nativeBotQa": "godot-lab-bot-qa",\n'
+          new = (
+              old
+              + '        "mediaQa": "godot-lab-media-qa",\n'
+              + '        "mcpAgentBridge": "godot-lab-mcp",\n'
+          )
+          if source.count(old) != 1:
+              raise SystemExit("CLI automation-entrypoint test anchor changed")
+          path.write_text(source.replace(old, new), encoding="utf-8", newline="\n")
           path = Path("tests/test_mcp_bridge_contract.py")
           source = path.read_text(encoding="utf-8")
           old = "import pytest\n\n\n\n"
           if source.count(old) != 1:
               raise SystemExit("MCP test import anchor changed")
-          path.write_text(source.replace(old, "import pytest\n\n"), encoding="utf-8", newline="\n")
+          path.write_text(source.replace(old, "import pytest\n\n\n"), encoding="utf-8", newline="\n")
           PY
           rm -f scripts/apply_agent_audio_upgrade.py
           rm -f .evavo/bootstrap/agent-audio-upgrade-*.b64
