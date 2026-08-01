@@ -40,7 +40,7 @@ jobs:
           cat .evavo/bootstrap/agent-audio-upgrade-00.b64 \
             | base64 --decode > "${RUNNER_TEMP}/agent-audio-upgrade.tar.gz"
           printf '%s  %s\n' \
-            'd0e0253109d88a5d65c7dfec0ca35e945b56b1afdc724bf0fda7d424120a191c' \
+            '054caa759241ed1f708b4cb9ac0099831406f5d053975f9aa139ded54989f5de' \
             "${RUNNER_TEMP}/agent-audio-upgrade.tar.gz" \
             | sha256sum --check --strict
           PAYLOAD="${RUNNER_TEMP}/agent-audio-upgrade.tar.gz" python - <<'PY'
