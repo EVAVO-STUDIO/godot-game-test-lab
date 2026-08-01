@@ -130,6 +130,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python -m ruff check --fix --unsafe-fixes --select I001,UP035,UP038 \
+            src/godot_game_test_lab/command_guard.py \
+            src/godot_game_test_lab/native_qa_profile.py \
+            src/godot_game_test_lab/native_qa_runner.py
           python -m compileall -q src scripts tests
           python -m ruff check src scripts tests
           while IFS= read -r -d '' script; do
