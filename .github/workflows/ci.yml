@@ -133,8 +133,12 @@ jobs:
           )
           assert value["toolVersion"] == "0.7.0"
           expected = value["automationEntrypoints"]
-          assert expected["managedEngine"] == "godot-lab-engine"
-          assert expected["localSandbox"] == "godot-lab-sandbox"
+          assert expected["engineProvisioning"] == (
+              "godot-lab engine bootstrap|ensure|status|env"
+          )
+          assert expected["localLinuxSandbox"] == (
+              "godot-lab sandbox status|image|run"
+          )
           assert expected["mcpAgentBridge"] == "godot-lab-mcp"
           PY
 
