@@ -5,8 +5,9 @@ import asyncio
 import json
 import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 _REQUIRED_TOOLS = frozenset(

@@ -5,13 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from godot_game_test_lab.mcp_probe import (
-    McpProbeError,
-    _REQUIRED_TOOLS,
-    _structured_payload,
-    _validate_capabilities,
-    _validate_endpoint,
-)
+from godot_game_test_lab import mcp_probe
 
 
 def _directories(tmp_path: Path) -> tuple[Path, Path, Path, tuple[Path, ...]]:
@@ -43,8 +37,8 @@ def _capabilities(
 
 
 def test_loopback_endpoint_is_explicit_and_path_bound() -> None:
-    assert _validate_endpoint("http://127.0.0.1:8765/mcp").endswith("/mcp")
-    assert _validate_endpoint("http://[::1]:8765/mcp").endswith("/mcp")
+    assert mcp_probe._validate_endpoint("http://127.0.0.1:8765/mcp").endswith("/mcp")
+    assert mcp_probe._validate_endpoint("http://[::1]:8765/mcp").endswith("/mcp")
 
     for value in (
         "http://localhost:8765/mcp",
@@ -54,15 +48,15 @@ def test_loopback_endpoint_is_explicit_and_path_bound() -> None:
         "http://127.0.0.1/mcp",
         "http://user@127.0.0.1:8765/mcp",
     ):
-        with pytest.raises(McpProbeError):
-            _validate_endpoint(value)
+        with pytest.raises(mcp_probe.McpProbeError):
+            mcp_probe._validate_endpoint(value)
 
 
 def test_capabilities_require_exact_roots_and_tools(tmp_path: Path) -> None:
     lab, evidence, engines, roots = _directories(tmp_path)
     value = _capabilities(lab, evidence, engines, roots)
 
-    accepted = _validate_capabilities(
+    accepted = mcp_probe._validate_capabilities(
         value,
         expected_lab_root=lab,
         expected_allowed_roots=tuple(reversed(roots)),
@@ -70,7 +64,7 @@ def test_capabilities_require_exact_roots_and_tools(tmp_path: Path) -> None:
         expected_engine_root=engines,
         expect_interactive=True,
         expect_auto_provision=True,
-        tool_names=set(_REQUIRED_TOOLS),
+        tool_names=set(mcp_probe._REQUIRED_TOOLS),
     )
 
     assert accepted["bridge"] == "evavo-godot-lab-agent"
@@ -82,8 +76,8 @@ def test_capability_drift_fails_closed(tmp_path: Path) -> None:
     value = _capabilities(lab, evidence, engines, roots)
     value["autoProvisionEngines"] = False
 
-    with pytest.raises(McpProbeError, match="provisioning policy"):
-        _validate_capabilities(
+    with pytest.raises(mcp_probe.McpProbeError, match="provisioning policy"):
+        mcp_probe._validate_capabilities(
             value,
             expected_lab_root=lab,
             expected_allowed_roots=roots,
@@ -91,12 +85,12 @@ def test_capability_drift_fails_closed(tmp_path: Path) -> None:
             expected_engine_root=engines,
             expect_interactive=True,
             expect_auto_provision=True,
-            tool_names=set(_REQUIRED_TOOLS),
+            tool_names=set(mcp_probe._REQUIRED_TOOLS),
         )
 
     value["autoProvisionEngines"] = True
-    with pytest.raises(McpProbeError, match="missing required tools"):
-        _validate_capabilities(
+    with pytest.raises(mcp_probe.McpProbeError, match="missing required tools"):
+        mcp_probe._validate_capabilities(
             value,
             expected_lab_root=lab,
             expected_allowed_roots=roots,
@@ -111,4 +105,4 @@ def test_capability_drift_fails_closed(tmp_path: Path) -> None:
 def test_structured_payload_prefers_mcp_structured_content() -> None:
     value = {"bridge": "evavo-godot-lab-agent"}
     result = SimpleNamespace(structuredContent=value, content=[])
-    assert _structured_payload(result) is value
+    assert mcp_probe._structured_payload(result) is value
