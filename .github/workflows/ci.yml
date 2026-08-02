@@ -264,10 +264,11 @@ jobs:
           python scripts/check_repository_toolchain.py
           python scripts/test_repository_toolchain.py
 
-      - name: Fast-forward main with the exact validated source
+      - name: Publish the exact validated source to a clean release branch
         shell: bash
         env:
           EXPECTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
+          PUBLICATION_BRANCH: release/managed-sandbox-0.7-clean
         run: |
           set -euo pipefail
           stage="${RUNNER_TEMP}/final-source-tree"
@@ -292,4 +293,14 @@ jobs:
           git diff --cached --check
           test -n "$(git diff --cached --name-only)"
           git commit -m "feat(sandbox): add managed Godot toolchains and agent QA"
-          git push origin HEAD:main
+          git fetch --no-tags origin "${PUBLICATION_BRANCH}" || true
+          publication_head="$(git rev-parse --verify "refs/remotes/origin/${PUBLICATION_BRANCH}" 2>/dev/null || true)"
+          if [[ -n "${publication_head}" ]]; then
+            git push \
+              --force-with-lease="refs/heads/${PUBLICATION_BRANCH}:${publication_head}" \
+              origin "HEAD:refs/heads/${PUBLICATION_BRANCH}"
+          else
+            git push origin "HEAD:refs/heads/${PUBLICATION_BRANCH}"
+          fi
+          printf 'Published clean release commit %s to %s\n' \
+            "$(git rev-parse HEAD)" "${PUBLICATION_BRANCH}"
