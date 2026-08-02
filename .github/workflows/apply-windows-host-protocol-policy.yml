@@ -41,7 +41,7 @@ jobs:
           base64 --decode .evavo/windows-host-protocol.py.gz.b64 \
             | gzip --decompress > .evavo/apply_windows_host_protocol_policy.py
           printf '%s  %s\n' \
-            'de9772f4c0877fbad13650857d535fe0f16d6a88b919d0b61ec4e2acee7e1c17' \
+            'adbb9b0d1f781fdffc33597d545a4a857fc658a908126e66130699a2fa51b034' \
             '.evavo/apply_windows_host_protocol_policy.py' \
             | sha256sum --check --strict
           python .evavo/apply_windows_host_protocol_policy.py
