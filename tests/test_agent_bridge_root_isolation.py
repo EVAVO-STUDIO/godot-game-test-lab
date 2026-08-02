@@ -96,6 +96,28 @@ def test_engine_inside_evidence_is_rejected_without_side_effects(
     assert not engine.exists()
 
 
+def test_engine_parent_of_evidence_is_rejected_without_side_effects(
+    tmp_path: Path,
+) -> None:
+    lab = tmp_path / "lab"
+    targets = tmp_path / "targets"
+    lab.mkdir()
+    targets.mkdir()
+    engine = tmp_path / "managed"
+    evidence = engine / "evidence"
+
+    with pytest.raises(NativeQaError, match="Managed engine root"):
+        BridgeConfig.from_environment(
+            lab_root=lab,
+            allowed_target_roots=[targets],
+            evidence_root=evidence,
+            engine_root=engine,
+        )
+
+    assert not engine.exists()
+    assert not evidence.exists()
+
+
 def test_disjoint_bridge_roots_are_created_and_reported(tmp_path: Path) -> None:
     lab = tmp_path / "lab"
     targets = tmp_path / "targets"
