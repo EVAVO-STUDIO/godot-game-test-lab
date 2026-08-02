@@ -39,11 +39,13 @@ jobs:
           set -euo pipefail
           python .evavo/recover_complete_release.py
           python .evavo/apply_final_release_fixes.py
+          python .evavo/apply_journey_driver_fixes.py
           stage="${RUNNER_TEMP}/final-source-tree"
           test -d "${stage}"
           test ! -e "${stage}/.evavo/bootstrap"
           test ! -e "${stage}/.evavo/recover_complete_release.py"
           test ! -e "${stage}/.evavo/apply_final_release_fixes.py"
+          test ! -e "${stage}/.evavo/apply_journey_driver_fixes.py"
           test ! -e "${stage}/.github/workflows/apply-managed-sandbox-0.7.yml"
           test ! -e "${stage}/.github/workflows/dispatch-agent-audio-upgrade.yml"
           test ! -e "${stage}/scripts/test_repository_toolchain_core.py"
@@ -256,6 +258,7 @@ jobs:
           test ! -d .evavo/bootstrap
           test ! -e .evavo/recover_complete_release.py
           test ! -e .evavo/apply_final_release_fixes.py
+          test ! -e .evavo/apply_journey_driver_fixes.py
           test ! -e .github/workflows/apply-managed-sandbox-0.7.yml
           test ! -e .github/workflows/dispatch-agent-audio-upgrade.yml
           python scripts/check_repository_toolchain.py
@@ -281,6 +284,7 @@ jobs:
           test ! -e .github/workflows/dispatch-agent-audio-upgrade.yml
           test ! -e .evavo/recover_complete_release.py
           test ! -e .evavo/apply_final_release_fixes.py
+          test ! -e .evavo/apply_journey_driver_fixes.py
           python scripts/check_repository_toolchain.py
           git config user.name "EVAVO Studio Automation"
           git config user.email "automation@evavo.com.au"
