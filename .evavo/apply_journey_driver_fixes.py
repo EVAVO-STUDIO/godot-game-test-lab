@@ -126,6 +126,9 @@ def test_process_output_excerpt_omits_empty_streams() -> None:
         newline="\n",
     )
 
+    temporary = stage / ".evavo/apply_journey_driver_fixes.py"
+    if temporary.exists() or temporary.is_symlink():
+        temporary.unlink()
     print("applied journey-driver diagnostics")
     return 0
 
