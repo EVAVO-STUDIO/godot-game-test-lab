@@ -80,6 +80,14 @@ def main() -> int:
         "journey summary process-output excerpt",
     )
 
+    journey_driver = stage / "scripts/godot_input_journey.gd"
+    replace_once(
+        journey_driver,
+        "        var node := stack.pop_back()\n",
+        "        var node: Node = stack.pop_back()\n",
+        "journey driver typed node stack pop",
+    )
+
     test_path = stage / "tests/test_agent_qa_failure_diagnostics.py"
     if test_path.exists() or test_path.is_symlink():
         raise SystemExit("journey failure-diagnostics test path already exists")
@@ -126,10 +134,31 @@ def test_process_output_excerpt_omits_empty_streams() -> None:
         newline="\n",
     )
 
+    driver_test = stage / "tests/test_godot_journey_driver_contract.py"
+    if driver_test.exists() or driver_test.is_symlink():
+        raise SystemExit("journey-driver contract test path already exists")
+    driver_test.write_text(
+        '''from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+DRIVER = ROOT / "scripts" / "godot_input_journey.gd"
+
+
+def test_variant_stack_pop_has_an_explicit_node_type() -> None:
+    source = DRIVER.read_text(encoding="utf-8")
+    assert "var node: Node = stack.pop_back()" in source
+    assert "var node := stack.pop_back()" not in source
+''',
+        encoding="utf-8",
+        newline="\n",
+    )
+
     temporary = stage / ".evavo/apply_journey_driver_fixes.py"
     if temporary.exists() or temporary.is_symlink():
         temporary.unlink()
-    print("applied journey-driver diagnostics")
+    print("applied journey-driver diagnostics and parser fix")
     return 0
 
 
