@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.com.au/schemas/godot-media-policy.schema.json",
+  "title": "EVAVO Godot retained media policy",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "requireAudioTrack": {
+      "type": "boolean",
+      "default": false
+    },
+    "failOnSilence": {
+      "type": "boolean",
+      "default": false
+    },
+    "failOnClipping": {
+      "type": "boolean",
+      "default": false
+    },
+    "failOnAvSyncDrift": {
+      "type": "boolean",
+      "default": false
+    },
+    "silenceNoiseDb": {
+      "type": "number",
+      "minimum": -120,
+      "maximum": -1,
+      "default": -60
+    },
+    "minimumSilenceDurationSeconds": {
+      "type": "number",
+      "minimum": 0.05,
+      "maximum": 120,
+      "default": 0.75
+    },
+    "maximumSilenceRatio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1
+    },
+    "minimumAudiblePeakDbfs": {
+      "type": "number",
+      "minimum": -120,
+      "maximum": 0,
+      "default": -70
+    },
+    "maximumPeakDbfs": {
+      "type": "number",
+      "minimum": -40,
+      "maximum": 0,
+      "default": -0.1
+    },
+    "maximumAvSyncDriftSeconds": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0.25
+    }
+  }
+}

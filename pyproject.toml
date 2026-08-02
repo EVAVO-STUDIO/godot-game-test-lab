@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "godot-game-test-lab"
-version = "0.5.0"
+version = "0.7.0"
 description = "Automated Godot build, interaction, visual evidence and QA orchestration."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,15 +17,25 @@ dev = [
   "pytest==8.3.0",
   "ruff==0.9.0",
 ]
+agent = [
+  "mcp==1.28.1",
+]
 
 [project.scripts]
 godot-lab = "godot_game_test_lab.cli:main"
 godot-lab-native-qa = "godot_game_test_lab.native_qa:main"
 godot-lab-bot-qa = "godot_game_test_lab.bot_qa:main"
 godot-lab-init-qa = "godot_game_test_lab.profile_bootstrap:main"
+godot-lab-media-qa = "godot_game_test_lab.media_cli:main"
+godot-lab-mcp = "godot_game_test_lab.mcp_server:main"
+godot-lab-engine = "godot_game_test_lab.engine_cli:main"
+godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/godot_game_test_lab/godot-engine-lock.json" = "godot_game_test_lab/godot-engine-lock.json"
 
 [tool.pytest.ini_options]
 addopts = "-q"

@@ -1,0 +1,12 @@
+{
+  "requireAudioTrack": true,
+  "failOnSilence": true,
+  "failOnClipping": true,
+  "failOnAvSyncDrift": true,
+  "silenceNoiseDb": -60,
+  "minimumSilenceDurationSeconds": 0.75,
+  "maximumSilenceRatio": 0.8,
+  "minimumAudiblePeakDbfs": -70,
+  "maximumPeakDbfs": -0.1,
+  "maximumAvSyncDriftSeconds": 0.25
+}

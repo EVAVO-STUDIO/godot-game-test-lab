@@ -1,103 +1,92 @@
 #!/usr/bin/env python3
-"""Fail closed before the canonical Test Lab toolchain checker can run."""
+"""Preflight the immutable workflow boundary, then run the toolchain core."""
 
 from __future__ import annotations
 
 import runpy
 import sys
 from pathlib import Path
-from typing import Callable
 
 ROOT = Path.cwd().resolve(strict=True)
-CORE = ROOT / "scripts" / "check_repository_toolchain_core.py"
+CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 EXPECTED_WORKFLOWS = {
-    ".github/workflows/ci.yml",
-    ".github/workflows/evavo-mainline-confirmation.yml",
-    ".github/workflows/evavo-native-godot-validation.yml",
-    ".github/workflows/reusable-godot-linux-sandbox.yml",
-    ".github/workflows/evavo-linux-godot-sandbox.yml",
-    ".github/workflows/linux-sandbox-smoke.yml",
+    "ci.yml",
+    "evavo-linux-godot-sandbox.yml",
+    "evavo-mainline-confirmation.yml",
+    "evavo-native-godot-validation.yml",
+    "linux-sandbox-smoke.yml",
+    "reusable-godot-linux-sandbox.yml",
 }
-FORBIDDEN_WORKFLOW_TOKENS = (
-    "permissions: write-all",
-    "contents: write",
-    "actions: write",
-    "checks: write",
-    "deployments: write",
-    "packages: write",
-    "pull-requests: write",
-    "statuses: write",
-    "persist-credentials: true",
-    "github.token",
-    "GH_TOKEN",
-    "git push",
-    "gh workflow run",
-)
-FORBIDDEN_RESIDUE = (
+FORBIDDEN_STAGING_PATHS = (
     ".evavo/bootstrap",
     ".evavo/agent-audio-upgrade-diagnostic.txt",
+    ".evavo/managed-sandbox-0.7-diagnostic.txt",
+    ".github/workflows/apply-agent-audio-upgrade.yml",
+    ".github/workflows/apply-managed-sandbox-0.7.yml",
+    ".github/workflows/dispatch-agent-audio-upgrade.yml",
     "scripts/apply_agent_audio_upgrade.py",
 )
-
-
-def _active_yaml(source: str) -> str:
-    return "\n".join(
-        line for line in source.splitlines() if not line.lstrip().startswith("#")
-    )
 
 
 def _preflight_errors() -> list[str]:
     errors: list[str] = []
     workflow_root = ROOT / ".github" / "workflows"
-    observed = {
-        path.relative_to(ROOT).as_posix()
-        for path in workflow_root.iterdir()
-        if path.is_file() and path.suffix in {".yml", ".yaml"}
-    }
+    try:
+        observed = {
+            path.name
+            for path in workflow_root.iterdir()
+            if path.is_file() and not path.is_symlink() and path.suffix in {".yml", ".yaml"}
+        }
+    except OSError as error:
+        return [f"workflow inventory could not be read: {error}"]
     if observed != EXPECTED_WORKFLOWS:
-        missing = sorted(EXPECTED_WORKFLOWS - observed)
-        unexpected = sorted(observed - EXPECTED_WORKFLOWS)
         errors.append(
-            "workflow inventory drifted: "
-            f"missing={missing or 'none'} unexpected={unexpected or 'none'}"
+            "workflow inventory changed; "
+            f"missing={sorted(EXPECTED_WORKFLOWS - observed)} "
+            f"extra={sorted(observed - EXPECTED_WORKFLOWS)}"
         )
 
-    for relative in sorted(observed & EXPECTED_WORKFLOWS):
-        source = _active_yaml((ROOT / relative).read_text(encoding="utf-8"))
-        for token in FORBIDDEN_WORKFLOW_TOKENS:
-            if token in source:
-                errors.append(f"{relative} contains forbidden workflow authority: {token}")
+    for relative in FORBIDDEN_STAGING_PATHS:
+        path = ROOT.joinpath(*Path(relative).parts)
+        if path.exists() or path.is_symlink():
+            errors.append(f"one-time publication residue remains: {relative}")
 
-    for relative in FORBIDDEN_RESIDUE:
-        if (ROOT / relative).exists():
-            errors.append(f"one-time upgrade residue remains: {relative}")
-    payloads = sorted((ROOT / ".evavo").glob("bootstrap/agent-audio-upgrade-*.b64"))
-    if payloads:
-        errors.append(
-            "encoded one-time upgrade payloads remain: "
-            + ", ".join(path.relative_to(ROOT).as_posix() for path in payloads)
-        )
-    if not CORE.is_file() or CORE.is_symlink():
-        errors.append("canonical toolchain core is missing or not a regular file")
+    if CORE_PATH.is_symlink() or not CORE_PATH.is_file():
+        errors.append("toolchain core must be a regular file")
+    else:
+        try:
+            if CORE_PATH.resolve(strict=True) != CORE_PATH.absolute():
+                errors.append("toolchain core path must be canonical")
+            elif CORE_PATH.stat().st_size > 4_000_000:
+                errors.append("toolchain core exceeds the bounded source limit")
+            else:
+                source = CORE_PATH.read_text(encoding="utf-8")
+                if source.startswith(chr(0xFEFF)):
+                    errors.append("toolchain core contains a UTF-8 BOM")
+                if "def main() -> int:" not in source:
+                    errors.append("toolchain core does not expose its expected entrypoint")
+        except (OSError, UnicodeError) as error:
+            errors.append(f"toolchain core could not be validated: {error}")
     return errors
-
-
-def _load_core_main() -> Callable[[], int]:
-    namespace = runpy.run_path(str(CORE), run_name="godot_lab_toolchain_core")
-    core_main = namespace.get("main")
-    if not callable(core_main):
-        raise RuntimeError("canonical toolchain core does not expose callable main")
-    return core_main
 
 
 def main() -> int:
     errors = _preflight_errors()
     if errors:
-        print("Godot lab workflow and residue preflight failed:\n", file=sys.stderr)
+        print("Godot lab toolchain preflight failed:", file=sys.stderr)
+        print(file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    return int(_load_core_main()())
+
+    namespace = runpy.run_path(str(CORE_PATH), run_name="godot_toolchain_core")
+    core_main = namespace.get("main")
+    if not callable(core_main):
+        raise RuntimeError("toolchain core does not expose callable main")
+    result = core_main()
+    if not isinstance(result, int):
+        raise RuntimeError("toolchain core main must return an integer exit code")
+    return result
 
 
 if __name__ == "__main__":

@@ -22,7 +22,23 @@ _ERROR_MARKERS = (
     "Failed to load script",
     "Cannot open file",
 )
-_EXCLUDED_NAMES = frozenset({".git", ".godot", ".qa", ".cache", "artifacts"})
+_EXCLUDED_NAMES = frozenset(
+    {
+        ".git",
+        ".godot",
+        ".qa",
+        ".cache",
+        ".mypy_cache",
+        ".nox",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "artifacts",
+    }
+)
+_EXCLUDED_SUFFIXES = (".egg-info", ".pyc", ".pyo")
 _VERSION_RE = re.compile(r"(?P<major>\d+)\.(?P<minor>\d+)(?:\.(?P<patch>\d+))?")
 
 
@@ -97,7 +113,11 @@ def prepare_ephemeral_copy(source_root: Path, working_root: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     def ignore(_directory: str, names: list[str]) -> set[str]:
-        return {name for name in names if name in _EXCLUDED_NAMES}
+        return {
+            name
+            for name in names
+            if name in _EXCLUDED_NAMES or name.endswith(_EXCLUDED_SUFFIXES)
+        }
 
     shutil.copytree(source, destination, symlinks=True, ignore=ignore)
     return destination

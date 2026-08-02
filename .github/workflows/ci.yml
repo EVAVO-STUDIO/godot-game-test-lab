@@ -46,8 +46,44 @@ jobs:
       - name: Verify installed toolchain authority
         run: python scripts/check_repository_toolchain.py --installed
 
+      - name: Install the pinned MCP agent bridge
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: python -m pip install --disable-pip-version-check ".[agent]"
+
+      - name: Verify the installed MCP SDK identity
+        run: python scripts/check_repository_toolchain.py --agent-installed
+
+      - name: Build the root-restricted MCP server
+        run: >-
+          python -m godot_game_test_lab.mcp_server
+          --lab-root .
+          --allowed-root .
+          --evidence-root "${RUNNER_TEMP}/godot-lab-mcp-evidence"
+          --engine-root "${RUNNER_TEMP}/godot-lab-engines"
+          --allow-noninteractive
+          --self-test
+
       - name: Compile source, scripts and tests
         run: python -m compileall -q src scripts tests
+
+      - name: Verify managed-engine lock and empty-cache commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python -m godot_game_test_lab.cli engine status \
+            --root "${RUNNER_TEMP}/godot-lab-engines"
+          status_code=$?
+          set -e
+          test "${status_code}" -eq 2
+          python - <<'PY'
+          from godot_game_test_lab.engine_manager import load_engine_lock
+          lock = load_engine_lock()
+          assert lock.minimum_version == "4.6.2"
+          assert lock.default_version == "4.6.3"
+          assert lock.channels == {"4.6": "4.6.3", "4.7": "4.7.1"}
+          PY
 
       - name: Run Ruff
         run: python -m ruff check src scripts tests
@@ -59,6 +95,14 @@ jobs:
           while IFS= read -r -d '' script; do
             bash -n "$script"
           done < <(find scripts containers -type f -name '*.sh' -print0)
+
+      - name: Parse PowerShell entrypoints
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem scripts -Filter *.ps1 | ForEach-Object {
+            $null = [scriptblock]::Create((Get-Content -Raw -LiteralPath $_.FullName))
+          }
 
       - name: Run tests
         run: python -m pytest

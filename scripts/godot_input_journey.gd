@@ -480,7 +480,7 @@ func _collect_ui_telemetry() -> Dictionary:
     var interactive_controls: Array[Dictionary] = []
     var stack: Array[Node] = [root]
     while not stack.is_empty() and visible_controls.size() < MAX_CONTROL_RECORDS:
-        var node := stack.pop_back()
+        var node: Node = stack.pop_back()
         for child: Node in node.get_children():
             stack.append(child)
         if not node is Control:

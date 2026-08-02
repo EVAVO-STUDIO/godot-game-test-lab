@@ -23,7 +23,7 @@ __all__ = [
 def run_bot_qa(args: argparse.Namespace) -> dict[str, object]:
     from .bot_runner import run_bot_qa as run
 
-    return run(args)
+    return enforce_exploration_evidence(dict(run(args)))
 
 
 def _list_value(value: object) -> list[Any]:
@@ -115,7 +115,8 @@ def enforce_exploration_evidence(summary: dict[str, object]) -> dict[str, object
         summary["status"] = "failed"
         findings = [str(item) for item in _list_value(summary.get("findings"))]
         findings.append(
-            "one or more required bot campaigns lacked changed-state or non-baseline replay evidence"
+            "one or more required bot campaigns lacked changed-state or "
+            "non-baseline replay evidence"
         )
         summary["findings"] = sorted(set(findings))
     return summary
@@ -178,7 +179,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if re.fullmatch(r"-?[0-9]{1,5},-?[0-9]{1,5}", args.window_position) is None:
         raise SystemExit("--window-position must use X,Y integer coordinates")
     try:
-        summary = enforce_exploration_evidence(run_bot_qa(args))
+        summary = run_bot_qa(args)
         _write_enforced_summary(args, summary)
     except (NativeQaError, FileNotFoundError, OSError, ValueError) as error:
         print(json.dumps({"status": "blocked", "error": str(error)}, sort_keys=True))

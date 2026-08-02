@@ -27,6 +27,7 @@ ERROR_MARKERS = (
     "Cannot open file",
     "ASSERTION FAILED",
 )
+PROCESS_OUTPUT_EXCERPT_LIMIT = 4096
 BLACK_DURATION_RE = re.compile(r"black_duration:(?P<duration>[0-9.]+)")
 FREEZE_DURATION_RE = re.compile(r"freeze_duration: (?P<duration>[0-9.]+)")
 
@@ -126,6 +127,22 @@ def _process_findings(result: dict[str, Any]) -> list[str]:
     elif result.get("exitCode") not in (0, None):
         findings.append(f"process exited with code {result.get('exitCode')}")
     return findings
+
+
+def _process_output_excerpt(result: dict[str, Any]) -> dict[str, str]:
+    excerpt: dict[str, str] = {}
+    for stream in ("stdout", "stderr"):
+        value = str(result.get(stream, "")).strip()
+        if not value:
+            continue
+        if len(value) > PROCESS_OUTPUT_EXCERPT_LIMIT:
+            removed = len(value) - PROCESS_OUTPUT_EXCERPT_LIMIT
+            value = (
+                f"[truncated {removed} characters]\n"
+                f"{value[-PROCESS_OUTPUT_EXCERPT_LIMIT:]}"
+            )
+        excerpt[stream] = value
+    return excerpt
 
 
 def _extract_visual_evidence(
@@ -368,7 +385,11 @@ def _run_journey(
     )
     process = _run_process(command, project_root, max(30, args.timeout), env)
     process_evidence = _write_process_logs(process, root, "journey")
-    findings = _process_findings(process)
+    process_findings = _process_findings(process)
+    findings = list(process_findings)
+    process_output_excerpt = (
+        _process_output_excerpt(process) if process_findings else {}
+    )
     report_value: dict[str, Any] = {}
     if report.is_file():
         try:
@@ -408,6 +429,7 @@ def _run_journey(
             "exitCode": process.get("exitCode"),
             "durationSeconds": process.get("durationSeconds"),
             "timedOut": process.get("timedOut"),
+            "failureOutputExcerpt": process_output_excerpt,
         },
         "harness": report_value,
         "visual": visual,
@@ -429,6 +451,7 @@ def _run_journey(
         "hardwareGamepadClaimed": False,
         "findings": review["findings"],
         "evidence": sorted(set(review["evidence"])),
+        "processFailureOutputExcerpt": process_output_excerpt,
     }
 
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.2",
-  "toolVersion": "0.5.0",
+  "toolVersion": "0.7.0",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "defaultBranch": "main",
   "authority": "canonical-native-and-sandboxed-godot-worker",
@@ -16,6 +16,10 @@
     "directDevelopmentDependencies": [
       "pytest==8.3.0",
       "ruff==0.9.0"
+    ],
+    "agentInstall": "python -m pip install --disable-pip-version-check \".[agent]\"",
+    "agentDependencies": [
+      "mcp==1.28.1"
     ]
   },
   "runtime": {
@@ -27,7 +31,27 @@
     "linuxSandboxGodot": "repository-profile-exact-version",
     "linuxSandboxDotnet": "8.0",
     "linuxDisplay": "xvfb-x11",
-    "linuxSoftwareRenderer": "mesa-llvmpipe"
+    "linuxSoftwareRenderer": "mesa-llvmpipe",
+    "managedGodotDefault": "4.6.3",
+    "managedGodotChannels": {
+      "4.6": "4.6.3",
+      "4.7": "4.7.1"
+    },
+    "managedGodotPlatforms": [
+      "windows-x86_64",
+      "windows-arm64",
+      "linux-x86_64",
+      "linux-arm64"
+    ],
+    "localDockerSandbox": {
+      "containerEngine": "Docker Desktop or Docker Engine with Linux containers",
+      "imageBuildNetwork": "required only when a governed image is not already cached",
+      "runNetwork": "none",
+      "targetSourceMount": "read-only",
+      "normalizedProfileMount": "read-only",
+      "rootFilesystem": "read-only",
+      "sandboxUser": "10001:10001"
+    }
   },
   "prePushValidation": [
     "python scripts/check_repository_toolchain.py",
@@ -75,7 +99,16 @@
     "linuxInputEvidence": "godot-inputevent-parse-input-event",
     "linuxVideoDiagnostics": "ffprobe-ffmpeg-blackdetect-freezedetect",
     "browserPlayEvidence": "EVAVO-STUDIO/godot-web-runtime",
-    "nativeBotEvidence": "godot-lab-bot-qa-deterministic-ui-graph-and-input-fuzz"
+    "nativeBotEvidence": "godot-lab-bot-qa-deterministic-ui-graph-and-input-fuzz",
+    "mcpAgentBridge": "godot-lab-mcp-stdio-or-loopback-streamable-http",
+    "retainedAudioEvidence": "ffmpeg-ffprobe-waveform-spectrogram-loudness",
+    "managedEngineProvisioning": "official-godot-builds-sha512-self-contained",
+    "managedEngineRoot": "EVAVO_GODOT_HOME-or-user-cache",
+    "localLinuxSandbox": "godot-lab-sandbox-checksum-verified-no-network-runtime",
+    "sandboxWrappers": [
+      "scripts/Invoke-GodotLabLinuxSandbox.ps1",
+      "scripts/run-godot-lab-linux-sandbox.sh"
+    ]
   },
   "nativeAcceptance": {
     "requiredRunner": "freshly-probed-windows-x64",
@@ -90,6 +123,9 @@
     ],
     "requiredStages": [
       "repository toolchain source check",
+      "self-contained editor and export-template readiness",
+      "official release checksum verification",
+      "managed Godot branch and flavor selection",
       "godot-lab doctor",
       "project inventory",
       ".NET build before import for C#",
@@ -101,7 +137,9 @@
       "physical-controller or human review when required",
       "target-owned deterministic bot profile when autonomous exploration is requested",
       "fresh-process UI graph and InputMap trace replay",
-      "isolated user-data and bounded bot evidence"
+      "isolated user-data and bounded bot evidence",
+      "synchronized gameplay audio extraction and objective media analysis",
+      "MCP image and audio delivery when an approved local client is connected"
     ]
   },
   "linuxSandboxAcceptance": {
@@ -134,6 +172,9 @@
     "targetCredentialInsideContainer": false,
     "requiredBaseStages": [
       "repository toolchain source check",
+      "no-network read-only local Docker execution when requested",
+      "official release manifest verification during image build",
+      "governed image version and flavor selection",
       "project inventory",
       "Godot executable identity",
       ".NET build when C# is detected",
@@ -185,7 +226,20 @@
       "frozen-segment diagnostics",
       "journey-report.json",
       "visual-ux-review.json",
-      "agent-summary.json"
+      "agent-summary.json",
+      "local-sandbox-dispatch.json",
+      "local-sandbox-summary.json",
+      "docker build and run logs"
+    ],
+    "localCli": "godot-lab sandbox status|image|run",
+    "localPowerShellWrapper": "scripts/Invoke-GodotLabLinuxSandbox.ps1",
+    "localShellWrapper": "scripts/run-godot-lab-linux-sandbox.sh",
+    "managedImageIncludes": [
+      "official checksum-verified Godot Standard or .NET editor",
+      "matching export templates",
+      ".NET SDK 8",
+      "FFmpeg and FFprobe",
+      "Xvfb, Mesa llvmpipe and Vulkan software drivers"
     ]
   },
   "truthBoundaries": [
@@ -199,7 +253,13 @@
     "Xvfb and Mesa software rendering do not prove hardware-specific Vulkan behavior or performance.",
     "Godot 4 C# projects require the .NET editor and cannot use the browser export path.",
     "Deterministic bot exploration is bounded and does not prove every gameplay state is reachable.",
-    "Fresh-process synthetic input does not certify physical controllers, accessibility, game feel or human visual quality."
+    "Fresh-process synthetic input does not certify physical controllers, accessibility, game feel or human visual quality.",
+    "Retained audio metrics and previews support debugging but do not replace human mix, music, dialogue or spatial-audio judgment.",
+    "The MCP bridge is restricted to configured target and evidence roots and does not grant target-repository write authority.",
+    "Managed engine provisioning downloads official archives at runtime; Git does not carry platform binaries.",
+    "The engine lock governs stable branches, but a repository-owned profile may require an explicit compatible version.",
+    "A managed editor receipt and payload digest prove the provisioned files, not GPU or gameplay correctness.",
+    "A local sandbox image build may use network access to fetch checksum-verified official assets; the resulting game execution uses --network none."
   ],
   "autoRepair": {
     "allowed": true,
@@ -219,6 +279,8 @@
   "notes": [
     "Python 3.11.15 is exact for hosted Linux self-validation; native Windows Python remains a freshly probed 3.11.x runner capability.",
     "Direct build and development dependencies are pinned, but their transitive graph is review-first until requirements.lock is separately generated and validated.",
-    "No source-only validation result authorises target mutation, deployment, store publication, credential change or a physical-controller or human-UX pass claim."
+    "No source-only validation result authorises target mutation, deployment, store publication, credential change or a physical-controller or human-UX pass claim.",
+    "The optional agent extra pins mcp==1.28.1; the core Godot validation and media runtime remains dependency-free.",
+    "Docker is optional for native Windows testing but required for local no-network Linux sandbox runs."
   ]
 }

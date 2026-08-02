@@ -20,7 +20,7 @@ def test_release_version_is_consistent_across_authorities() -> None:
         )
     )
 
-    expected = "0.5.0"
+    expected = "0.7.0"
     assert __version__ == expected
     assert pyproject["project"]["version"] == expected
     assert reliability["toolVersion"] == expected

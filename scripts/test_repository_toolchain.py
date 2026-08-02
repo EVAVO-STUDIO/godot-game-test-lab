@@ -1,59 +1,264 @@
 #!/usr/bin/env python3
-"""Run the canonical adversarial toolchain suite plus workflow-inventory fixtures."""
+"""Adversarial fixtures for the Godot lab repository toolchain contract."""
 
 from __future__ import annotations
 
-import importlib.util
+import json
+import shutil
+import subprocess
+import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
+from typing import Any
 
 SOURCE_ROOT = Path.cwd().resolve(strict=True)
-CORE_PATH = SOURCE_ROOT / "scripts" / "test_repository_toolchain_core.py"
-CHECKER_CORE = "scripts/check_repository_toolchain_core.py"
+FILES = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/evavo-mainline-confirmation.yml",
+    ".github/workflows/evavo-native-godot-validation.yml",
+    ".github/workflows/reusable-godot-linux-sandbox.yml",
+    ".github/workflows/evavo-linux-godot-sandbox.yml",
+    ".github/workflows/linux-sandbox-smoke.yml",
+    ".python-version",
+    "containers/linux-sandbox/Dockerfile",
+    "evavo.reliability.json",
+    "pyproject.toml",
+    "schemas/repository-owned-reliability-profile.schema.json",
+    "scripts/check_repository_toolchain.py",
+    "scripts/check_repository_toolchain_core.py",
+    "src/godot_game_test_lab/__init__.py",
+    "src/godot_game_test_lab/godot-engine-lock.json",
+    "src/godot_game_test_lab/engine_manager.py",
+    "scripts/Install-GodotLab.ps1",
+    "scripts/Invoke-GodotLabLinuxSandbox.ps1",
+    "scripts/install-godot-lab.sh",
+    "scripts/run-godot-lab-linux-sandbox.sh",
+    "src/godot_game_test_lab/local_sandbox.py",
+]
 
 
-def _load_core() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("test_repository_toolchain_core", CORE_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Could not load canonical toolchain adversarial-test core")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    if CHECKER_CORE not in module.FILES:
-        module.FILES.append(CHECKER_CORE)
-    return module
+def copy_fixture(root: Path) -> None:
+    for relative in FILES:
+        source = SOURCE_ROOT / relative
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
 
 
-def _exercise_wrapper_guards(module: ModuleType) -> None:
-    with tempfile.TemporaryDirectory(prefix="evavo-godot-workflow-inventory-") as temporary:
+def run(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "scripts/check_repository_toolchain.py",
+            "--skip-runtime",
+            *arguments,
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def mutate_json(root: Path, relative: str, operation: Callable[[dict[str, Any]], None]) -> None:
+    path = root / relative
+    value = json.loads(path.read_text(encoding="utf-8"))
+    operation(value)
+    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def mutate_text(root: Path, relative: str, operation: Callable[[str], str]) -> None:
+    path = root / relative
+    path.write_text(operation(path.read_text(encoding="utf-8")), encoding="utf-8")
+
+
+def exercise(operation: Callable[[Path], None], label: str) -> None:
+    with tempfile.TemporaryDirectory(prefix="evavo-godot-toolchain-") as temporary:
         root = Path(temporary) / "fixture"
         root.mkdir(parents=True)
-        module.copy_fixture(root)
-        unexpected = root / ".github" / "workflows" / "unexpected-writer.yml"
-        unexpected.write_text(
-            "name: Unexpected writer\non:\n  issues:\npermissions:\n  contents: write\n",
-            encoding="utf-8",
-        )
-        result = module.run(root)
+        copy_fixture(root)
+        operation(root)
+        result = run(root)
         if result.returncode == 0:
-            raise AssertionError("unexpected workflow inventory must fail closed")
-
-    with tempfile.TemporaryDirectory(prefix="evavo-godot-upgrade-residue-") as temporary:
-        root = Path(temporary) / "fixture"
-        root.mkdir(parents=True)
-        module.copy_fixture(root)
-        residue = root / ".evavo" / "bootstrap" / "agent-audio-upgrade-00.b64"
-        residue.parent.mkdir(parents=True)
-        residue.write_text("cGF5bG9hZA==\n", encoding="utf-8")
-        result = module.run(root)
-        if result.returncode == 0:
-            raise AssertionError("one-time upgrade residue must fail closed")
+            raise AssertionError(f"{label} must fail closed")
 
 
 def main() -> int:
-    module = _load_core()
-    _exercise_wrapper_guards(module)
-    return int(module.main())
+    with tempfile.TemporaryDirectory(prefix="evavo-godot-toolchain-") as temporary:
+        root = Path(temporary) / "fixture"
+        root.mkdir(parents=True)
+        copy_fixture(root)
+        exact = run(root)
+        if exact.returncode != 0:
+            raise AssertionError(exact.stderr or exact.stdout)
+
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/__init__.py",
+            lambda value: value.replace(
+                '__version__ = "0.7.0"',
+                '__version__ = "0.7.1"',
+            ),
+        ),
+        "package version drift",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "pyproject.toml",
+            lambda value: value.replace("mcp==1.28.1", "mcp>=1.28"),
+        ),
+        "floating MCP dependency",
+    )
+    exercise(
+        lambda root: mutate_json(
+            root,
+            "src/godot_game_test_lab/godot-engine-lock.json",
+            lambda value: value.update({"defaultVersion": "4.8.0"}),
+        ),
+        "managed Godot default drift",
+    )
+    exercise(
+        lambda root: (root / ".python-version").write_text("3.11.14\n", encoding="utf-8"),
+        "hosted Python drift",
+    )
+    exercise(
+        lambda root: mutate_json(
+            root,
+            "evavo.reliability.json",
+            lambda value: value["packageManager"].update(
+                {"lockfilePolicy": "committed-frozen", "lockfilePresent": True}
+            ),
+        ),
+        "unreviewed lockfile transition",
+    )
+    exercise(
+        lambda root: (root / "requirements.lock").write_text("pytest==8.3.0\n", encoding="utf-8"),
+        "unreviewed lockfile appearance",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            ".github/workflows/ci.yml",
+            lambda value: value.replace(
+                "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+                "actions/checkout@v6",
+            ),
+        ),
+        "mutable checkout action",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            ".github/workflows/ci.yml",
+            lambda value: value.replace('python-version: "3.11.15"', 'python-version: "3.11"'),
+        ),
+        "floating hosted Python",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            ".github/workflows/evavo-mainline-confirmation.yml",
+            lambda value: value.replace(
+                "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405",
+                "actions/setup-python@v6",
+            ),
+        ),
+        "mutable setup-python action",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            ".github/workflows/evavo-native-godot-validation.yml",
+            lambda value: value.replace(
+                "py -3.11 scripts/check_repository_toolchain.py --native-family\n",
+                "",
+            ),
+        ),
+        "native source-check removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            ".github/workflows/reusable-godot-linux-sandbox.yml",
+            lambda value: value.replace("--network none", "--network bridge"),
+        ),
+        "sandbox network enablement",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            ".github/workflows/evavo-linux-godot-sandbox.yml",
+            lambda value: value.replace(
+                "permissions:\n  contents: read", "permissions:\n  contents: write"
+            ),
+        ),
+        "administrative write authority",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "containers/linux-sandbox/Dockerfile",
+            lambda value: value.replace(
+                "ubuntu:noble-20260610@sha256:"
+                "4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90",
+                "ubuntu:latest",
+            ),
+        ),
+        "mutable sandbox base image",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "containers/linux-sandbox/Dockerfile",
+            lambda value: value.replace("def safe_extract", "def unsafe_extract"),
+        ),
+        "sandbox safe extraction removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/local_sandbox.py",
+            lambda value: value.replace('        "none",\n', '        "bridge",\n', 1),
+        ),
+        "local sandbox network enablement",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "pyproject.toml",
+            lambda value: value.replace(
+                'godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"\n',
+                "",
+            ),
+        ),
+        "local sandbox entrypoint removal",
+    )
+    exercise(
+        lambda root: mutate_json(
+            root,
+            "evavo.reliability.json",
+            lambda value: value["autoRepair"]["blockedEffects"].remove(
+                "physical-controller-pass-claim-from-synthetic-input"
+            ),
+        ),
+        "physical-controller truth-boundary removal",
+    )
+    exercise(
+        lambda root: (root / "evavo.reliability.json").write_text(
+            "\ufeff" + (root / "evavo.reliability.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        ),
+        "BOM-prefixed profile",
+    )
+
+    print("Godot lab repository toolchain adversarial tests passed.")
+    print("- Python, lockfile, workflow, sandbox and truth-boundary drift fail closed")
+    return 0
 
 
 if __name__ == "__main__":

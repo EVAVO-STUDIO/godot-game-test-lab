@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0",
+  "minimumVersion": "4.6.2",
+  "defaultVersion": "4.6.3",
+  "channels": {
+    "4.6": "4.6.3",
+    "4.7": "4.7.1"
+  },
+  "defaultFlavors": [
+    "standard",
+    "mono"
+  ],
+  "installExportTemplates": true,
+  "selfContained": true,
+  "releaseRepository": "godotengine/godot-builds"
+}

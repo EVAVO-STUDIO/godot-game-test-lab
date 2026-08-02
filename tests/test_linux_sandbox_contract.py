@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,9 +19,13 @@ def test_linux_container_is_pinned_and_fail_closed() -> None:
     reliability = _read("evavo.reliability.json")
     assert f"FROM {BASE_IMAGE}" in dockerfile
     assert BASE_IMAGE in reliability
-    assert "GODOT_VERSION=4.6.2" in dockerfile
+    assert "ARG GODOT_VERSION=4.6.3" in dockerfile
+    engine_lock = json.loads(_read("src/godot_game_test_lab/godot-engine-lock.json"))
+    assert engine_lock["minimumVersion"] == "4.6.2"
+    assert engine_lock["defaultVersion"] == "4.6.3"
     assert "SHA512-SUMS.txt" in dockerfile
-    assert "sha512sum --check" in dockerfile
+    assert "digest = hashlib.sha512()" in dockerfile
+    assert "SHA-512 mismatch" in dockerfile
     assert "dotnet-sdk-8.0" in dockerfile
     assert "xvfb" in dockerfile
     assert "mesa-vulkan-drivers" in dockerfile

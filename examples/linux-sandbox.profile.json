@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "2.0",
+  "projectSubpath": ".",
+  "minimumGodotVersion": "4.6.2",
+  "engineFlavor": "auto",
+  "visual": {
+    "required": true,
+    "scene": "",
+    "frames": 300,
+    "fps": 30,
+    "width": 1280,
+    "height": 720,
+    "renderingMethod": "gl_compatibility",
+    "userArguments": []
+  },
+  "export": {
+    "required": false,
+    "preset": ""
+  },
+  "journeys": [
+    {
+      "id": "menu-keyboard-smoke",
+      "required": false,
+      "device": "keyboard_mouse",
+      "maxFrames": 360,
+      "settleFrames": 20,
+      "requiredActions": [],
+      "steps": [
+        {
+          "type": "key_tap",
+          "physicalKeycode": 4194309,
+          "holdFrames": 2
+        },
+        {
+          "type": "checkpoint",
+          "id": "after-enter"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "scene_loaded"
+        }
+      ],
+      "ux": {
+        "captureControlTree": true,
+        "minimumVisibleControls": 0,
+        "maximumSmallInteractiveTargets": 16,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumOverlappingInteractivePairs": 8,
+        "requireFocusOwner": false,
+        "failOnBlackFrame": true,
+        "failOnFrozenVideo": false
+      }
+    }
+  ]
+}

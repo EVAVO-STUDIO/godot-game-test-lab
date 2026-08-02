@@ -153,11 +153,22 @@ def validate_installed_state() -> None:
             fail(f"{module} CLI identity changed: {output or 'unavailable'}")
 
 
+def validate_agent_installed_state() -> None:
+    try:
+        observed = metadata.version("mcp")
+    except metadata.PackageNotFoundError:
+        fail("agent-installed validation requires mcp==1.28.1")
+        return
+    if observed != "1.28.1":
+        fail(f"installed mcp must be 1.28.1; observed {observed}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--skip-runtime", action="store_true")
     parser.add_argument("--native-family", action="store_true")
     parser.add_argument("--installed", action="store_true")
+    parser.add_argument("--agent-installed", action="store_true")
     args = parser.parse_args()
 
     if args.skip_runtime and args.native_family:
@@ -171,21 +182,60 @@ def main() -> int:
     if pyproject.get("build-system", {}).get("requires") != ["hatchling==1.25.0"]:
         fail("pyproject.toml must pin hatchling==1.25.0")
     project = pyproject.get("project", {})
-    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.5.0":
+    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.7.0":
         fail("pyproject.toml project identity changed")
     package_source = read_text("src/godot_game_test_lab/__init__.py", 64_000)
-    if '__version__ = "0.5.0"' not in package_source:
+    if '__version__ = "0.7.0"' not in package_source:
         fail("package runtime version changed")
+
+    engine_lock = canonical_json("src/godot_game_test_lab/godot-engine-lock.json")
+    if (
+        engine_lock.get("schemaVersion") != "1.0"
+        or engine_lock.get("minimumVersion") != "4.6.2"
+        or engine_lock.get("defaultVersion") != "4.6.3"
+        or engine_lock.get("channels") != {"4.6": "4.6.3", "4.7": "4.7.1"}
+        or engine_lock.get("defaultFlavors") != ["standard", "mono"]
+        or engine_lock.get("installExportTemplates") is not True
+        or engine_lock.get("selfContained") is not True
+        or engine_lock.get("releaseRepository") != "godotengine/godot-builds"
+    ):
+        fail("managed Godot engine lock changed")
 
     if project.get("requires-python") != ">=3.11":
         fail("pyproject.toml Python compatibility declaration changed")
     if project.get("dependencies") != []:
         fail("runtime dependencies must remain empty")
-    if project.get("optional-dependencies", {}).get("dev") != [
-        "pytest==8.3.0",
-        "ruff==0.9.0",
-    ]:
+    optional = project.get("optional-dependencies", {})
+    if optional.get("dev") != ["pytest==8.3.0", "ruff==0.9.0"]:
         fail("development dependency pins changed")
+    if optional.get("agent") != ["mcp==1.28.1"]:
+        fail("agent bridge dependency pin changed")
+
+    scripts = project.get("scripts", {})
+    expected_scripts = {
+        "godot-lab": "godot_game_test_lab.cli:main",
+        "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
+        "godot-lab-bot-qa": "godot_game_test_lab.bot_qa:main",
+        "godot-lab-init-qa": "godot_game_test_lab.profile_bootstrap:main",
+        "godot-lab-media-qa": "godot_game_test_lab.media_cli:main",
+        "godot-lab-mcp": "godot_game_test_lab.mcp_server:main",
+        "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
+        "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
+    }
+    if scripts != expected_scripts:
+        fail("Godot Lab command entrypoints changed")
+    force_include = (
+        pyproject.get("tool", {})
+        .get("hatch", {})
+        .get("build", {})
+        .get("targets", {})
+        .get("wheel", {})
+        .get("force-include", {})
+    )
+    if force_include.get("src/godot_game_test_lab/godot-engine-lock.json") != (
+        "godot_game_test_lab/godot-engine-lock.json"
+    ):
+        fail("managed engine lock is not forced into the wheel")
 
     if source_path("requirements.lock").exists():
         fail("requirements.lock appeared before the review-first transition was approved")
@@ -193,7 +243,7 @@ def main() -> int:
     profile = canonical_json("evavo.reliability.json")
     if (
         profile.get("schemaVersion") != "1.2"
-        or profile.get("toolVersion") != "0.5.0"
+        or profile.get("toolVersion") != "0.7.0"
         or profile.get("repository") != "EVAVO-STUDIO/godot-game-test-lab"
         or profile.get("defaultBranch") != "main"
         or profile.get("authority") != "canonical-native-and-sandboxed-godot-worker"
@@ -210,7 +260,11 @@ def main() -> int:
         or package_manager.get("install")
         != "python -m pip install --disable-pip-version-check .[dev]"
         or package_manager.get("buildBackend") != "hatchling==1.25.0"
-        or package_manager.get("directDevelopmentDependencies") != ["pytest==8.3.0", "ruff==0.9.0"]
+        or package_manager.get("directDevelopmentDependencies")
+        != ["pytest==8.3.0", "ruff==0.9.0"]
+        or package_manager.get("agentInstall")
+        != 'python -m pip install --disable-pip-version-check ".[agent]"'
+        or package_manager.get("agentDependencies") != ["mcp==1.28.1"]
     ):
         fail("repository-owned Python dependency authority changed")
 
@@ -219,10 +273,30 @@ def main() -> int:
         runtime.get("hostedPython") != HOSTED_PYTHON
         or runtime.get("nativePythonFamily") != "3.11.x"
         or runtime.get("minimumGodot") != "4.6.2"
+        or runtime.get("managedGodotDefault") != "4.6.3"
+        or runtime.get("managedGodotChannels")
+        != {"4.6": "4.6.3", "4.7": "4.7.1"}
+        or runtime.get("managedGodotPlatforms")
+        != [
+            "windows-x86_64",
+            "windows-arm64",
+            "linux-x86_64",
+            "linux-arm64",
+        ]
         or runtime.get("linuxSandboxDotnet") != "8.0"
         or runtime.get("linuxSandboxBase") != LINUX_SANDBOX_BASE
     ):
         fail("repository-owned runtime authority changed")
+    local_sandbox = runtime.get("localDockerSandbox", {})
+    if (
+        local_sandbox.get("containerEngine")
+        != "Docker Desktop or Docker Engine with Linux containers"
+        or local_sandbox.get("runNetwork") != "none"
+        or local_sandbox.get("targetSourceMount") != "read-only"
+        or local_sandbox.get("rootFilesystem") != "read-only"
+        or local_sandbox.get("sandboxUser") != "10001:10001"
+    ):
+        fail("local Docker sandbox runtime authority changed")
 
     provider = profile.get("providerConfirmation", {})
     if (
@@ -253,6 +327,14 @@ def main() -> int:
         "requiredBaseStages", []
     ):
         fail("Linux sandbox acceptance is missing repository toolchain source validation")
+    selection = profile.get("toolSelection", {})
+    if (
+        selection.get("managedEngineProvisioning")
+        != "official-godot-builds-sha512-self-contained"
+        or selection.get("localLinuxSandbox")
+        != "godot-lab-sandbox-checksum-verified-no-network-runtime"
+    ):
+        fail("managed engine or local sandbox tool selection changed")
 
     blocked_effects = profile.get("autoRepair", {}).get("blockedEffects", [])
     for effect in [
@@ -278,18 +360,75 @@ def main() -> int:
         schema.get("properties", {})
         .get("toolVersion", {})
         .get("const")
-        != "0.5.0"
+        != "0.7.0"
     ):
         fail("repository-owned reliability tool version changed")
+
+    require_tokens(
+        "src/godot_game_test_lab/engine_manager.py",
+        (
+            "SHA512-SUMS.txt",
+            "godot-engine-lock.json",
+            "._sc_",
+            "engine-installation.json",
+            "prepare_estate",
+            "mirror_release_assets",
+            "payload_sha256",
+        ),
+    )
+    require_tokens(
+        "scripts/Install-GodotLab.ps1",
+        (
+            '"engine", "bootstrap"',
+            "standard,mono",
+            "Write-GodotLabMcpConfig.ps1",
+            "managed-engine-bootstrap.json",
+            "PrepareLinuxSandboxImages",
+            "sandbox image",
+        ),
+    )
+    require_tokens(
+        "scripts/install-godot-lab.sh",
+        (
+            "engine bootstrap",
+            "standard,mono",
+            "managed-engine-bootstrap.json",
+            "godot-lab-mcp.json",
+            "PREPARE_SANDBOX_IMAGES",
+        ),
+    )
+    require_tokens(
+        "src/godot_game_test_lab/local_sandbox.py",
+        (
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "no-new-privileges",
+            "local-sandbox-summary.json",
+            "targetUnchanged",
+        ),
+    )
+    require_tokens(
+        "scripts/run-godot-lab-linux-sandbox.sh",
+        ("godot_game_test_lab.local_sandbox",),
+    )
+    require_tokens(
+        "scripts/Invoke-GodotLabLinuxSandbox.ps1",
+        ("godot_game_test_lab.local_sandbox", "AllowedArtifactRoot"),
+    )
 
     dockerfile = require_tokens(
         "containers/linux-sandbox/Dockerfile",
         (
             f"FROM {LINUX_SANDBOX_BASE}",
-            "ARG GODOT_VERSION=4.6.2",
+            "ARG GODOT_VERSION=4.6.3",
             "dotnet-sdk-8.0",
             "SHA512-SUMS.txt",
-            "sha512sum --check selected-SHA512-SUMS.txt",
+            "curl --proto '=https'",
+            "checksum manifest must contain exactly one",
+            "def safe_extract",
+            "SHA-512 mismatch",
             "USER 10001:10001",
         ),
     )
@@ -308,6 +447,9 @@ def main() -> int:
             "python scripts/test_repository_toolchain.py",
             'python -m pip install --disable-pip-version-check ".[dev]"',
             "python scripts/check_repository_toolchain.py --installed",
+            'python -m pip install --disable-pip-version-check ".[agent]"',
+            "python scripts/check_repository_toolchain.py --agent-installed",
+            "python -m godot_game_test_lab.mcp_server",
             "python -m compileall -q src scripts tests",
             "python -m ruff check src scripts tests",
             "python -m pytest",
@@ -333,6 +475,9 @@ def main() -> int:
             "python scripts/test_repository_toolchain.py",
             'python -m pip install --disable-pip-version-check ".[dev]"',
             "python scripts/check_repository_toolchain.py --installed",
+            'python -m pip install --disable-pip-version-check ".[agent]"',
+            "python scripts/check_repository_toolchain.py --agent-installed",
+            "python -m godot_game_test_lab.mcp_server",
             "python -m pytest",
             "python -m pip wheel --no-deps --wheel-dir dist .",
             'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
@@ -419,6 +564,8 @@ def main() -> int:
 
     if args.installed:
         validate_installed_state()
+    if args.agent_installed:
+        validate_agent_installed_state()
 
     validate_runtime(args.native_family, args.skip_runtime)
 
@@ -437,7 +584,6 @@ def main() -> int:
         print(f"- hosted Python {HOSTED_PYTHON} is exact")
     print("- Godot, .NET, container, workflow and effect boundaries agree")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

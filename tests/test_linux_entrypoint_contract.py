@@ -9,5 +9,8 @@ def test_linux_entrypoint_preserves_read_only_mount_guards_and_integrity_wrapper
     assert 'findmnt -T "${source_root}"' in source
     assert 'findmnt -T "${profile_path}"' in source
     assert "run_agent_godot_qa_with_integrity.py" in source
-    assert 'exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py' in source
+    assert 'python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py' in source
+    assert "|| qa_status=$?" in source
+    assert 'exit "${qa_status}"' in source
+    assert "exec python3" not in source
     assert "run_agent_godot_qa_with_process_exit.py" in source

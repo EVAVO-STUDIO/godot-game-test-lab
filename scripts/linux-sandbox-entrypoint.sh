@@ -75,4 +75,28 @@ if [[ -n "${export_preset}" ]]; then
     arguments+=(--export-preset "${export_preset}")
 fi
 
-exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py "${arguments[@]}"
+qa_status=0
+python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py "${arguments[@]}" || qa_status=$?
+
+# Retained evidence is private while the sandbox is running. Before exit,
+# expose only regular evidence files and directories to the invoking host user.
+permission_status=0
+symlink_path=""
+if ! symlink_path="$(find "${artifacts_root}" -mindepth 1 -type l -print -quit)"; then
+    echo "Failed to inspect Linux sandbox evidence paths." >&2
+    permission_status=1
+elif [[ -n "${symlink_path}" ]]; then
+    echo "Linux sandbox evidence must not contain symbolic links." >&2
+    permission_status=1
+elif ! find "${artifacts_root}" -mindepth 1 -type d -exec chmod 0755 {} +; then
+    echo "Failed to expose Linux sandbox evidence directories." >&2
+    permission_status=1
+elif ! find "${artifacts_root}" -mindepth 1 -type f -exec chmod 0644 {} +; then
+    echo "Failed to expose Linux sandbox evidence files." >&2
+    permission_status=1
+fi
+
+if [[ "${permission_status}" -ne 0 && "${qa_status}" -eq 0 ]]; then
+    qa_status="${permission_status}"
+fi
+exit "${qa_status}"

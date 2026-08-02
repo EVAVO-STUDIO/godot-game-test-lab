@@ -8,9 +8,17 @@ from dataclasses import asdict
 from pathlib import Path
 
 from . import __version__
-from .core import inspect_project
+from .core import find_project_root, inspect_project
+from .engine_cli import add_engine_parser, run_engine_command
+from .engine_manager import (
+    EngineProvisionError,
+    default_engine_root,
+    ensure_project_engine,
+    list_installations,
+)
 from .integrity import AuditLimits, audit_project, execution_blocking_findings
 from .linux_sandbox import run_linux_sandbox, safe_project_subpath
+from .local_sandbox import add_sandbox_parser, run_sandbox_command
 from .pipeline import (
     command_result_payload,
     command_succeeded,
@@ -37,6 +45,57 @@ def _write_json(value: object, output: str | None) -> None:
     print(text, end="")
 
 
+def _add_auto_engine_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--engine-root", type=Path)
+    parser.add_argument("--engine-source-dir", type=Path)
+    parser.add_argument("--offline-engine", action="store_true")
+    parser.add_argument(
+        "--no-auto-provision-engine",
+        action="store_true",
+        help="Do not download a managed official Godot editor when none is supplied.",
+    )
+
+
+def _version_tuple(value: str) -> tuple[int, int, int]:
+    parts = value.strip().split(".")
+    if len(parts) != 3 or any(not part.isdigit() for part in parts):
+        raise ValueError("Godot version must use major.minor.patch")
+    return (int(parts[0]), int(parts[1]), int(parts[2]))
+
+
+def _resolve_project_engine(
+    project: str,
+    explicit: str | None,
+    minimum_version: str,
+    args: argparse.Namespace,
+) -> tuple[Path | None, dict[str, object] | None]:
+    if explicit:
+        return _path(explicit), None
+    if getattr(args, "no_auto_provision_engine", False):
+        return None, None
+    root = find_project_root(Path(project))
+    selection, installation = ensure_project_engine(
+        root,
+        root=getattr(args, "engine_root", None),
+        source_dir=getattr(args, "engine_source_dir", None),
+        offline=getattr(args, "offline_engine", False),
+        install_templates=True,
+    )
+    if _version_tuple(installation.version) < _version_tuple(minimum_version):
+        selection, installation = ensure_project_engine(
+            root,
+            version=minimum_version,
+            root=getattr(args, "engine_root", None),
+            source_dir=getattr(args, "engine_source_dir", None),
+            offline=getattr(args, "offline_engine", False),
+            install_templates=True,
+        )
+    return Path(installation.executable), {
+        "selection": asdict(selection),
+        "installation": installation.to_dict(),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="godot-lab",
@@ -54,6 +113,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Describe the stable automation, evidence and truth-boundary surface.",
     )
     capabilities.add_argument("--output")
+
+    add_engine_parser(subparsers)
+    add_sandbox_parser(subparsers)
 
     doctor = subparsers.add_parser("doctor", help="Inspect available Godot and .NET tools.")
     doctor.add_argument("--godot")
@@ -107,6 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Permit a later Godot major version instead of requiring the same major.",
     )
+    _add_auto_engine_options(validate)
 
     run = subparsers.add_parser("run", help="Launch a bounded native project run.")
     run.add_argument("project")
@@ -116,6 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--headless", action="store_true")
     run.add_argument("--timeout", type=int, default=300)
     run.add_argument("--output")
+    _add_auto_engine_options(run)
 
     record = subparsers.add_parser(
         "record",
@@ -129,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--fps", type=int, default=30)
     record.add_argument("--timeout", type=int, default=900)
     record.add_argument("--report")
+    _add_auto_engine_options(record)
 
     export = subparsers.add_parser("export", help="Create a Godot debug or release export.")
     export.add_argument("project")
@@ -138,6 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--debug", action="store_true")
     export.add_argument("--timeout", type=int, default=1_800)
     export.add_argument("--report")
+    _add_auto_engine_options(export)
 
     linux = subparsers.add_parser(
         "linux-sandbox",
@@ -167,9 +233,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     try:
+        if args.command == "engine":
+            return run_engine_command(args)
+        if args.command == "sandbox":
+            return run_sandbox_command(args)
+
         if args.command == "capabilities":
             payload = {
-                "schemaVersion": "1.1",
+                "schemaVersion": "1.2",
                 "tool": "godot-game-test-lab",
                 "toolVersion": __version__,
                 "minimumGodotVersion": "4.6.2",
@@ -178,17 +249,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "audit",
                     "capabilities",
                     "doctor",
+                    "engine",
                     "export",
                     "inspect",
                     "linux-sandbox",
                     "record",
                     "run",
+                    "sandbox",
                     "validate",
                 ],
                 "automationEntrypoints": {
                     "profileBootstrap": "godot-lab-init-qa",
                     "nativeAuthoredQa": "godot-lab-native-qa",
                     "nativeBotQa": "godot-lab-bot-qa",
+                    "mediaQa": "godot-lab-media-qa",
+                    "mcpAgentBridge": "godot-lab-mcp",
+                    "engineProvisioning": "godot-lab engine bootstrap|ensure|status|env",
+                    "localLinuxSandbox": "godot-lab sandbox status|image|run",
                     "nativeValidationWrapper": (
                         "scripts/Invoke-GodotLabNativeValidation.ps1"
                     ),
@@ -196,6 +273,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "scripts/Invoke-GodotLabNativeAgentQA.ps1"
                     ),
                     "nativeBotQaWrapper": "scripts/Invoke-GodotLabBotQA.ps1",
+                    "localLinuxSandboxWrapper": (
+                        "scripts/Invoke-GodotLabLinuxSandbox.ps1"
+                    ),
                     "linuxWorkflow": (
                         ".github/workflows/reusable-godot-linux-sandbox.yml"
                     ),
@@ -209,6 +289,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "bounded headless boot",
                     "target-authored native visual and input journeys",
                     "deterministic fresh-process bot state exploration",
+                    "synchronized gameplay audio extraction and analysis",
+                    "MCP image and audio delivery to connected agents",
+                    "checksum-bound portable Godot engine and export-template provisioning",
+                    "no-network read-only Docker sandbox execution for external repositories",
                 ],
                 "evidence": [
                     "report.json",
@@ -222,7 +306,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "deterministic state graphs and exact replay traces",
                     "screenshots, checkpoints, movies and contact sheets",
                     "InputMap, UI geometry and bounded performance telemetry",
+                    "media-agent-summary.json and per-movie media-report.json",
+                    "audio previews, waveforms, spectrograms and loudness metrics",
                     "Linux journey movies, screenshots and telemetry when configured",
+                    "engine-installation.json receipts and official SHA512 identities",
+                    "local-sandbox-summary.json with exact SHAs and resource limits",
                 ],
                 "truthBoundaries": [
                     "static findings are diagnostics; Godot import is authoritative "
@@ -235,7 +323,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "behavior",
                     "headless validation is not visual quality or game-feel approval",
                     "Linux software rendering is not native Windows GPU performance evidence",
+                    "the local Docker sandbox has no network and mounts target source read-only",
                     "native visual evidence requires the logged-in interactive Windows session",
+                    "audio analysis measures recordings and does not replace human mix judgment",
+                    "the MCP bridge is root-restricted and returns bounded evidence only",
+                    "managed engines are official stable archives verified against SHA512-SUMS.txt",
                     "the lab diagnoses target repositories but does not repair or publish them",
                 ],
             }
@@ -247,10 +339,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 godot_executable=_path(args.godot),
                 dotnet_executable=_path(args.dotnet),
             )
+            managed = list_installations()
+            payload["managedEngineRoot"] = str(default_engine_root())
+            payload["managedEngines"] = managed
+            payload["managedEngineReady"] = any(
+                item.get("status") == "ready" for item in managed
+            )
             _write_json(payload, args.output)
             return 0 if (
                 payload["godot"]["editorCompatible"]
                 or payload["godotMono"]["editorCompatible"]
+                or payload["managedEngineReady"]
             ) else 2
 
         if args.command == "inspect":
@@ -279,9 +378,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.command == "validate":
             artifact_root = _path(args.artifacts)
+            godot, managed_engine = _resolve_project_engine(
+                args.project, args.godot, args.minimum_godot_version, args
+            )
             report = validate_project_pipeline(
                 Path(args.project),
-                godot_executable=_path(args.godot),
+                godot_executable=godot,
                 dotnet_executable=_path(args.dotnet),
                 minimum_godot_version=args.minimum_godot_version,
                 timeout_seconds=max(1, args.timeout),
@@ -292,29 +394,45 @@ def main(argv: Sequence[str] | None = None) -> int:
                 allow_major_upgrade=args.allow_major_upgrade,
                 log_directory=(artifact_root / "engine-logs") if artifact_root else None,
             )
+            if managed_engine is not None:
+                report.diagnostics.append("Managed Godot editor provisioned for this run.")
             if artifact_root:
+                if managed_engine is not None:
+                    managed_path = artifact_root / "managed-engine.json"
+                    managed_path.write_text(
+                        json.dumps(managed_engine, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8",
+                    )
+                    report.artifacts.append(str(managed_path))
                 write_report_bundle(report, artifact_root)
             print(f"{report.to_json()}\n", end="")
             return 0 if report.status == "passed" else 2
 
         if args.command == "run":
+            godot, managed_engine = _resolve_project_engine(
+                args.project, args.godot, "4.6.2", args
+            )
             result = run_bounded_project(
                 Path(args.project),
-                godot_executable=_path(args.godot),
+                godot_executable=godot,
                 scene=args.scene,
                 frames=max(1, args.frames),
                 headless=args.headless,
                 timeout_seconds=max(1, args.timeout),
             )
             payload = command_result_payload(result)
+            payload["managedEngine"] = managed_engine
             _write_json(payload, args.output)
             return 0 if command_succeeded(result) else 2
 
         if args.command == "record":
+            godot, managed_engine = _resolve_project_engine(
+                args.project, args.godot, "4.6.2", args
+            )
             result = record_project_movie(
                 Path(args.project),
                 Path(args.output),
-                godot_executable=_path(args.godot),
+                godot_executable=godot,
                 scene=args.scene,
                 frames=max(1, args.frames),
                 fps=max(1, args.fps),
@@ -324,16 +442,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "command": command_result_payload(result),
                 "movie": str(Path(args.output).expanduser().resolve()),
                 "movieExists": Path(args.output).expanduser().resolve().exists(),
+                "managedEngine": managed_engine,
             }
             _write_json(payload, args.report)
             return 0 if command_succeeded(result) and payload["movieExists"] else 2
 
         if args.command == "export":
+            godot, managed_engine = _resolve_project_engine(
+                args.project, args.godot, "4.6.2", args
+            )
             result = export_project(
                 Path(args.project),
                 args.preset,
                 Path(args.output),
-                godot_executable=_path(args.godot),
+                godot_executable=godot,
                 debug=args.debug,
                 timeout_seconds=max(1, args.timeout),
             )
@@ -341,6 +463,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "command": command_result_payload(result),
                 "export": str(Path(args.output).expanduser().resolve()),
                 "exportExists": Path(args.output).expanduser().resolve().exists(),
+                "managedEngine": managed_engine,
             }
             _write_json(payload, args.report)
             return 0 if command_succeeded(result) and payload["exportExists"] else 2
@@ -413,7 +536,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             report_path.write_text(f"{report.to_json()}\n", encoding="utf-8")
             print(f"{report.to_json()}\n", end="")
             return 0 if report.status == "passed" and not integrity_failed else 2
-    except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError) as error:
+    except (
+        EngineProvisionError,
+        FileNotFoundError,
+        ValueError,
+        OSError,
+        json.JSONDecodeError,
+    ) as error:
         print(json.dumps({"status": "blocked", "error": str(error)}, indent=2), file=sys.stderr)
         return 2
 

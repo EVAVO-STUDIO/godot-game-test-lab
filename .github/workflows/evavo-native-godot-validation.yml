@@ -26,7 +26,7 @@ on:
         required: true
         type: string
       minimum_godot_version:
-        description: Minimum installed Godot version
+        description: Minimum compatible Godot version
         required: true
         default: 4.6.2
         type: string
@@ -47,7 +47,7 @@ jobs:
   validate-native-project:
     name: Validate native Godot project
     runs-on: [self-hosted, Windows, X64, evavo-godot-lab]
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Validate dispatch inputs
@@ -122,14 +122,22 @@ jobs:
         run: |
           $venv = Join-Path $env:RUNNER_TEMP "godot-lab-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
           py -3.11 -m venv $venv
-          if ($LASTEXITCODE -ne 0) { throw 'Python 3.11 is unavailable on the native runner.' }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Python 3.11 is unavailable on the native runner.'
+          }
           $python = Join-Path $venv 'Scripts\python.exe'
           & $python -m pip --version
-          if ($LASTEXITCODE -ne 0) { throw 'The Python 3.11 virtual environment has no usable pip.' }
-          & $python -m pip install --disable-pip-version-check -e '.[dev]'
-          if ($LASTEXITCODE -ne 0) { throw 'Unable to install the pinned test-lab source.' }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'The Python 3.11 virtual environment has no usable pip.'
+          }
+          & $python -m pip install --disable-pip-version-check -e '.[dev,agent]'
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to install the pinned test-lab source.'
+          }
           & $python scripts/check_repository_toolchain.py --native-family --installed
-          if ($LASTEXITCODE -ne 0) { throw 'Installed native toolchain validation failed.' }
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Installed native toolchain validation failed.'
+          }
           "python=$python" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Resolve exact target and evidence paths
@@ -163,6 +171,35 @@ jobs:
           "native_artifacts=$(Join-Path $nativeRoot 'evidence')" |
             Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Ensure checksum-verified managed Godot editor
+        id: engine
+        shell: pwsh
+        env:
+          PROJECT_PATH: ${{ steps.paths.outputs.project_path }}
+          PYTHON_EXECUTABLE: ${{ steps.python.outputs.python }}
+        run: |
+          $engineRoot = Join-Path $env:LOCALAPPDATA 'EVAVO\GodotGameTestLab\engines'
+          $receipt = Join-Path $env:RUNNER_TEMP `
+            "managed-engine-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.json"
+          & $env:PYTHON_EXECUTABLE -m godot_game_test_lab.cli engine ensure `
+            $env:PROJECT_PATH --root $engineRoot --output $receipt
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Managed Godot editor provisioning failed.'
+          }
+          $engine = Get-Content -Raw -LiteralPath $receipt | ConvertFrom-Json
+          $executable = [string]$engine.installation.executable
+          $flavor = [string]$engine.installation.flavor
+          if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+            throw 'Managed Godot executable receipt points to a missing file.'
+          }
+          "EVAVO_GODOT_HOME=$engineRoot" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          if ($flavor -eq 'mono') {
+            "GODOT_MONO_BIN=$executable" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            "GODOT_BIN=$executable" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+          "engine_receipt=$receipt" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Run bounded Godot native validation
         shell: pwsh
         env:
@@ -181,6 +218,19 @@ jobs:
             -MinimumGodotVersion $env:MINIMUM_GODOT_VERSION `
             -TimeoutSeconds 300 `
             -BootFrames 5
+
+      - name: Retain managed engine receipt
+        if: always()
+        shell: pwsh
+        env:
+          ENGINE_RECEIPT: ${{ steps.engine.outputs.engine_receipt }}
+        run: |
+          $destination = Join-Path $env:GITHUB_WORKSPACE `
+            'artifacts\native-validation\managed-engine.json'
+          New-Item -ItemType Directory -Force -Path (Split-Path $destination) | Out-Null
+          if ($env:ENGINE_RECEIPT -and (Test-Path -LiteralPath $env:ENGINE_RECEIPT)) {
+            Copy-Item -LiteralPath $env:ENGINE_RECEIPT -Destination $destination -Force
+          }
 
       - name: Run native Windows visual and input journeys
         if: ${{ inputs.profile_path != '' }}

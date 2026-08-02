@@ -30,7 +30,7 @@ def test_native_workflow_is_exact_sha_manual_and_immutable() -> None:
         "git merge-base --is-ancestor $env:EXPECTED_SHA origin/main",
         "py -3.11 -m venv",
         "& $python -m pip --version",
-        "pip install --disable-pip-version-check -e '.[dev]'",
+        "pip install --disable-pip-version-check -e '.[dev,agent]'",
         "-ExpectedTargetSha $env:EXPECTED_TARGET_SHA",
         "./scripts/Invoke-GodotLabNativeValidation.ps1",
         "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",

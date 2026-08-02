@@ -74,21 +74,29 @@ def test_capabilities_command_is_machine_readable(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert payload["schemaVersion"] == "1.1"
-    assert payload["toolVersion"] == "0.5.0"
+    assert payload["schemaVersion"] == "1.2"
+    assert payload["toolVersion"] == "0.7.0"
     assert "audit" in payload["commands"]
     assert payload["automationEntrypoints"] == {
         "profileBootstrap": "godot-lab-init-qa",
         "nativeAuthoredQa": "godot-lab-native-qa",
         "nativeBotQa": "godot-lab-bot-qa",
+        "mediaQa": "godot-lab-media-qa",
+        "mcpAgentBridge": "godot-lab-mcp",
+        "engineProvisioning": "godot-lab engine bootstrap|ensure|status|env",
+        "localLinuxSandbox": "godot-lab sandbox status|image|run",
         "nativeValidationWrapper": "scripts/Invoke-GodotLabNativeValidation.ps1",
         "nativeAuthoredQaWrapper": "scripts/Invoke-GodotLabNativeAgentQA.ps1",
         "nativeBotQaWrapper": "scripts/Invoke-GodotLabBotQA.ps1",
+        "localLinuxSandboxWrapper": "scripts/Invoke-GodotLabLinuxSandbox.ps1",
         "linuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
     }
     assert "authoritative Godot --import" in payload["validationStages"]
     assert "deterministic fresh-process bot state exploration" in payload["validationStages"]
     assert "bot-agent-summary.json" in payload["evidence"]
+    assert "engine-installation.json receipts and official SHA512 identities" in payload[
+        "evidence"
+    ]
 
 
 def test_audit_warnings_as_errors_exposes_policy_status(tmp_path: Path, capsys) -> None:

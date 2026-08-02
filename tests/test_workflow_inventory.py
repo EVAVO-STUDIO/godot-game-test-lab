@@ -46,7 +46,9 @@ def _active_yaml(source: str) -> str:
 
 
 def _load_checker() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("workflow_guarded_toolchain_checker", CHECKER_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "workflow_guarded_toolchain_checker", CHECKER_PATH
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load workflow-guarded toolchain checker")
     module = importlib.util.module_from_spec(spec)
@@ -76,7 +78,9 @@ def test_one_time_upgrade_payload_residue_is_absent() -> None:
     assert payloads == []
 
 
-def test_checker_main_returns_core_result_without_nested_system_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_checker_main_returns_core_result_without_nested_system_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     checker = _load_checker()
     monkeypatch.setattr(checker, "_preflight_errors", lambda: [])
     monkeypatch.setattr(
