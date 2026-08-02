@@ -12,19 +12,26 @@ def test_agent_host_initializer_is_one_command_and_delegates_safely() -> None:
     for token in (
         "Initialize-GodotLabAgentHost.ps1 must run on Windows",
         "scripts\\Install-GodotLab.ps1",
+        "scripts\\Register-GodotLabMcpWorker.ps1",
+        "scripts\\Test-GodotLabMcpWorker.ps1",
         "scripts\\Test-GodotLabAgentHost.ps1",
+        "AdditionalTargetRoots",
         "PrepareEstate",
         "PrepareLinuxSandboxImages",
         "InstallPrerequisites",
         "RequireFullMediaToolchain",
-        "RegisterWorker = $true",
-        "StartWorker = $true",
+        "AllowedTargetRoots = @($allTargetRoots)",
+        "StartNow = $true",
+        "RequireScheduledTask = $true",
         "ExpectedLabSha = $labSha",
+        "SkipWorkerProbe = $true",
         "Agent host initialization and acceptance completed",
     ):
         assert token in source, token
 
     for forbidden in (
+        "RegisterWorker = $true",
+        "StartWorker = $true",
         "git commit",
         "git push",
         "git reset --hard",
