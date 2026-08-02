@@ -41,7 +41,7 @@ jobs:
           base64 --decode .evavo/windows-host-protocol.py.gz.b64 \
             | gzip --decompress > .evavo/apply_windows_host_protocol_policy.py
           printf '%s  %s\n' \
-            'adbb9b0d1f781fdffc33597d545a4a857fc658a908126e66130699a2fa51b034' \
+            '3560ef2fffc77dec9897bede78c3af76117952f2c4099ebbb2b95eec16c9699c' \
             '.evavo/apply_windows_host_protocol_policy.py' \
             | sha256sum --check --strict
           python .evavo/apply_windows_host_protocol_policy.py
@@ -106,6 +106,7 @@ jobs:
               "scripts/Register-GodotLabMcpWorker.ps1",
               "scripts/Test-GodotLabAgentHost.ps1",
               "scripts/Test-GodotLabMcpWorker.ps1",
+              "tests/test_windows_agent_host_contract.py",
               "tests/test_windows_host_protocol_policy.py",
           }
           status = subprocess.run(
