@@ -187,6 +187,17 @@ def test_variant_stack_pop_has_an_explicit_node_type() -> None:
         "Linux sandbox host-readable evidence finalization",
     )
 
+    entrypoint_contract = stage / "tests/test_linux_entrypoint_contract.py"
+    replace_once(
+        entrypoint_contract,
+        '    assert \'exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py\' in source\n',
+        '    assert \'python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py\' in source\n'
+        '    assert "|| qa_status=$?" in source\n'
+        '    assert \'exit "${qa_status}"\' in source\n'
+        '    assert "exec python3" not in source\n',
+        "Linux entrypoint post-run finalization contract",
+    )
+
     permission_test = stage / "tests/test_linux_sandbox_evidence_permissions.py"
     if permission_test.exists() or permission_test.is_symlink():
         raise SystemExit("Linux sandbox evidence-permission test path already exists")
