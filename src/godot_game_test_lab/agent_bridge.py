@@ -87,21 +87,47 @@ class BridgeConfig:
         requested_evidence = _reject_symlink_components(
             evidence_root or _environment_evidence_root(), "Agent evidence root"
         )
-        requested_evidence.mkdir(parents=True, exist_ok=True)
-        resolved_evidence = requested_evidence.resolve(strict=True)
-        if not resolved_evidence.is_dir():
-            raise NativeQaError("Agent evidence root must be a regular directory")
+        _require_disjoint_root(
+            requested_evidence,
+            (resolved_lab, *resolved_roots),
+            "Agent evidence root",
+            "the Lab checkout and target roots",
+        )
         requested_engine = _reject_symlink_components(
             engine_root or default_engine_root(), "Managed engine root"
         )
+        _require_disjoint_root(
+            requested_engine,
+            (resolved_lab, *resolved_roots, requested_evidence),
+            "Managed engine root",
+            "the Lab, target, and evidence roots",
+        )
+
+        requested_evidence.mkdir(parents=True, exist_ok=True)
+        resolved_evidence = _reject_symlink_components(
+            requested_evidence, "Agent evidence root"
+        ).resolve(strict=True)
+        if not resolved_evidence.is_dir():
+            raise NativeQaError("Agent evidence root must be a regular directory")
         requested_engine.mkdir(parents=True, exist_ok=True)
-        resolved_engine = requested_engine.resolve(strict=True)
+        resolved_engine = _reject_symlink_components(
+            requested_engine, "Managed engine root"
+        ).resolve(strict=True)
         if not resolved_engine.is_dir():
             raise NativeQaError("Managed engine root must be a regular directory")
-        if _is_within(resolved_engine, resolved_lab):
-            raise NativeQaError("Managed engine root must remain outside the Lab checkout")
-        if any(_is_within(resolved_engine, root) for root in resolved_roots):
-            raise NativeQaError("Managed engine root must remain outside target roots")
+
+        _require_disjoint_root(
+            resolved_evidence,
+            (resolved_lab, *resolved_roots),
+            "Agent evidence root",
+            "the Lab checkout and target roots",
+        )
+        _require_disjoint_root(
+            resolved_engine,
+            (resolved_lab, *resolved_roots, resolved_evidence),
+            "Managed engine root",
+            "the Lab, target, and evidence roots",
+        )
         return cls(
             lab_root=resolved_lab,
             allowed_target_roots=resolved_roots,
@@ -136,6 +162,20 @@ def _is_within(candidate: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _paths_overlap(left: Path, right: Path) -> bool:
+    return _is_within(left, right) or _is_within(right, left)
+
+
+def _require_disjoint_root(
+    candidate: Path,
+    protected_roots: tuple[Path, ...],
+    label: str,
+    protected_label: str,
+) -> None:
+    if any(_paths_overlap(candidate, root) for root in protected_roots):
+        raise NativeQaError(f"{label} must remain disjoint from {protected_label}")
 
 
 def _reject_symlink_components(path: Path, label: str) -> Path:
@@ -219,7 +259,8 @@ class GodotAgentBridge:
             ],
             "truthBoundaries": [
                 "The bridge can execute only beneath configured target roots.",
-                "Retained evidence is written only beneath the configured evidence root.",
+                "The Lab and selected target Git roots must remain disjoint.",
+                "Evidence and managed engines remain outside all source roots and each other.",
                 "Managed editors are official stable archives verified against SHA512-SUMS.txt.",
                 "Exact native and bot runs require clean Lab and target checkouts.",
                 "Synthetic input does not certify physical controllers.",
@@ -317,6 +358,10 @@ class GodotAgentBridge:
         ).resolve(strict=True)
         if not any(_is_within(git_root, root) for root in self.config.allowed_target_roots):
             raise NativeQaError("Target Git root is outside the configured allowed roots")
+        if _paths_overlap(git_root, self.config.lab_root):
+            raise NativeQaError(
+                "Target Git root must remain disjoint from the Lab checkout"
+            )
         if project_subpath and project_subpath.strip() != ".":
             relative = _safe_relative(project_subpath, "project_subpath")
             project_candidate = _reject_symlink_components(
