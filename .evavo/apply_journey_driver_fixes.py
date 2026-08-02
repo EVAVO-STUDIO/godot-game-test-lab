@@ -155,10 +155,71 @@ def test_variant_stack_pop_has_an_explicit_node_type() -> None:
         newline="\n",
     )
 
+    entrypoint = stage / "scripts/linux-sandbox-entrypoint.sh"
+    replace_once(
+        entrypoint,
+        'exec python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py "${arguments[@]}"\n',
+        'qa_status=0\n'
+        'python3 /opt/godot-lab/scripts/run_agent_godot_qa_with_integrity.py "${arguments[@]}" || qa_status=$?\n'
+        '\n'
+        '# Retained evidence is private while the sandbox is running. Before exit,\n'
+        '# expose only regular evidence files and directories to the invoking host user.\n'
+        'permission_status=0\n'
+        'symlink_path=\"\"\n'
+        'if ! symlink_path=\"$(find \"${artifacts_root}\" -mindepth 1 -type l -print -quit)\"; then\n'
+        '    echo \"Failed to inspect Linux sandbox evidence paths.\" >&2\n'
+        '    permission_status=1\n'
+        'elif [[ -n \"${symlink_path}\" ]]; then\n'
+        '    echo \"Linux sandbox evidence must not contain symbolic links.\" >&2\n'
+        '    permission_status=1\n'
+        'elif ! find \"${artifacts_root}\" -mindepth 1 -type d -exec chmod 0755 {} +; then\n'
+        '    echo "Failed to expose Linux sandbox evidence directories." >&2\n'
+        '    permission_status=1\n'
+        'elif ! find "${artifacts_root}" -mindepth 1 -type f -exec chmod 0644 {} +; then\n'
+        '    echo "Failed to expose Linux sandbox evidence files." >&2\n'
+        '    permission_status=1\n'
+        'fi\n'
+        '\n'
+        'if [[ "${permission_status}" -ne 0 && "${qa_status}" -eq 0 ]]; then\n'
+        '    qa_status="${permission_status}"\n'
+        'fi\n'
+        'exit "${qa_status}"\n',
+        "Linux sandbox host-readable evidence finalization",
+    )
+
+    permission_test = stage / "tests/test_linux_sandbox_evidence_permissions.py"
+    if permission_test.exists() or permission_test.is_symlink():
+        raise SystemExit("Linux sandbox evidence-permission test path already exists")
+    permission_test.write_text(
+        '''from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+ENTRYPOINT = ROOT / "scripts" / "linux-sandbox-entrypoint.sh"
+
+
+def test_sandbox_finalizes_regular_evidence_for_the_host() -> None:
+    source = ENTRYPOINT.read_text(encoding="utf-8")
+
+    assert "umask 077" in source
+    assert "qa_status=0" in source
+    assert "|| qa_status=$?" in source
+    assert 'symlink_path=' in source
+    assert '-type l -print -quit' in source
+    assert '-type d -exec chmod 0755 {} +' in source
+    assert '-type f -exec chmod 0644 {} +' in source
+    assert 'exit "${qa_status}"' in source
+    assert "exec python3" not in source
+''',
+        encoding="utf-8",
+        newline="\n",
+    )
+
     temporary = stage / ".evavo/apply_journey_driver_fixes.py"
     if temporary.exists() or temporary.is_symlink():
         temporary.unlink()
-    print("applied journey-driver diagnostics and parser fix")
+    print("applied journey-driver diagnostics, parser and evidence-permission fixes")
     return 0
 
 
