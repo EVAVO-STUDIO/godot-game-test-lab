@@ -159,7 +159,9 @@ jobs:
           }
           $nativeRoot = Join-Path $env:RUNNER_TEMP `
             "godot-native-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          New-Item -ItemType Directory -Path $nativeRoot -Force | Out-Null
+          $validationRoot = Join-Path $env:RUNNER_TEMP `
+            "godot-validation-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          New-Item -ItemType Directory -Path $nativeRoot, $validationRoot -Force | Out-Null
           $profile = ''
           if ($env:PROFILE_PATH) {
             $profile = (Resolve-Path (Join-Path $targetRoot $env:PROFILE_PATH)).Path
@@ -169,6 +171,10 @@ jobs:
           "profile_path=$profile" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "native_root=$nativeRoot" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "native_artifacts=$(Join-Path $nativeRoot 'evidence')" |
+            Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "validation_root=$validationRoot" |
+            Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "validation_artifacts=$(Join-Path $validationRoot 'evidence')" |
             Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Ensure checksum-verified managed Godot editor
@@ -204,16 +210,22 @@ jobs:
         shell: pwsh
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
-          PROJECT_PATH: ${{ steps.paths.outputs.project_path }}
+          TARGET_ROOT: ${{ steps.paths.outputs.target_root }}
+          PROJECT_SUBPATH: ${{ inputs.project_subpath }}
           EXPECTED_TARGET_SHA: ${{ inputs.expected_target_sha }}
           MINIMUM_GODOT_VERSION: ${{ inputs.minimum_godot_version }}
           PYTHON_EXECUTABLE: ${{ steps.python.outputs.python }}
+          VALIDATION_ROOT: ${{ steps.paths.outputs.validation_root }}
+          VALIDATION_ARTIFACTS: ${{ steps.paths.outputs.validation_artifacts }}
         run: |
           ./scripts/Invoke-GodotLabNativeValidation.ps1 `
-            -TargetRepositoryPath $env:PROJECT_PATH `
+            -TargetRepositoryPath $env:TARGET_ROOT `
+            -ProjectSubpath $env:PROJECT_SUBPATH `
+            -AllowedTargetRoots @('C:\GitRepos') `
             -ExpectedLabSha $env:EXPECTED_SHA `
             -ExpectedTargetSha $env:EXPECTED_TARGET_SHA `
-            -ArtifactPath (Join-Path $env:GITHUB_WORKSPACE 'artifacts\native-validation') `
+            -ArtifactPath $env:VALIDATION_ARTIFACTS `
+            -AllowedArtifactRoot $env:VALIDATION_ROOT `
             -PythonExecutable $env:PYTHON_EXECUTABLE `
             -MinimumGodotVersion $env:MINIMUM_GODOT_VERSION `
             -TimeoutSeconds 300 `
@@ -224,9 +236,9 @@ jobs:
         shell: pwsh
         env:
           ENGINE_RECEIPT: ${{ steps.engine.outputs.engine_receipt }}
+          VALIDATION_ARTIFACTS: ${{ steps.paths.outputs.validation_artifacts }}
         run: |
-          $destination = Join-Path $env:GITHUB_WORKSPACE `
-            'artifacts\native-validation\managed-engine.json'
+          $destination = Join-Path $env:VALIDATION_ARTIFACTS 'managed-engine.json'
           New-Item -ItemType Directory -Force -Path (Split-Path $destination) | Out-Null
           if ($env:ENGINE_RECEIPT -and (Test-Path -LiteralPath $env:ENGINE_RECEIPT)) {
             Copy-Item -LiteralPath $env:ENGINE_RECEIPT -Destination $destination -Force
@@ -264,7 +276,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-godot-validation-${{ inputs.expected_sha }}-${{ inputs.expected_target_sha }}
-          path: artifacts/native-validation
+          path: ${{ steps.paths.outputs.validation_artifacts }}
           if-no-files-found: error
           retention-days: 14
 

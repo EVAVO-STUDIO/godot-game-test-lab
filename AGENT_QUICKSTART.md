@@ -95,6 +95,27 @@ feature branch and whether it uses C#, and returns the verified executable that
 will be used. Normal `validate`, `run`, `record`, `export`, bot-QA and native-QA
 commands perform the same provisioning automatically.
 
+## One-command Windows agent host acceptance
+
+After pulling the exact Lab `main`, initialise the managed editors, MCP worker,
+and host acceptance in Greg's logged-in desktop session:
+
+```powershell
+.\scripts\Initialize-GodotLabAgentHost.ps1 `
+  -PrepareEstate `
+  -PrepareLinuxSandboxImages `
+  -InstallPrerequisites:$true `
+  -RequireFullMediaToolchain
+```
+
+The initializer registers the loopback-only MCP worker as an interactive at-logon
+task, starts it, verifies both managed Godot flavours, runs the doctor and MCP
+self-test, inventories video and sound devices, probes `127.0.0.1:8765`, and
+retains `host-acceptance.json` outside every source repository. Use
+`scripts/Test-GodotLabAgentHost.ps1` to repeat acceptance or include a clean real
+game repository, native journey profile, or deterministic bot profile. See
+`docs/WINDOWS_AGENT_HOST_ACCEPTANCE.md`.
+
 ## Test another repository
 
 ```powershell

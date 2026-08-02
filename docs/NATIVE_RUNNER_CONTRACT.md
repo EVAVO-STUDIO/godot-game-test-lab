@@ -22,9 +22,9 @@ The runner must provide:
 - PowerShell 7 as `pwsh`;
 - Git;
 - Python 3.11 through `py -3.11`;
-- Godot 4.6.2 or newer standard console executable;
-- Godot 4.6.2 or newer Mono console executable for C# projects;
-- a compatible .NET SDK for the target project;
+- the checksum-verified managed Godot Standard editor;
+- the checksum-verified managed Godot .NET editor for C# projects;
+- .NET SDK 8 for C# targets;
 - matching Godot export templates only when an export command is explicitly requested.
 
 Recommended environment variables:
@@ -39,7 +39,8 @@ Tool paths are runner configuration. They must not be committed as credentials o
 
 ## Filesystem boundary
 
-Target projects must resolve beneath:
+Target Git roots must resolve beneath one of the explicit `AllowedTargetRoots`
+values, normally:
 
 ```text
 C:\GitRepos
@@ -51,7 +52,10 @@ The target must:
 - belong to a Git repository beneath the same root;
 - not be the test-lab repository itself.
 
-Validation may create normal ignored Godot import caches and bounded QA artifacts. The tracked Git status is captured before and after validation. Any changed tracked file fails the run.
+The target must be completely clean before validation. Godot executes against the
+selected project while all retained evidence is written beneath a unique external
+`AllowedArtifactRoot`. The target SHA and complete tracked/untracked status are
+checked afterward; any difference fails the run.
 
 The wrapper has no commit, push, branch, pull-request, deployment, migration or repository-reset operation.
 
@@ -60,7 +64,7 @@ The wrapper has no commit, push, branch, pull-request, deployment, migration or 
 The operator supplies:
 
 - the exact 40-character Godot Game Test Lab `main` SHA;
-- the absolute target project path;
+- the absolute target Git root and explicit `projectSubpath`;
 - the exact 40-character target game repository SHA;
 - the minimum Godot version, normally `4.6.2`;
 - `request_source=evavo-development-studio`.
@@ -75,17 +79,17 @@ The native wrapper runs:
 
 1. exact test-lab SHA verification;
 2. exact target game SHA verification;
-3. Python source compilation;
-4. Ruff;
-5. pytest;
-6. Godot and .NET doctor probe;
-7. target project inventory;
-8. exact Godot/Mono compatibility checks;
+3. canonical root and reparse-point validation;
+4. target clean-status verification;
+5. repository toolchain validation;
+6. Python source compilation, Ruff, and pytest;
+7. managed Godot and .NET doctor probe;
+8. target project inventory and static integrity audit;
 9. `.NET` build when required;
-10. headless Godot import;
+10. authoritative headless Godot import and recovery diagnosis;
 11. bounded main-scene boot;
-12. tracked-source mutation comparison;
-13. bounded JSON receipt and logs.
+12. complete target SHA/status comparison;
+13. atomic external JSON receipt and logs.
 
 A successful import or bounded boot is not a visual-quality approval. Windowed play, recording, screenshots and human/gameplay review remain separate evidence lanes.
 
@@ -114,11 +118,22 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .\scripts\Invoke-GodotLabNativeValidation.ps1 `
   -TargetRepositoryPath "C:\GitRepos\Brass_Brine" `
+  -ProjectSubpath "." `
+  -AllowedTargetRoots @("C:\GitRepos") `
   -ExpectedLabSha (git rev-parse HEAD) `
   -ExpectedTargetSha (git -C "C:\GitRepos\Brass_Brine" rev-parse HEAD) `
-  -ArtifactPath ".\artifacts\native" `
+  -ArtifactPath "C:\GodotLabEvidence\Brass_Brine\validation-001" `
+  -AllowedArtifactRoot "C:\GodotLabEvidence" `
   -PythonExecutable ".\.venv\Scripts\python.exe" `
   -MinimumGodotVersion "4.6.2"
 ```
 
 Local execution follows the same revision, path, version, test and mutation boundaries as the GitHub workflow.
+
+## Interactive agent host acceptance
+
+Use `scripts/Initialize-GodotLabAgentHost.ps1` for one-command installation, MCP
+worker registration, startup, and acceptance. Use
+`scripts/Test-GodotLabAgentHost.ps1` to repeat host acceptance or include a real
+validation, authored journey, or deterministic bot run. The full contract is in
+`docs/WINDOWS_AGENT_HOST_ACCEPTANCE.md`.
