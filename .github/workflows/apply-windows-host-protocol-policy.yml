@@ -1,0 +1,140 @@
+name: Apply Windows host protocol policy
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-windows-host-protocol-policy
+  cancel-in-progress: false
+
+jobs:
+  apply-validate-and-publish-branch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'work/windows-host-protocol-20260803' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out exact trusted candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.11.15
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11.15"
+
+      - name: Apply exact Windows host hardening and remove one-time files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .evavo/windows-host-protocol.py.gz.b64 \
+            | gzip --decompress > .evavo/apply_windows_host_protocol_policy.py
+          printf '%s  %s\n' \
+            'de9772f4c0877fbad13650857d535fe0f16d6a88b919d0b61ec4e2acee7e1c17' \
+            '.evavo/apply_windows_host_protocol_policy.py' \
+            | sha256sum --check --strict
+          python .evavo/apply_windows_host_protocol_policy.py
+          rm -f .evavo/windows-host-protocol.py.gz.b64
+          test ! -e .evavo/apply_windows_host_protocol_policy.py
+          test ! -e .evavo/windows-host-protocol.py.gz.b64
+          test ! -e .github/workflows/apply-windows-host-protocol-policy.yml
+          test -f tests/test_windows_host_protocol_policy.py
+
+      - name: Verify repository authority and adversarial fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repository_toolchain.py
+          python scripts/test_repository_toolchain.py
+
+      - name: Install pinned validation and MCP dependencies
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: |
+          python -m pip install --disable-pip-version-check ".[dev,agent]"
+          python scripts/check_repository_toolchain.py --installed --agent-installed
+
+      - name: Compile, lint and parse every entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q src scripts tests
+          python -m ruff check src scripts tests
+          while IFS= read -r -d '' script; do
+            bash -n "${script}"
+          done < <(find scripts containers -type f -name '*.sh' -print0)
+          pwsh -NoLogo -NoProfile -NonInteractive -Command \
+            '$ErrorActionPreference="Stop"; Get-ChildItem scripts -Filter *.ps1 | ForEach-Object { $null=[scriptblock]::Create((Get-Content -Raw -LiteralPath $_.FullName)) }'
+
+      - name: Run complete tests and MCP self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest
+          python -m godot_game_test_lab.mcp_server \
+            --lab-root . \
+            --allowed-root . \
+            --evidence-root "${RUNNER_TEMP}/mcp-evidence" \
+            --engine-root "${RUNNER_TEMP}/managed-engines" \
+            --allow-noninteractive \
+            --self-test
+
+      - name: Build wheel and verify the exact production diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip wheel --no-deps --wheel-dir dist .
+          rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
+          find src scripts tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          find src scripts tests -type f -name '*.pyc' -delete
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              "scripts/Initialize-GodotLabAgentHost.ps1",
+              "scripts/Register-GodotLabMcpWorker.ps1",
+              "scripts/Test-GodotLabAgentHost.ps1",
+              "scripts/Test-GodotLabMcpWorker.ps1",
+              "tests/test_windows_host_protocol_policy.py",
+          }
+          status = subprocess.run(
+              ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+              check=True,
+              text=True,
+              capture_output=True,
+          ).stdout.splitlines()
+          observed = {line[3:] for line in status if line}
+          if observed != expected:
+              raise SystemExit(
+                  f"unexpected Windows host policy diff: observed={sorted(observed)} "
+                  f"expected={sorted(expected)}"
+              )
+          PY
+          git diff --check
+
+      - name: Commit validated exact source to candidate branch
+        shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${HEAD_BRANCH}"
+          test "$(git rev-parse FETCH_HEAD)" = "${EXPECTED_HEAD}"
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "automation@evavo.com.au"
+          git add --all
+          git diff --cached --check
+          git commit -m "fix(host): require protocol worker acceptance"
+          git push origin HEAD:"${HEAD_BRANCH}"
