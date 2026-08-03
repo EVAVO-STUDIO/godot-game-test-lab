@@ -1,9 +1,10 @@
 $failure = $null
+$receiptWriteFailure = $null
 $mutexAcquired = $false
 $mutexAbandoned = $false
 $estateMutex = [Threading.Mutex]::new(
     $false,
-    "Local\EVAVO.GodotLab.EstateAcceptance"
+    "Global\EVAVO.GodotLab.EstateAcceptance"
 )
 
 try {
@@ -17,7 +18,7 @@ try {
         $mutexAbandoned = $true
     }
     if (-not $mutexAcquired) {
-        throw "Another Godot estate acceptance owns the machine-level lease."
+        throw "Another Godot estate acceptance owns the machine-wide lease."
     }
     $receipt.abandonedMutexRecovered = $mutexAbandoned
     for ($index = 0; $index -lt $targets.Count; $index++) {
@@ -66,11 +67,18 @@ try {
                 $parameters.EngineOffline = $true
             }
             if ($index -eq 0) {
-                if ($RegisterWorker) { $parameters.RegisterWorker = $true }
-                if ($StartWorker) { $parameters.StartWorker = $true }
+                if ($RegisterWorker) {
+                    $parameters.RegisterWorker = $true
+                }
+                if ($StartWorker) {
+                    $parameters.StartWorker = $true
+                }
             }
 
-            Write-Host "[godot-lab] Estate target $($target.id): $($target.acceptanceMode)"
+            Write-Host (
+                "[godot-lab] Estate target $($target.id): " +
+                $target.acceptanceMode
+            )
             & $hostAcceptance @parameters
 
             $newReceipts = @(
@@ -79,8 +87,16 @@ try {
             )
             $matches = @(
                 $newReceipts | ForEach-Object {
-                    Test-HostReceiptCandidate -Path $_ -Target $target `
-                        -LabSha $labSha -EvidenceRoot $evidence
+                    Test-HostReceiptCandidate `
+                        -Path $_ `
+                        -Target $target `
+                        -LabRoot $lab `
+                        -LabSha $labSha `
+                        -AllowedTargetRoots @($resolvedRoots) `
+                        -EvidenceRoot $evidence `
+                        -EngineRoot $engines `
+                        -EngineOffline ([bool]$EngineOffline) `
+                        -PythonExecutable $python
                 } | Where-Object { $null -ne $_ }
             )
             if ($matches.Count -ne 1) {
@@ -94,10 +110,13 @@ try {
             $hostReceipt = $accepted.HostReceipt
 
             $shaAfter = Get-GitText -Root $target.repositoryPath -Arguments @(
-                "rev-parse", "HEAD"
+                "rev-parse",
+                "HEAD"
             ) -Label "Recheck target $($target.id) SHA"
             $statusAfter = Get-GitText -Root $target.repositoryPath -Arguments @(
-                "status", "--porcelain=v1", "--untracked-files=all"
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all"
             ) -Label "Recheck target $($target.id) status"
             if ($shaAfter -ne $target.expectedSha -or $statusAfter) {
                 throw "Target $($target.id) changed during estate acceptance."
@@ -132,15 +151,6 @@ try {
         }
     }
 
-    $labShaAfter = Get-GitText -Root $lab -Arguments @(
-        "rev-parse", "HEAD"
-    ) -Label "Recheck Lab SHA"
-    $labStatusAfter = Get-GitText -Root $lab -Arguments @(
-        "status", "--porcelain=v1", "--untracked-files=all"
-    ) -Label "Recheck Lab status"
-    if ($labShaAfter -ne $labSha -or $labStatusAfter) {
-        throw "The Lab checkout changed during estate acceptance."
-    }
     $receipt.status = "passed"
 }
 catch {
@@ -149,16 +159,116 @@ catch {
     $receipt.error = $failure.Message
 }
 finally {
-    $receipt.finishedAt = [DateTimeOffset]::UtcNow.ToString("o")
-    Write-AtomicJson -Path $receiptPath -Value $receipt
-    if ($mutexAcquired) {
-        try {
-            $estateMutex.ReleaseMutex()
+    $sourceErrors = [Collections.ArrayList]::new()
+
+    $labCheck = [ordered]@{
+        id = "lab"
+        repositoryPath = $lab
+        expectedSha = $labSha
+        status = "running"
+    }
+    try {
+        $labShaAfter = Get-GitText -Root $lab -Arguments @(
+            "rev-parse",
+            "HEAD"
+        ) -Label "Final Lab SHA"
+        $labStatusAfter = Get-GitText -Root $lab -Arguments @(
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all"
+        ) -Label "Final Lab status"
+        $labCheck.observedSha = $labShaAfter
+        $labCheck.gitStatus = $labStatusAfter
+        if ($labShaAfter -ne $labSha -or $labStatusAfter) {
+            throw "The Lab checkout changed during estate acceptance."
         }
-        catch [ApplicationException] {
+        $labCheck.status = "passed"
+    }
+    catch {
+        $labCheck.status = "failed"
+        $labCheck.error = $_.Exception.Message
+        [void]$sourceErrors.Add($_.Exception.Message)
+    }
+    finally {
+        [void]$sourceChecks.Add($labCheck)
+    }
+
+    foreach ($target in $targets) {
+        $targetCheck = [ordered]@{
+            id = $target.id
+            repositoryPath = $target.repositoryPath
+            expectedSha = $target.expectedSha
+            status = "running"
+        }
+        try {
+            $finalSha = Get-GitText -Root $target.repositoryPath -Arguments @(
+                "rev-parse",
+                "HEAD"
+            ) -Label "Final target $($target.id) SHA"
+            $finalStatus = Get-GitText -Root $target.repositoryPath -Arguments @(
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all"
+            ) -Label "Final target $($target.id) status"
+            $targetCheck.observedSha = $finalSha
+            $targetCheck.gitStatus = $finalStatus
+            if ($finalSha -ne $target.expectedSha -or $finalStatus) {
+                throw "Target $($target.id) changed during estate acceptance."
+            }
+            $targetCheck.status = "passed"
+        }
+        catch {
+            $targetCheck.status = "failed"
+            $targetCheck.error = $_.Exception.Message
+            [void]$sourceErrors.Add($_.Exception.Message)
+        }
+        finally {
+            [void]$sourceChecks.Add($targetCheck)
         }
     }
-    $estateMutex.Dispose()
+
+    if ($sourceErrors.Count -ne 0) {
+        $sourceMessage = "Final source verification failed: " + `
+            ($sourceErrors -join " | ")
+        $receipt.status = "failed"
+        if ($receipt.error) {
+            $receipt.error = "$($receipt.error) | $sourceMessage"
+        }
+        else {
+            $receipt.error = $sourceMessage
+        }
+        if (-not $failure) {
+            $failure = [InvalidOperationException]::new($sourceMessage)
+        }
+    }
+
+    $receipt.finishedAt = [DateTimeOffset]::UtcNow.ToString("o")
+    try {
+        Write-AtomicJson -Path $receiptPath -Value $receipt
+    }
+    catch {
+        $receiptWriteFailure = $_.Exception
+        if ($failure) {
+            $failure = [InvalidOperationException]::new(
+                "$($failure.Message) | Receipt write failed: " +
+                $receiptWriteFailure.Message,
+                $failure
+            )
+        }
+        else {
+            $failure = $receiptWriteFailure
+        }
+    }
+    finally {
+        if ($mutexAcquired) {
+            try {
+                $estateMutex.ReleaseMutex()
+            }
+            catch [ApplicationException] {
+            }
+        }
+        $estateMutex.Dispose()
+    }
 }
 
 if ($failure) {
