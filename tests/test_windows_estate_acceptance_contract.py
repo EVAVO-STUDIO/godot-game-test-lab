@@ -158,7 +158,7 @@ def test_estate_acceptance_documentation_preserves_truth_boundary() -> None:
         "Windows device-name and",
         "not scan the shared host receipt tree",
         "schema 1.3",
-        "host-acceptance.json schema 1.1",
+        "`host-acceptance.json` schema 1.1",
         "every exit path",
         "SHA-256",
         "physical controller",
