@@ -115,8 +115,8 @@ try {
                 -PythonExecutable $python
             if ($null -eq $accepted) {
                 throw (
-                    "Target $($target.id) exact host receipt failed " +
-                    "target-bound admission: $hostReceiptPath"
+                    "Target $($target.id) target-bound accepted host receipt failed. " +
+                    "The exact host receipt failed admission: $hostReceiptPath"
                 )
             }
             $hostReceipt = $accepted.HostReceipt
