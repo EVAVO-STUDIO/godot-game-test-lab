@@ -101,6 +101,125 @@ function Get-FileSha256 {
     ).Hash.ToLowerInvariant()
 }
 
+function Test-IsJsonObject {
+    param([object]$Value)
+    return $null -ne $Value -and $Value -is [pscustomobject]
+}
+
+function Test-IsJsonInteger {
+    param([object]$Value)
+    return (
+        $Value -is [sbyte] -or
+        $Value -is [byte] -or
+        $Value -is [int16] -or
+        $Value -is [uint16] -or
+        $Value -is [int32] -or
+        $Value -is [uint32] -or
+        $Value -is [int64] -or
+        $Value -is [uint64]
+    )
+}
+
+function Assert-JsonObject {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    if (-not (Test-IsJsonObject -Value $Value)) {
+        throw "$Label must be a JSON object."
+    }
+}
+
+function Assert-JsonString {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    if ($Value -isnot [string]) {
+        throw "$Label must be a JSON string."
+    }
+}
+
+function Assert-JsonBoolean {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    if ($Value -isnot [bool]) {
+        throw "$Label must be a JSON boolean."
+    }
+}
+
+function Assert-JsonInteger {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    if (-not (Test-IsJsonInteger -Value $Value)) {
+        throw "$Label must be a JSON integer."
+    }
+}
+
+function Assert-JsonArray {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    if ($Value -isnot [array]) {
+        throw "$Label must be a JSON array."
+    }
+}
+
+function Assert-JsonStringArray {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    Assert-JsonArray -Value $Value -Label $Label
+    foreach ($item in $Value) {
+        Assert-JsonString -Value $item -Label "$Label item"
+    }
+}
+
+function Assert-JsonIntegerArray {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    Assert-JsonArray -Value $Value -Label $Label
+    foreach ($item in $Value) {
+        Assert-JsonInteger -Value $item -Label "$Label item"
+    }
+}
+
+function Assert-JsonObjectArray {
+    param(
+        [object]$Value,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    Assert-JsonArray -Value $Value -Label $Label
+    foreach ($item in $Value) {
+        Assert-JsonObject -Value $item -Label "$Label item"
+    }
+}
+
+function Assert-ExactProperties {
+    param(
+        [Parameter(Mandatory = $true)][object]$Value,
+        [Parameter(Mandatory = $true)][string[]]$Expected,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    Assert-JsonObject -Value $Value -Label $Label
+    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $wanted = @($Expected | Sort-Object)
+    $difference = @(
+        Compare-Object -ReferenceObject $wanted -DifferenceObject $actual
+    )
+    if ($difference.Count -ne 0) {
+        throw "$Label must contain exactly: $($wanted -join ', ')."
+    }
+}
+
 function Read-StrictJsonFile {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -134,33 +253,25 @@ function Read-StrictJsonFile {
     catch {
         throw "$Label validator output is not JSON."
     }
-    if ([string]$envelope.schemaVersion -ne "1.0" -or
-        [string]$envelope.status -ne "passed" -or
-        [string]$envelope.sha256 -notmatch '^[0-9a-f]{64}$' -or
-        $null -eq $envelope.value) {
+    Assert-ExactProperties -Value $envelope `
+        -Expected @("schemaVersion", "status", "sha256", "value") `
+        -Label "$Label validator output"
+    Assert-JsonString -Value $envelope.schemaVersion `
+        -Label "$Label validator schemaVersion"
+    Assert-JsonString -Value $envelope.status `
+        -Label "$Label validator status"
+    Assert-JsonString -Value $envelope.sha256 `
+        -Label "$Label validator sha256"
+    Assert-JsonObject -Value $envelope.value `
+        -Label "$Label validator value"
+    if ($envelope.schemaVersion -ne "1.0" -or
+        $envelope.status -ne "passed" -or
+        $envelope.sha256 -notmatch '^[0-9a-f]{64}$') {
         throw "$Label validator output is incomplete."
     }
     return [pscustomobject]@{
         Value = $envelope.value
-        Sha256 = [string]$envelope.sha256
-    }
-}
-
-function Assert-ExactProperties {
-    param(
-        [Parameter(Mandatory = $true)][object]$Value,
-        [Parameter(Mandatory = $true)][string[]]$Expected,
-        [Parameter(Mandatory = $true)][string]$Label
-    )
-    if ($null -eq $Value -or $null -eq $Value.PSObject) {
-        throw "$Label must be a JSON object."
-    }
-    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
-    $wanted = @($Expected | Sort-Object)
-    $difference = @(Compare-Object -ReferenceObject $wanted `
-        -DifferenceObject $actual)
-    if ($difference.Count -ne 0) {
-        throw "$Label must contain exactly: $($wanted -join ', ')."
+        Sha256 = $envelope.sha256
     }
 }
 
@@ -177,7 +288,7 @@ function Test-PathSetExact {
     try {
         $observedIds = @(
             $Observed |
-                ForEach-Object { Get-NormalizedPathIdentity -Path ([string]$_) } |
+                ForEach-Object { Get-NormalizedPathIdentity -Path $_ } |
                 Sort-Object -Unique
         )
         $expectedIds = @(
@@ -235,26 +346,6 @@ function Resolve-TargetOwnedFile {
         $relative
     ) -Label "Verify tracked $Label"
     return $resolved
-}
-
-function Get-HostReceiptPaths {
-    param([string]$Root)
-    $hostRoot = Join-Path $Root "host-acceptance"
-    if (-not (Test-Path -LiteralPath $hostRoot -PathType Container)) {
-        return @()
-    }
-    Assert-NoReparsePoint -Path $hostRoot
-    $paths = @(
-        Get-ChildItem -LiteralPath $hostRoot `
-            -Filter "host-acceptance.json" `
-            -File -Recurse -Force |
-            Select-Object -First 10001 |
-            ForEach-Object { $_.FullName }
-    )
-    if ($paths.Count -gt 10000) {
-        throw "Host acceptance evidence contains more than 10000 receipts."
-    }
-    return $paths
 }
 
 function Get-RequiredHostStageIds {
