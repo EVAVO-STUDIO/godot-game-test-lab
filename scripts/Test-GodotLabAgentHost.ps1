@@ -17,6 +17,7 @@ param(
     [string]$BotProfilePath = "",
     [ValidateSet("validate", "native", "bot", "all")]
     [string]$AcceptanceMode = "validate",
+    [switch]$EngineOffline,
     [switch]$RegisterWorker,
     [switch]$StartWorker,
     [switch]$SkipWorkerProbe
@@ -25,16 +26,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Test-PathWithin {
-    param([string]$Candidate, [string]$Root)
+function Test-IsWithinPath {
+    param([string]$Candidate, [string]$Parent)
     $candidateFull = [IO.Path]::GetFullPath($Candidate).TrimEnd('\', '/')
-    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    $parentFull = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
     return (
-        $candidateFull.Equals($rootFull, [StringComparison]::OrdinalIgnoreCase) -or
+        $candidateFull.Equals($parentFull, [StringComparison]::OrdinalIgnoreCase) -or
         $candidateFull.StartsWith(
-            $rootFull + [IO.Path]::DirectorySeparatorChar,
+            $parentFull + [IO.Path]::DirectorySeparatorChar,
             [StringComparison]::OrdinalIgnoreCase
         )
+    )
+}
+
+function Test-PathsOverlap {
+    param([string]$Left, [string]$Right)
+    return (
+        (Test-IsWithinPath -Candidate $Left -Parent $Right) -or
+        (Test-IsWithinPath -Candidate $Right -Parent $Left)
     )
 }
 
@@ -47,6 +56,19 @@ function Assert-NoReparsePoint {
         }
         $item = $item.Parent
     }
+}
+
+function Assert-NoReparsePointForCandidate {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $cursor = [IO.Path]::GetFullPath($Path)
+    while (-not (Test-Path -LiteralPath $cursor)) {
+        $parent = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parent) {
+            return
+        }
+        $cursor = $parent.FullName
+    }
+    Assert-NoReparsePoint -Path $cursor
 }
 
 function Get-GitText {
@@ -101,24 +123,6 @@ function Invoke-Stage {
     }
 }
 
-function Test-LoopbackPort {
-    param([int]$PortNumber, [int]$TimeoutMilliseconds = 1000)
-    $client = [Net.Sockets.TcpClient]::new()
-    try {
-        $task = $client.ConnectAsync("127.0.0.1", $PortNumber)
-        if (-not $task.Wait($TimeoutMilliseconds)) {
-            return $false
-        }
-        return $client.Connected
-    }
-    catch {
-        return $false
-    }
-    finally {
-        $client.Dispose()
-    }
-}
-
 function Get-CommandText {
     param([string]$Command, [string[]]$Arguments)
     $lines = @(& $Command @Arguments 2>&1)
@@ -145,25 +149,58 @@ if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
 }
 Assert-NoReparsePoint -Path $python
 
-New-Item -ItemType Directory -Force -Path $EvidenceRoot, $EngineRoot | Out-Null
-$evidence = (Resolve-Path -LiteralPath $EvidenceRoot).Path
-$engines = (Resolve-Path -LiteralPath $EngineRoot).Path
-Assert-NoReparsePoint -Path $evidence
-Assert-NoReparsePoint -Path $engines
-if ((Test-PathWithin -Candidate $evidence -Root $lab) -or
-    (Test-PathWithin -Candidate $lab -Root $evidence)) {
-    throw "EvidenceRoot must remain disjoint from the Lab checkout."
-}
+$candidateEvidence = [IO.Path]::GetFullPath($EvidenceRoot)
+$candidateEngine = [IO.Path]::GetFullPath($EngineRoot)
+Assert-NoReparsePointForCandidate -Path $candidateEvidence
+Assert-NoReparsePointForCandidate -Path $candidateEngine
+
+$resolvedRoots = [Collections.Generic.List[string]]::new()
+$seenRoots = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase
+)
 foreach ($targetRoot in $AllowedTargetRoots) {
     $resolved = (Resolve-Path -LiteralPath $targetRoot).Path
     Assert-NoReparsePoint -Path $resolved
-    if ((Test-PathWithin -Candidate $evidence -Root $resolved) -or
-        (Test-PathWithin -Candidate $resolved -Root $evidence)) {
+    if ($seenRoots.Add($resolved)) {
+        $resolvedRoots.Add($resolved)
+    }
+}
+if ($resolvedRoots.Count -eq 0) {
+    throw "At least one allowed target root is required."
+}
+
+if (Test-PathsOverlap -Left $candidateEvidence -Right $lab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $candidateEvidence -Right $root) {
         throw "EvidenceRoot must remain disjoint from every allowed target root."
     }
-    if ((Test-PathWithin -Candidate $engines -Root $resolved) -or
-        (Test-PathWithin -Candidate $resolved -Root $engines)) {
-        throw "EngineRoot must remain disjoint from every allowed target root."
+}
+foreach ($protected in @($lab, $candidateEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $candidateEngine -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $candidateEvidence, $candidateEngine |
+    Out-Null
+$evidence = (Resolve-Path -LiteralPath $candidateEvidence).Path
+$engines = (Resolve-Path -LiteralPath $candidateEngine).Path
+Assert-NoReparsePoint -Path $evidence
+Assert-NoReparsePoint -Path $engines
+
+if (Test-PathsOverlap -Left $evidence -Right $lab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $evidence -Right $root) {
+        throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($lab, $evidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $engines -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
     }
 }
 
@@ -175,7 +212,7 @@ if ($ExpectedLabSha -notmatch '^[0-9a-f]{40}$' -or $labSha -ne $ExpectedLabSha) 
     throw "The Lab checkout does not match ExpectedLabSha."
 }
 $labTrackedStatus = Get-GitText -Root $lab -Arguments @(
-    "status", "--porcelain=v1", "--untracked-files=no"
+    "status", "--porcelain=v1", "--untracked-files=all"
 ) -Label "Read Lab tracked status"
 if ($labTrackedStatus) {
     throw "The Lab checkout has tracked changes."
@@ -204,7 +241,8 @@ $receipt = [ordered]@{
     evidenceRoot = $evidence
     runRoot = $runRoot
     engineRoot = $engines
-    allowedTargetRoots = $AllowedTargetRoots
+    allowedTargetRoots = @($resolvedRoots)
+    engineOffline = [bool]$EngineOffline
     machine = $env:COMPUTERNAME
     user = [Environment]::UserName
     sessionId = $currentSession
@@ -262,8 +300,11 @@ try {
             "--engine-root", $engines,
             "--self-test"
         )
-        foreach ($root in $AllowedTargetRoots) {
-            $arguments += @("--allowed-root", (Resolve-Path -LiteralPath $root).Path)
+        foreach ($root in $resolvedRoots) {
+            $arguments += @("--allowed-root", $root)
+        }
+        if ($EngineOffline) {
+            $arguments += "--no-auto-provision"
         }
         $mcp = Get-CommandText -Command $python -Arguments $arguments
         if ($mcp.exitCode -ne 0) {
@@ -313,17 +354,25 @@ try {
             $register = Join-Path $lab "scripts\Register-GodotLabMcpWorker.ps1"
             $parameters = @{
                 LabRoot = $lab
-                TargetRoot = (Resolve-Path -LiteralPath $AllowedTargetRoots[0]).Path
+                AllowedTargetRoots = @($resolvedRoots)
                 EvidenceRoot = $evidence
                 EngineRoot = $engines
                 TaskName = $TaskName
                 Port = $Port
             }
+            if ($EngineOffline) {
+                $parameters.EngineOffline = $true
+            }
             if ($StartWorker) {
                 $parameters.StartNow = $true
             }
             & $register @parameters
-            return [ordered]@{ taskName = $TaskName; started = [bool]$StartWorker }
+            return [ordered]@{
+                taskName = $TaskName
+                started = [bool]$StartWorker
+                allowedTargetRoots = @($resolvedRoots)
+                engineOffline = [bool]$EngineOffline
+            }
         } | Out-Null
     }
     elseif ($StartWorker) {
@@ -334,20 +383,38 @@ try {
     }
 
     if (-not $SkipWorkerProbe) {
-        Invoke-Stage -Id "worker-probe" -Stages $stages -Action {
-            $deadline = [DateTimeOffset]::UtcNow.AddSeconds($WorkerStartupTimeoutSeconds)
-            do {
-                if (Test-LoopbackPort -PortNumber $Port) {
-                    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-                    return [ordered]@{
-                        port = $Port
-                        listening = $true
-                        taskState = if ($task) { [string]$task.State } else { $null }
-                    }
-                }
-                Start-Sleep -Milliseconds 500
-            } while ([DateTimeOffset]::UtcNow -lt $deadline)
-            throw "The MCP worker did not listen on 127.0.0.1:$Port within the timeout."
+        Invoke-Stage -Id "worker-protocol-acceptance" -Stages $stages -Action {
+            $testWorker = Join-Path $lab "scripts\Test-GodotLabMcpWorker.ps1"
+            if (-not (Test-Path -LiteralPath $testWorker -PathType Leaf)) {
+                throw "The MCP worker acceptance script is missing: $testWorker"
+            }
+            $workerReceipt = Join-Path $runRoot "mcp-worker-acceptance.json"
+            $probeParameters = @{
+                LabRoot = $lab
+                AllowedTargetRoots = @($resolvedRoots)
+                EvidenceRoot = $evidence
+                EngineRoot = $engines
+                TaskName = $TaskName
+                Port = $Port
+                TimeoutSeconds = $WorkerStartupTimeoutSeconds
+                ExpectedLabSha = $labSha
+                OutputPath = $workerReceipt
+            }
+            if ($EngineOffline) {
+                $probeParameters.EngineOffline = $true
+            }
+            if ($RegisterWorker -or $StartWorker) {
+                $probeParameters.RequireScheduledTask = $true
+            }
+            & $testWorker @probeParameters
+            $probe = Get-Content -Raw -LiteralPath $workerReceipt |
+                ConvertFrom-Json
+            return [ordered]@{
+                receipt = $workerReceipt
+                bridge = [string]$probe.capabilities.bridge
+                allowedTargetRoots = @($probe.capabilities.allowedTargetRoots)
+                autoProvisionEngines = [bool]$probe.capabilities.autoProvisionEngines
+            }
         } | Out-Null
     }
 

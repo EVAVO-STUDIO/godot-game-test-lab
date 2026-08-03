@@ -49,6 +49,19 @@ function Assert-NoReparsePoint {
     }
 }
 
+function Assert-NoReparsePointForCandidate {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $cursor = [IO.Path]::GetFullPath($Path)
+    while (-not (Test-Path -LiteralPath $cursor)) {
+        $parent = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parent) {
+            return
+        }
+        $cursor = $parent.FullName
+    }
+    Assert-NoReparsePoint -Path $cursor
+}
+
 function Test-LoopbackPort {
     param([int]$PortNumber, [int]$TimeoutMilliseconds = 500)
     $client = [Net.Sockets.TcpClient]::new()
@@ -125,11 +138,11 @@ if (-not $EngineRoot) {
     $localData = [Environment]::GetFolderPath("LocalApplicationData")
     $EngineRoot = Join-Path $localData "EVAVO\GodotGameTestLab\engines"
 }
-New-Item -ItemType Directory -Force -Path $EvidenceRoot, $EngineRoot | Out-Null
-$resolvedEvidence = (Resolve-Path -LiteralPath $EvidenceRoot).Path
-$resolvedEngine = (Resolve-Path -LiteralPath $EngineRoot).Path
-Assert-NoReparsePoint -Path $resolvedEvidence
-Assert-NoReparsePoint -Path $resolvedEngine
+
+$candidateEvidence = [IO.Path]::GetFullPath($EvidenceRoot)
+$candidateEngine = [IO.Path]::GetFullPath($EngineRoot)
+Assert-NoReparsePointForCandidate -Path $candidateEvidence
+Assert-NoReparsePointForCandidate -Path $candidateEngine
 
 $resolvedRoots = [Collections.Generic.List[string]]::new()
 $seenRoots = [Collections.Generic.HashSet[string]]::new(
@@ -146,17 +159,38 @@ if ($resolvedRoots.Count -eq 0) {
     throw "At least one allowed target root is required."
 }
 
-foreach ($protected in @($resolvedLab, $resolvedEvidence) + @($resolvedRoots)) {
-    if (Test-PathsOverlap -Left $resolvedEngine -Right $protected) {
+if (Test-PathsOverlap -Left $candidateEvidence -Right $resolvedLab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $candidateEvidence -Right $root) {
+        throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($resolvedLab, $candidateEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $candidateEngine -Right $protected) {
         throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
     }
 }
+
+New-Item -ItemType Directory -Force -Path $candidateEvidence, $candidateEngine |
+    Out-Null
+$resolvedEvidence = (Resolve-Path -LiteralPath $candidateEvidence).Path
+$resolvedEngine = (Resolve-Path -LiteralPath $candidateEngine).Path
+Assert-NoReparsePoint -Path $resolvedEvidence
+Assert-NoReparsePoint -Path $resolvedEngine
+
 if (Test-PathsOverlap -Left $resolvedEvidence -Right $resolvedLab) {
     throw "EvidenceRoot must remain disjoint from the Lab checkout."
 }
 foreach ($root in $resolvedRoots) {
     if (Test-PathsOverlap -Left $resolvedEvidence -Right $root) {
         throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($resolvedLab, $resolvedEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $resolvedEngine -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
     }
 }
 

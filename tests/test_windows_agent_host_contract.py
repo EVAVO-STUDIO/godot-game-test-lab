@@ -25,6 +25,7 @@ def test_agent_host_initializer_is_one_command_and_delegates_safely() -> None:
         "RequireScheduledTask = $true",
         "ExpectedLabSha = $labSha",
         "SkipWorkerProbe = $true",
+        "EngineOffline = $true",
         "Agent host initialization and acceptance completed",
     ):
         assert token in source, token
@@ -49,7 +50,7 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "Explorer in the current nonzero Windows session",
         "Assert-NoReparsePoint",
         "EvidenceRoot must remain disjoint from the Lab checkout",
-        "EngineRoot must remain disjoint from every allowed target root",
+        "EngineRoot must remain disjoint from Lab, target, and evidence roots.",
         '"scripts/check_repository_toolchain.py", "--native-family", "--installed"',
         "godot_game_test_lab.cli engine status",
         'flavors -notcontains "standard"',
@@ -61,7 +62,7 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "Get-CimInstance Win32_SoundDevice",
         "nvidia-smi",
         "Register-GodotLabMcpWorker.ps1",
-        "Test-LoopbackPort",
+        "Test-GodotLabMcpWorker.ps1",
         'endpoint = "http://127.0.0.1:$Port/mcp"',
         "Invoke-GodotLabNativeValidation.ps1",
         "Invoke-GodotLabNativeAgentQA.ps1",

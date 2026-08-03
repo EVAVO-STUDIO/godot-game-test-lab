@@ -18,6 +18,27 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Test-IsWithinPath {
+    param([string]$Candidate, [string]$Parent)
+    $candidateFull = [IO.Path]::GetFullPath($Candidate).TrimEnd('\', '/')
+    $parentFull = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
+    return (
+        $candidateFull.Equals($parentFull, [StringComparison]::OrdinalIgnoreCase) -or
+        $candidateFull.StartsWith(
+            $parentFull + [IO.Path]::DirectorySeparatorChar,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    )
+}
+
+function Test-PathsOverlap {
+    param([string]$Left, [string]$Right)
+    return (
+        (Test-IsWithinPath -Candidate $Left -Parent $Right) -or
+        (Test-IsWithinPath -Candidate $Right -Parent $Left)
+    )
+}
+
 function Assert-NoReparsePoint {
     param([Parameter(Mandatory = $true)][string]$Path)
     $item = Get-Item -LiteralPath $Path -Force
@@ -27,6 +48,19 @@ function Assert-NoReparsePoint {
         }
         $item = $item.Parent
     }
+}
+
+function Assert-NoReparsePointForCandidate {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $cursor = [IO.Path]::GetFullPath($Path)
+    while (-not (Test-Path -LiteralPath $cursor)) {
+        $parent = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parent) {
+            return
+        }
+        $cursor = $parent.FullName
+    }
+    Assert-NoReparsePoint -Path $cursor
 }
 
 function Get-GitText {
@@ -52,11 +86,10 @@ if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
 Assert-NoReparsePoint -Path $lab
 Assert-NoReparsePoint -Path $python
 
-New-Item -ItemType Directory -Force -Path $EvidenceRoot, $EngineRoot | Out-Null
-$evidence = (Resolve-Path -LiteralPath $EvidenceRoot).Path
-$engines = (Resolve-Path -LiteralPath $EngineRoot).Path
-Assert-NoReparsePoint -Path $evidence
-Assert-NoReparsePoint -Path $engines
+$candidateEvidence = [IO.Path]::GetFullPath($EvidenceRoot)
+$candidateEngine = [IO.Path]::GetFullPath($EngineRoot)
+Assert-NoReparsePointForCandidate -Path $candidateEvidence
+Assert-NoReparsePointForCandidate -Path $candidateEngine
 
 $resolvedRoots = [Collections.Generic.List[string]]::new()
 $seenRoots = [Collections.Generic.HashSet[string]]::new(
@@ -71,6 +104,41 @@ foreach ($root in $AllowedTargetRoots) {
 }
 if ($resolvedRoots.Count -eq 0) {
     throw "At least one allowed target root is required."
+}
+
+if (Test-PathsOverlap -Left $candidateEvidence -Right $lab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $candidateEvidence -Right $root) {
+        throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($lab, $candidateEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $candidateEngine -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $candidateEvidence, $candidateEngine |
+    Out-Null
+$evidence = (Resolve-Path -LiteralPath $candidateEvidence).Path
+$engines = (Resolve-Path -LiteralPath $candidateEngine).Path
+Assert-NoReparsePoint -Path $evidence
+Assert-NoReparsePoint -Path $engines
+
+if (Test-PathsOverlap -Left $evidence -Right $lab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $evidence -Right $root) {
+        throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($lab, $evidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $engines -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
+    }
 }
 
 $labSha = Get-GitText -Root $lab -Arguments @("rev-parse", "HEAD") -Label "Resolve Lab SHA"
@@ -102,9 +170,23 @@ if (-not $OutputPath) {
 }
 else {
     $destination = [IO.Path]::GetFullPath($OutputPath)
+    if ([IO.Path]::GetExtension($destination) -ne ".json") {
+        throw "Worker acceptance output must use a .json extension."
+    }
+    if (-not (Test-IsWithinPath -Candidate $destination -Parent $evidence) -or
+        $destination.Equals($evidence, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Worker acceptance output must remain beneath EvidenceRoot."
+    }
+    if (Test-Path -LiteralPath $destination) {
+        throw "Worker acceptance output already exists: $destination"
+    }
+    Assert-NoReparsePointForCandidate -Path $destination
     $parent = Split-Path -Parent $destination
-    if ($parent) {
-        New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    $resolvedParent = (Resolve-Path -LiteralPath $parent).Path
+    Assert-NoReparsePoint -Path $resolvedParent
+    if (-not (Test-IsWithinPath -Candidate $resolvedParent -Parent $evidence)) {
+        throw "Worker acceptance output parent escaped EvidenceRoot."
     }
     $OutputPath = $destination
 }
