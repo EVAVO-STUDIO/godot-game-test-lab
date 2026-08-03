@@ -142,6 +142,7 @@ if ($AcceptanceRepositoryPath) {
 if ($ExpectedTargetSha) { $acceptanceParameters.ExpectedTargetSha = $ExpectedTargetSha }
 if ($NativeProfilePath) { $acceptanceParameters.NativeProfilePath = $NativeProfilePath }
 if ($BotProfilePath) { $acceptanceParameters.BotProfilePath = $BotProfilePath }
+if ($workerOffline) { $acceptanceParameters.EngineOffline = $true }
 
 Write-Host "[godot-lab] Running host, hardware, engine, and optional game acceptance."
 & $acceptance @acceptanceParameters
