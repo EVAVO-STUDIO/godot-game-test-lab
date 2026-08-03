@@ -1,8 +1,22 @@
 # Windows game-estate acceptance
 
-`Invoke-GodotLabEstateAcceptance.ps1` performs the final source-preserving acceptance across multiple real Godot repositories on one logged-in Windows desktop. It is intentionally stricter than running an individual target: the manifest must include at least one pure GDScript project, at least one C# project, at least one native visible journey, and at least one deterministic bot journey.
+`Invoke-GodotLabEstateAcceptance.ps1` performs the final source-preserving
+acceptance across multiple real Godot repositories on one logged-in Windows
+desktop. It is intentionally stricter than running an individual target: the
+manifest must include at least one pure GDScript project, at least one C#
+project, at least one native visible journey, and at least one deterministic bot
+journey.
 
-The command verifies exact Lab and target SHAs, complete tracked and untracked cleanliness, allowed-root confinement, project type, target-owned journey profiles, MCP worker protocol identity, managed Standard and .NET editors, native validation, retained media, and post-run mutation state. Every target performs a live MCP protocol probe. Host receipts are admitted only as target-bound evidence when their nested validation and journey summaries bind the exact target SHA and project. It writes one aggregate `estate-acceptance.json` plus the individual `host-acceptance.json`, `mcp-worker-acceptance.json`, validation, native, bot, image, movie, audio, state-graph, and trace evidence beneath the external evidence root.
+The command verifies exact Lab and target SHAs, complete tracked and untracked
+cleanliness, allowed-root confinement, project type, target-owned journey
+profiles, MCP worker protocol identity, managed Standard and .NET editors,
+native validation, retained media, and post-run mutation state. Every target
+performs a live MCP protocol probe. Host receipts are admitted only as
+target-bound evidence when their nested validation and journey summaries bind
+the exact target SHA and project. It writes one aggregate
+`estate-acceptance.json` plus the individual `host-acceptance.json`,
+`mcp-worker-acceptance.json`, validation, native, bot, image, movie, audio,
+state-graph, and trace evidence beneath the external evidence root.
 
 ## Prerequisite
 
@@ -19,11 +33,20 @@ git pull --ff-only origin main
   -RequireFullMediaToolchain
 ```
 
-Docker Desktop must already be running in Linux-container mode when sandbox images are requested.
+Docker Desktop must already be running in Linux-container mode when sandbox
+images are requested.
 
 ## Manifest
 
-Save a target-owned manifest outside the Lab and game repositories, for example `C:\GodotLabEvidence\estate-manifest.json`. Every target must declare all fields. Profile paths are repository-relative and must remain inside that target checkout. Use an empty string for a profile that is not used by the selected mode.
+Save the manifest outside the Lab and every game repository, for example
+`C:\GodotLabEvidence\estate-manifest.json`. The manifest is bounded to 1 MiB,
+must be strict UTF-8 without a BOM, must contain no duplicate JSON property
+names, and must contain exactly `schemaVersion` and `targets`. Every target must
+declare exactly the documented fields.
+
+Profile paths must be tracked repository-relative files. Absolute paths,
+traversal, untracked profiles, extra target fields, ambiguous project paths and
+noncanonical project subpaths fail before any target process starts.
 
 ```json
 {
@@ -53,7 +76,11 @@ Save a target-owned manifest outside the Lab and game repositories, for example 
 }
 ```
 
-Replace the example SHAs with the exact output of `git -C <repository> rev-parse HEAD`. A GDScript target must have tracked `.gd` files and no tracked `.csproj`; a C# target must have tracked `.csproj` and `.cs` files. At least one target must use `native` or `all`, and at least one must use `bot` or `all`.
+Replace the example SHAs with the exact output of
+`git -C <repository> rev-parse HEAD`. A pure GDScript target must have tracked
+`.gd` files and no tracked `.csproj` or `.cs` files. A C# target must have
+tracked `.csproj` and `.cs` files. At least one target must use `native` or
+`all`, and at least one must use `bot` or `all`.
 
 ## Run
 
@@ -75,10 +102,41 @@ To register and start the scheduled loopback worker as part of the first target:
   -StartWorker
 ```
 
-After managed editors and templates are already cached, add `-EngineOffline` to prove that worker and host acceptance preserve the no-download policy.
+After managed editors and templates are already cached, add `-EngineOffline` to
+prove that worker and host acceptance preserve the no-download policy.
 
-Every target performs the real MCP protocol probe and receives its own full host, toolchain, engine, hardware, validation, journey, media, and source-mutation receipt. The aggregate receipt records SHA-256 identities for the admitted host, worker, validation, native, and bot receipts. The aggregate command holds one named machine-level lease while it scans and admits receipts. Unrelated concurrent host receipts are ignored unless they also claim the same exact target, in which case the run fails closed rather than guessing which receipt belongs to the target.
+## Evidence admission and finalization
+
+Every target performs the real MCP protocol probe and receives its own full
+host, toolchain, engine, hardware, validation, journey, media, and
+source-mutation receipt. Each retained JSON evidence file is read once through
+the bounded strict parser; the same admitted bytes are parsed and SHA-256
+hashed. Duplicate names, invalid UTF-8, BOMs, negative zero, non-finite numbers,
+excessive nesting, symbolic links and oversized evidence fail closed.
+
+The aggregate runner uses
+`Global\EVAVO.GodotLab.EstateAcceptance`, a machine-wide Windows named mutex, so
+separate interactive sessions cannot run competing estate admissions. The first
+target may register or start the worker; every target must independently prove
+the same complete worker roots, interactive policy, engine policy and required
+MCP tool set.
+
+Host, worker, validation, native and bot evidence is admitted only when exact
+Lab, repository, target SHA, `projectSubpath`, profile SHA-256, stage set,
+interactive desktop state, source-mutation state and required journey/campaign
+outcomes agree. Unrelated concurrent host receipts are ignored. More than one
+matching receipt for the same target fails closed instead of guessing.
+
+`estate-acceptance.json` schema 1.2 records manifest and evidence hashes plus a
+final `sourceChecks` result for the Lab and every target. Those source checks run
+on every exit path, including host failure and receipt-admission failure. The
+named mutex is released even if the final receipt cannot be written.
 
 ## Acceptance boundary
 
-This workflow proves the actual Windows session, installed GPU and sound-device inventory, exact game checkouts, Godot input routing, recorded evidence, and the accepted local MCP worker. Synthetic gamepad input is not physical controller enumeration, Steam Input, rumble, or latency certification. Automated media analysis is not human game-feel, accessibility, art-direction, or final mix approval.
+This workflow proves only the actual retained Windows session, installed GPU and
+sound-device inventory, exact game checkouts, Godot input routing, recorded
+evidence, and accepted local MCP worker represented by the receipts. Synthetic
+gamepad input is not physical controller enumeration, Steam Input, rumble, or
+latency certification. Automated media analysis is not human game-feel,
+accessibility, art-direction, or final mix approval.

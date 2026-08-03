@@ -10,6 +10,7 @@ $hostAcceptance = Join-Path $lab "scripts\Test-GodotLabAgentHost.ps1"
 if (-not (Test-Path -LiteralPath $hostAcceptance -PathType Leaf)) {
     throw "The governed host acceptance script is missing: $hostAcceptance"
 }
+Assert-NoReparsePoint -Path $hostAcceptance
 $python = Join-Path $lab ".venv\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
     throw "Run scripts\Initialize-GodotLabAgentHost.ps1 before estate acceptance."
@@ -18,12 +19,14 @@ Assert-NoReparsePoint -Path $python
 
 $manifestFile = (Resolve-Path -LiteralPath $ManifestPath).Path
 Assert-NoReparsePoint -Path $manifestFile
-try {
-    $manifest = Get-Content -Raw -LiteralPath $manifestFile | ConvertFrom-Json
-}
-catch {
-    throw "Estate acceptance manifest is not valid JSON: $($_.Exception.Message)"
-}
+$manifestRecord = Read-StrictJsonFile -Path $manifestFile `
+    -PythonExecutable $python `
+    -Label "Estate acceptance manifest" `
+    -MaximumBytes 1048576
+$manifest = $manifestRecord.Value
+Assert-ExactProperties -Value $manifest `
+    -Expected @("schemaVersion", "targets") `
+    -Label "Estate acceptance manifest"
 if ([string]$manifest.schemaVersion -ne "1.0") {
     throw "Estate acceptance manifest schemaVersion must be 1.0."
 }
@@ -70,14 +73,20 @@ $labSha = Get-GitText -Root $lab -Arguments @("rev-parse", "HEAD") `
 if (-not $ExpectedLabSha) {
     $ExpectedLabSha = $labSha
 }
-if ($ExpectedLabSha -notmatch '^[0-9a-f]{40}$' -or $labSha -ne $ExpectedLabSha) {
+if ($ExpectedLabSha -notmatch '^[0-9a-f]{40}$' -or
+    $labSha -ne $ExpectedLabSha) {
     throw "The Lab checkout does not match ExpectedLabSha."
 }
 $labStatusBefore = Get-GitText -Root $lab -Arguments @(
-    "status", "--porcelain=v1", "--untracked-files=all"
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all"
 ) -Label "Read Lab status before estate acceptance"
 if ($labStatusBefore) {
     throw "The Lab checkout must be completely clean before estate acceptance."
+}
+if (Test-IsWithinPath -Candidate $manifestFile -Parent $lab) {
+    throw "ManifestPath must remain outside the Lab checkout."
 }
 
 $requiredProperties = @(
@@ -95,11 +104,9 @@ $seenIds = [Collections.Generic.HashSet[string]]::new(
 )
 $targets = [Collections.ArrayList]::new()
 foreach ($entry in $entries) {
-    foreach ($property in $requiredProperties) {
-        if ($entry.PSObject.Properties.Name -notcontains $property) {
-            throw "Every target must define $property."
-        }
-    }
+    Assert-ExactProperties -Value $entry `
+        -Expected $requiredProperties `
+        -Label "Estate acceptance target"
 
     $id = [string]$entry.id
     if ($id -notmatch '^[a-z0-9][a-z0-9._-]{0,63}$') {
@@ -122,7 +129,8 @@ foreach ($entry in $entries) {
         throw "Target $id acceptanceMode must be validate, native, bot, or all."
     }
 
-    $repository = (Resolve-Path -LiteralPath ([string]$entry.repositoryPath)).Path
+    $repository = (Resolve-Path `
+        -LiteralPath ([string]$entry.repositoryPath)).Path
     Assert-NoReparsePoint -Path $repository
     $insideAllowedRoot = $false
     foreach ($root in $resolvedRoots) {
@@ -137,8 +145,12 @@ foreach ($entry in $entries) {
     if (Test-PathsOverlap -Left $repository -Right $lab) {
         throw "Target $id must remain disjoint from the Lab checkout."
     }
+    if (Test-IsWithinPath -Candidate $manifestFile -Parent $repository) {
+        throw "ManifestPath must remain outside target $id."
+    }
     $topLevel = Get-GitText -Root $repository -Arguments @(
-        "rev-parse", "--show-toplevel"
+        "rev-parse",
+        "--show-toplevel"
     ) -Label "Resolve target $id repository root"
     if (-not $repository.Equals(
         (Resolve-Path -LiteralPath $topLevel).Path,
@@ -147,26 +159,37 @@ foreach ($entry in $entries) {
         throw "Target $id repositoryPath must be the Git top-level directory."
     }
     $actualSha = Get-GitText -Root $repository -Arguments @(
-        "rev-parse", "HEAD"
+        "rev-parse",
+        "HEAD"
     ) -Label "Resolve target $id SHA"
     if ($actualSha -ne $expectedSha) {
         throw "Target $id does not match its expectedSha."
     }
     $statusBefore = Get-GitText -Root $repository -Arguments @(
-        "status", "--porcelain=v1", "--untracked-files=all"
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
     ) -Label "Read target $id status"
     if ($statusBefore) {
         throw "Target $id must be completely clean before estate acceptance."
     }
 
-    $projectSubpath = [string]$entry.projectSubpath
-    if (-not $projectSubpath) {
-        throw "Target $id projectSubpath cannot be empty."
+    $projectSubpath = ([string]$entry.projectSubpath).Replace('\', '/')
+    $projectPattern = `
+        '^(?:\.|[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)$'
+    if ($projectSubpath -notmatch $projectPattern -or
+        $projectSubpath -match '(^|/)\.\.(/|$)') {
+        throw (
+            "Target $id projectSubpath must be a traversal-free " +
+            "canonical relative path."
+        )
     }
-    if ([IO.Path]::IsPathRooted($projectSubpath)) {
-        throw "Target $id projectSubpath must be repository-relative."
+    $project = if ($projectSubpath -eq ".") {
+        $repository
     }
-    $project = [IO.Path]::GetFullPath((Join-Path $repository $projectSubpath))
+    else {
+        [IO.Path]::GetFullPath((Join-Path $repository $projectSubpath))
+    }
     if (-not (Test-IsWithinPath -Candidate $project -Parent $repository)) {
         throw "Target $id projectSubpath escapes the repository."
     }
@@ -174,20 +197,32 @@ foreach ($entry in $entries) {
         throw "Target $id projectSubpath does not exist."
     }
     Assert-NoReparsePoint -Path $project
-    if (-not (Test-Path -LiteralPath (Join-Path $project "project.godot") -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath (Join-Path $project "project.godot") `
+        -PathType Leaf)) {
         throw "Target $id projectSubpath does not contain project.godot."
     }
 
     $projectFiles = Get-ProjectFileInventory -RepositoryPath $repository `
         -ProjectSubpath $projectSubpath
-    $hasCsproj = @($projectFiles | Where-Object { $_ -match '\.csproj$' }).Count -gt 0
-    $hasCSharp = @($projectFiles | Where-Object { $_ -match '\.cs$' }).Count -gt 0
-    $hasGdscript = @($projectFiles | Where-Object { $_ -match '\.gd$' }).Count -gt 0
-    if ($projectKind -eq "csharp" -and (-not $hasCsproj -or -not $hasCSharp)) {
+    $hasCsproj = @(
+        $projectFiles | Where-Object { $_ -match '\.csproj$' }
+    ).Count -gt 0
+    $hasCSharp = @(
+        $projectFiles | Where-Object { $_ -match '\.cs$' }
+    ).Count -gt 0
+    $hasGdscript = @(
+        $projectFiles | Where-Object { $_ -match '\.gd$' }
+    ).Count -gt 0
+    if ($projectKind -eq "csharp" -and
+        (-not $hasCsproj -or -not $hasCSharp)) {
         throw "Target $id is declared csharp but lacks tracked .csproj or .cs files."
     }
-    if ($projectKind -eq "gdscript" -and (-not $hasGdscript -or $hasCsproj)) {
-        throw "Target $id is declared gdscript but is not a pure tracked GDScript project."
+    if ($projectKind -eq "gdscript" -and
+        (-not $hasGdscript -or $hasCsproj -or $hasCSharp)) {
+        throw (
+            "Target $id is declared gdscript but is not a pure tracked " +
+            "GDScript project."
+        )
     }
 
     $nativeProfile = ""
@@ -229,7 +264,11 @@ foreach ($entry in $entries) {
     })
 }
 
-$kinds = @($targets | ForEach-Object { $_.expectedProjectKind } | Sort-Object -Unique)
+$kinds = @(
+    $targets |
+        ForEach-Object { $_.expectedProjectKind } |
+        Sort-Object -Unique
+)
 if ($kinds -notcontains "gdscript" -or $kinds -notcontains "csharp") {
     throw "Estate acceptance requires at least one GDScript target and one C# target."
 }
@@ -241,8 +280,8 @@ if (-not ($modes | Where-Object { $_ -in @("bot", "all") })) {
     throw "Estate acceptance requires at least one deterministic bot journey."
 }
 
-New-Item -ItemType Directory -Force -Path $candidateEvidence, $candidateEngine |
-    Out-Null
+New-Item -ItemType Directory -Force `
+    -Path $candidateEvidence, $candidateEngine | Out-Null
 $evidence = (Resolve-Path -LiteralPath $candidateEvidence).Path
 $engines = (Resolve-Path -LiteralPath $candidateEngine).Path
 Assert-NoReparsePoint -Path $evidence
@@ -266,22 +305,23 @@ $runRoot = Join-Path $evidence "estate-acceptance\$stamp"
 New-Item -ItemType Directory -Path $runRoot | Out-Null
 $receiptPath = Join-Path $runRoot "estate-acceptance.json"
 $targetResults = [Collections.ArrayList]::new()
+$sourceChecks = [Collections.ArrayList]::new()
 $receipt = [ordered]@{
-    schemaVersion = "1.1"
+    schemaVersion = "1.2"
     status = "running"
     startedAt = [DateTimeOffset]::UtcNow.ToString("o")
     labRoot = $lab
     labSha = $labSha
     manifestPath = $manifestFile
-    manifestSha256 = $(
-        (Get-FileHash -LiteralPath $manifestFile -Algorithm SHA256).Hash.ToLowerInvariant()
-    )
+    manifestSha256 = $manifestRecord.Sha256
+    strictJsonProfile = "bounded-utf8-unique-names-v1"
     evidenceRoot = $evidence
     engineRoot = $engines
     runRoot = $runRoot
     allowedTargetRoots = @($resolvedRoots)
     engineOffline = [bool]$EngineOffline
     protocolProbePolicy = "every-target"
-    estateMutex = "Local\EVAVO.GodotLab.EstateAcceptance"
+    estateMutex = "Global\EVAVO.GodotLab.EstateAcceptance"
     targets = $targetResults
+    sourceChecks = $sourceChecks
 }
