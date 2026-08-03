@@ -2,7 +2,7 @@
 
 `Invoke-GodotLabEstateAcceptance.ps1` performs the final source-preserving acceptance across multiple real Godot repositories on one logged-in Windows desktop. It is intentionally stricter than running an individual target: the manifest must include at least one pure GDScript project, at least one C# project, at least one native visible journey, and at least one deterministic bot journey.
 
-The command verifies exact Lab and target SHAs, complete tracked and untracked cleanliness, allowed-root confinement, project type, target-owned journey profiles, MCP worker protocol identity, managed Standard and .NET editors, native validation, retained media, and post-run mutation state. It writes one aggregate `estate-acceptance.json` plus the individual `host-acceptance.json`, `mcp-worker-acceptance.json`, validation, native, bot, image, movie, audio, state-graph, and trace evidence beneath the external evidence root.
+The command verifies exact Lab and target SHAs, complete tracked and untracked cleanliness, allowed-root confinement, project type, target-owned journey profiles, MCP worker protocol identity, managed Standard and .NET editors, native validation, retained media, and post-run mutation state. Every target performs a live MCP protocol probe. Host receipts are admitted only as target-bound evidence when their nested validation and journey summaries bind the exact target SHA and project. It writes one aggregate `estate-acceptance.json` plus the individual `host-acceptance.json`, `mcp-worker-acceptance.json`, validation, native, bot, image, movie, audio, state-graph, and trace evidence beneath the external evidence root.
 
 ## Prerequisite
 
@@ -77,7 +77,7 @@ To register and start the scheduled loopback worker as part of the first target:
 
 After managed editors and templates are already cached, add `-EngineOffline` to prove that worker and host acceptance preserve the no-download policy.
 
-The first target always performs the real MCP protocol probe. Later targets may reuse that accepted worker in the same aggregate run, but each target still receives its own full host, toolchain, engine, hardware, validation, journey, media, and source-mutation receipt.
+Every target performs the real MCP protocol probe and receives its own full host, toolchain, engine, hardware, validation, journey, media, and source-mutation receipt. The aggregate receipt records SHA-256 identities for the admitted host, worker, validation, native, and bot receipts. The aggregate command holds one named machine-level lease while it scans and admits receipts. Unrelated concurrent host receipts are ignored unless they also claim the same exact target, in which case the run fails closed rather than guessing which receipt belongs to the target.
 
 ## Acceptance boundary
 
