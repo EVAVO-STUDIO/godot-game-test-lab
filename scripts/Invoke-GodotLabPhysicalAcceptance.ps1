@@ -182,8 +182,8 @@ if ($gdscript.Path.Equals(
 )) {
     throw "GDScriptRepositoryPath and CSharpRepositoryPath must be different repositories."
 }
-if (Test-PathsOverlap -Left $gdscript.Path -Right $lab -or
-    Test-PathsOverlap -Left $csharp.Path -Right $lab) {
+if ((Test-PathsOverlap -Left $gdscript.Path -Right $lab) -or
+    (Test-PathsOverlap -Left $csharp.Path -Right $lab)) {
     throw "Physical acceptance targets must remain disjoint from the Lab checkout."
 }
 
@@ -197,7 +197,9 @@ $botProfile = Resolve-ManifestProfilePath `
     -Label "C# bot profile"
 
 $candidateEvidence = [IO.Path]::GetFullPath($EvidenceRoot)
+$candidateEngine = [IO.Path]::GetFullPath($EngineRoot)
 Assert-NoReparsePointForCandidate -Path $candidateEvidence
+Assert-NoReparsePointForCandidate -Path $candidateEngine
 if (Test-PathsOverlap -Left $candidateEvidence -Right $lab) {
     throw "EvidenceRoot must remain disjoint from the Lab checkout."
 }
@@ -206,6 +208,12 @@ foreach ($root in $resolvedRoots) {
         throw "EvidenceRoot must remain disjoint from every allowed target root."
     }
 }
+foreach ($protected in @($lab, $candidateEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $candidateEngine -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $candidateEvidence | Out-Null
 $evidence = (Resolve-Path -LiteralPath $candidateEvidence).Path
 Assert-NoReparsePoint -Path $evidence
@@ -255,7 +263,7 @@ if ($InitializeHost) {
         TargetRoot = $resolvedRoots[0]
         AdditionalTargetRoots = @($resolvedRoots | Select-Object -Skip 1)
         EvidenceRoot = $evidence
-        EngineRoot = $EngineRoot
+        EngineRoot = $candidateEngine
         EngineVersion = $EngineVersion
         TaskName = $TaskName
         Port = $Port
@@ -278,7 +286,7 @@ $estateParameters = @{
     LabRoot = $lab
     AllowedTargetRoots = @($resolvedRoots)
     EvidenceRoot = $evidence
-    EngineRoot = $EngineRoot
+    EngineRoot = $candidateEngine
     TaskName = $TaskName
     Port = $Port
     WorkerStartupTimeoutSeconds = $WorkerStartupTimeoutSeconds
