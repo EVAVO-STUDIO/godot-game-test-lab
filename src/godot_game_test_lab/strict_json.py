@@ -52,7 +52,7 @@ def _validate_value(value: Any, *, depth: int = 0) -> None:
         except UnicodeEncodeError as error:
             raise StrictJsonError("JSON contains an invalid Unicode string") from error
         return
-    if value is None or isinstance(value, (bool, int)):
+    if value is None or isinstance(value, bool | int):
         return
     if isinstance(value, float):
         if not math.isfinite(value):
