@@ -62,8 +62,15 @@ def test_agent_host_uses_protocol_identity_and_complete_root_set() -> None:
     assert 'RequireScheduledTask = $true' in source
     assert '"--no-auto-provision"' in source
     assert '"status", "--porcelain=v1", "--untracked-files=all"' in source
+    assert "SkipWorkerProbe" not in source
+    assert "if ($RegisterWorker -or $StartWorker)" not in source
+    assert source.count('Invoke-Stage -Id "worker-protocol-acceptance"') == 1
 
 
-def test_initializer_preserves_offline_policy_in_host_acceptance() -> None:
+def test_initializer_delegates_the_only_protocol_proof_to_host_acceptance() -> None:
     source = _source(INITIALIZE)
     assert 'if ($workerOffline) { $acceptanceParameters.EngineOffline = $true }' in source
+    assert "SkipWorkerProbe" not in source
+    assert "Test-GodotLabMcpWorker.ps1" not in source
+    assert "$workerProbeParameters" not in source
+    assert "& $acceptance @acceptanceParameters" in source

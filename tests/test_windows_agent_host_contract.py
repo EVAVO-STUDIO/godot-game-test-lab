@@ -13,7 +13,6 @@ def test_agent_host_initializer_is_one_command_and_delegates_safely() -> None:
         "Initialize-GodotLabAgentHost.ps1 must run on Windows",
         "scripts\\Install-GodotLab.ps1",
         "scripts\\Register-GodotLabMcpWorker.ps1",
-        "scripts\\Test-GodotLabMcpWorker.ps1",
         "scripts\\Test-GodotLabAgentHost.ps1",
         "AdditionalTargetRoots",
         "PrepareEstate",
@@ -22,15 +21,18 @@ def test_agent_host_initializer_is_one_command_and_delegates_safely() -> None:
         "RequireFullMediaToolchain",
         "AllowedTargetRoots = @($allTargetRoots)",
         "StartNow = $true",
-        "RequireScheduledTask = $true",
         "ExpectedLabSha = $labSha",
-        "SkipWorkerProbe = $true",
         "EngineOffline = $true",
+        "& $acceptance @acceptanceParameters",
         "Agent host initialization and acceptance completed",
     ):
         assert token in source, token
 
     for forbidden in (
+        "scripts\\Test-GodotLabMcpWorker.ps1",
+        "$workerProbeParameters",
+        "& $testWorker",
+        "SkipWorkerProbe",
         "RegisterWorker = $true",
         "StartWorker = $true",
         "git commit",
@@ -63,6 +65,7 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "nvidia-smi",
         "Register-GodotLabMcpWorker.ps1",
         "Test-GodotLabMcpWorker.ps1",
+        "RequireScheduledTask = $true",
         'endpoint = "http://127.0.0.1:$Port/mcp"',
         "Invoke-GodotLabNativeValidation.ps1",
         "Invoke-GodotLabNativeAgentQA.ps1",
@@ -81,6 +84,8 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         assert token in source, token
 
     for forbidden in (
+        "SkipWorkerProbe",
+        "if ($RegisterWorker -or $StartWorker)",
         "git commit",
         "git push",
         "git reset --hard",
@@ -92,3 +97,13 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "Move-Item -LiteralPath $temporary -Destination $Path -Force",
     ):
         assert forbidden not in source
+
+
+def test_protocol_proof_is_single_unconditional_and_precedes_target_work() -> None:
+    source = ACCEPTANCE.read_text(encoding="utf-8")
+    stage = 'Invoke-Stage -Id "worker-protocol-acceptance"'
+
+    assert source.count(stage) == 1
+    assert source.index(stage) < source.index("if ($AcceptanceRepositoryPath)")
+    assert "if (-not $SkipWorkerProbe)" not in source
+    assert "RequireScheduledTask = $true" in source

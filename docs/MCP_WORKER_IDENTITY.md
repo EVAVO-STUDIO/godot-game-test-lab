@@ -118,9 +118,11 @@ sandbox QA lanes retain their own network and external-service policies.
 
 ## One-command host initialization
 
-`Initialize-GodotLabAgentHost.ps1` now performs registration and MCP protocol
-acceptance before running the broader engine, hardware, and optional real-game
-acceptance:
+`Initialize-GodotLabAgentHost.ps1` registers and starts the worker, then invokes
+the broader host acceptance. The host's mandatory
+`worker-protocol-acceptance` stage performs the protocol proof and retains its
+`mcp-worker-acceptance.json` inside the same host run. Neither host command
+exposes a switch that can bypass protocol proof:
 
 ```powershell
 .\scripts\Initialize-GodotLabAgentHost.ps1 `

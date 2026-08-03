@@ -24,8 +24,7 @@ param(
     [string]$NativeProfilePath = "",
     [string]$BotProfilePath = "",
     [ValidateSet("validate", "native", "bot", "all")]
-    [string]$AcceptanceMode = "validate",
-    [switch]$SkipWorkerProbe
+    [string]$AcceptanceMode = "validate"
 )
 
 Set-StrictMode -Version Latest
@@ -40,9 +39,8 @@ if (-not $LabRoot) {
 $lab = (Resolve-Path -LiteralPath $LabRoot).Path
 $installer = Join-Path $lab "scripts\Install-GodotLab.ps1"
 $registerWorker = Join-Path $lab "scripts\Register-GodotLabMcpWorker.ps1"
-$testWorker = Join-Path $lab "scripts\Test-GodotLabMcpWorker.ps1"
 $acceptance = Join-Path $lab "scripts\Test-GodotLabAgentHost.ps1"
-foreach ($script in @($installer, $registerWorker, $testWorker, $acceptance)) {
+foreach ($script in @($installer, $registerWorker, $acceptance)) {
     if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
         throw "Required host bootstrap script is missing: $script"
     }
@@ -106,24 +104,6 @@ if ($workerOffline) {
 Write-Host "[godot-lab] Registering and starting the exact loopback MCP worker."
 & $registerWorker @registerParameters
 
-if (-not $SkipWorkerProbe) {
-    $workerProbeParameters = @{
-        LabRoot = $lab
-        AllowedTargetRoots = @($allTargetRoots)
-        EvidenceRoot = $EvidenceRoot
-        EngineRoot = $EngineRoot
-        TaskName = $TaskName
-        Port = $Port
-        ExpectedLabSha = $labSha
-        RequireScheduledTask = $true
-    }
-    if ($workerOffline) {
-        $workerProbeParameters.EngineOffline = $true
-    }
-    Write-Host "[godot-lab] Proving the live worker through the MCP protocol."
-    & $testWorker @workerProbeParameters
-}
-
 $acceptanceParameters = @{
     LabRoot = $lab
     AllowedTargetRoots = @($allTargetRoots)
@@ -132,7 +112,6 @@ $acceptanceParameters = @{
     TaskName = $TaskName
     Port = $Port
     ExpectedLabSha = $labSha
-    SkipWorkerProbe = $true
     AcceptanceMode = $AcceptanceMode
     ProjectSubpath = $ProjectSubpath
 }

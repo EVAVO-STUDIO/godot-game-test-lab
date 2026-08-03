@@ -20,8 +20,7 @@ param(
     [string]$AcceptanceMode = "validate",
     [switch]$EngineOffline,
     [switch]$RegisterWorker,
-    [switch]$StartWorker,
-    [switch]$SkipWorkerProbe
+    [switch]$StartWorker
 )
 
 Set-StrictMode -Version Latest
@@ -430,41 +429,37 @@ try {
         } | Out-Null
     }
 
-    if (-not $SkipWorkerProbe) {
-        Invoke-Stage -Id "worker-protocol-acceptance" -Stages $stages -Action {
-            $testWorker = Join-Path $lab "scripts\Test-GodotLabMcpWorker.ps1"
-            if (-not (Test-Path -LiteralPath $testWorker -PathType Leaf)) {
-                throw "The MCP worker acceptance script is missing: $testWorker"
-            }
-            $workerReceipt = Join-Path $runRoot "mcp-worker-acceptance.json"
-            $probeParameters = @{
-                LabRoot = $lab
-                AllowedTargetRoots = @($resolvedRoots)
-                EvidenceRoot = $evidence
-                EngineRoot = $engines
-                TaskName = $TaskName
-                Port = $Port
-                TimeoutSeconds = $WorkerStartupTimeoutSeconds
-                ExpectedLabSha = $labSha
-                OutputPath = $workerReceipt
-            }
-            if ($EngineOffline) {
-                $probeParameters.EngineOffline = $true
-            }
-            if ($RegisterWorker -or $StartWorker) {
-                $probeParameters.RequireScheduledTask = $true
-            }
-            & $testWorker @probeParameters
-            $probe = Get-Content -Raw -LiteralPath $workerReceipt |
-                ConvertFrom-Json
-            return [ordered]@{
-                receipt = $workerReceipt
-                bridge = [string]$probe.capabilities.bridge
-                allowedTargetRoots = @($probe.capabilities.allowedTargetRoots)
-                autoProvisionEngines = [bool]$probe.capabilities.autoProvisionEngines
-            }
-        } | Out-Null
-    }
+    Invoke-Stage -Id "worker-protocol-acceptance" -Stages $stages -Action {
+        $testWorker = Join-Path $lab "scripts\Test-GodotLabMcpWorker.ps1"
+        if (-not (Test-Path -LiteralPath $testWorker -PathType Leaf)) {
+            throw "The MCP worker acceptance script is missing: $testWorker"
+        }
+        $workerReceipt = Join-Path $runRoot "mcp-worker-acceptance.json"
+        $probeParameters = @{
+            LabRoot = $lab
+            AllowedTargetRoots = @($resolvedRoots)
+            EvidenceRoot = $evidence
+            EngineRoot = $engines
+            TaskName = $TaskName
+            Port = $Port
+            TimeoutSeconds = $WorkerStartupTimeoutSeconds
+            ExpectedLabSha = $labSha
+            OutputPath = $workerReceipt
+            RequireScheduledTask = $true
+        }
+        if ($EngineOffline) {
+            $probeParameters.EngineOffline = $true
+        }
+        & $testWorker @probeParameters
+        $probe = Get-Content -Raw -LiteralPath $workerReceipt |
+            ConvertFrom-Json
+        return [ordered]@{
+            receipt = $workerReceipt
+            bridge = [string]$probe.capabilities.bridge
+            allowedTargetRoots = @($probe.capabilities.allowedTargetRoots)
+            autoProvisionEngines = [bool]$probe.capabilities.autoProvisionEngines
+        }
+    } | Out-Null
 
     if ($AcceptanceRepositoryPath) {
         $target = (Resolve-Path -LiteralPath $AcceptanceRepositoryPath).Path

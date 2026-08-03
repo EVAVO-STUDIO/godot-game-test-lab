@@ -19,7 +19,9 @@ interactive at-logon scheduled task, starts it, and runs acceptance.
 
 `Test-GodotLabAgentHost.ps1` is the repeatable acceptance check. It does not
 install software unless `-RegisterWorker` is explicitly requested. It writes a
-bounded machine-readable receipt outside all source repositories.
+bounded machine-readable receipt outside all source repositories. Its
+`worker-protocol-acceptance` stage is mandatory; neither host entrypoint exposes
+a switch that can bypass the live protocol proof.
 
 ## One-command workstation setup
 
@@ -48,8 +50,9 @@ This path:
 7. can build governed Standard and Mono Linux sandbox images;
 8. registers the loopback-only MCP worker at logon;
 9. starts the worker in the current interactive session;
-10. verifies the MCP port, managed engines, doctor, hardware inventory, and MCP
-    self-test;
+10. initializes a real Streamable HTTP MCP session, lists tools, matches the exact
+    roots and provisioning policy, and verifies managed engines, doctor, hardware
+    inventory, and the MCP self-test;
 11. writes an acceptance receipt under
     `C:\GodotLabEvidence\host-acceptance\<run-id>`.
 
@@ -129,7 +132,7 @@ journeys, and bot exploration in one evidence bundle.
 - Explorer session evidence;
 - Standard and .NET managed-engine readiness;
 - doctor and MCP self-test results;
-- scheduled-task and loopback-port status;
+- scheduled-task state and protocol-bound worker identity, roots, policy, and tools;
 - Windows, video-controller, sound-device, and optional NVIDIA evidence;
 - target validation, authored journey, and bot stages when requested;
 - exact per-stage status, duration, and retained evidence paths.
@@ -149,7 +152,8 @@ The host acceptance path fails closed when:
 - the project subpath escapes the target Git root;
 - the worker runs in Session 0 or without Explorer in the same session;
 - Standard or .NET Godot is not ready;
-- the MCP self-test or loopback worker probe fails;
+- the MCP self-test or live protocol worker probe fails;
+- the required scheduled task is absent;
 - a target run changes or obscures the target repository.
 
 The worker binds to `127.0.0.1` only. It does not expose arbitrary shell
