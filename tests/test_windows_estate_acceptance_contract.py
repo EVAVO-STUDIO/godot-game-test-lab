@@ -10,11 +10,13 @@ SCRIPT_PATHS = (
     ROOT / "scripts" / "GodotLabEstateAcceptance.Preflight.ps1",
     ROOT / "scripts" / "GodotLabEstateAcceptance.Execute.ps1",
 )
+STRICT_JSON = ROOT / "src" / "godot_game_test_lab" / "strict_json.py"
 DOC = ROOT / "docs" / "WINDOWS_ESTATE_ACCEPTANCE.md"
 
 
 def test_estate_acceptance_is_exact_bounded_and_fail_closed() -> None:
     source = "\n".join(path.read_text(encoding="utf-8") for path in SCRIPT_PATHS)
+    strict_json = STRICT_JSON.read_text(encoding="utf-8")
     for token in (
         "GodotLabEstateAcceptance.Common.ps1",
         "GodotLabEstateAcceptance.Receipt.ps1",
@@ -24,7 +26,14 @@ def test_estate_acceptance_is_exact_bounded_and_fail_closed() -> None:
         "strict_json.py",
         "Read-StrictJsonFile",
         "Assert-ExactProperties",
-        "bounded-utf8-unique-names-v1",
+        "Assert-JsonString",
+        "Assert-JsonBoolean",
+        "Assert-JsonInteger",
+        "Assert-JsonStringArray",
+        "Assert-JsonObjectArray",
+        "bounded-utf8-unique-names-stable-file-v2",
+        "closed-authority-types-v1",
+        "global-before-preflight-v1",
         "schemaVersion must be 1.0",
         "between 2 and 16 targets",
         "exact 40-character expectedSha",
@@ -62,6 +71,7 @@ def test_estate_acceptance_is_exact_bounded_and_fail_closed() -> None:
         "machine-wide lease",
         "worker-protocol-acceptance",
         "Test-HostReceiptCandidate",
+        "Test-HostSourceChecksPassed",
         "Test-StageSetPassed",
         "Test-RequiredItemsPassed",
         "native-validation-receipt.json",
@@ -75,13 +85,25 @@ def test_estate_acceptance_is_exact_bounded_and_fail_closed() -> None:
         "validationReceiptSha256",
         "Final source verification failed",
         "sourceChecks",
-        'schemaVersion = "1.2"',
+        'schemaVersion = "1.3"',
+        'schemaVersion -ne "1.1"',
         "estate-acceptance.json",
         "Write-AtomicJson -Path $receiptPath",
         "$estateMutex.ReleaseMutex()",
         "$estateMutex.Dispose()",
     ):
         assert token in source, token
+
+    for token in (
+        "os.open(source, flags)",
+        "os.fstat(descriptor)",
+        "os.path.samestat",
+        "JSON path changed before it was opened",
+        "JSON file changed while it was read",
+        "maximum_bytes + 1",
+        "hashlib.sha256(payload).hexdigest()",
+    ):
+        assert token in strict_json, token
 
     for forbidden in (
         "git commit",
@@ -97,8 +119,21 @@ def test_estate_acceptance_is_exact_bounded_and_fail_closed() -> None:
         "Get-HostReceiptPaths -Root $evidence",
         "$beforeReceipts",
         "$newReceipts",
+        "[bool]$host.engineOffline",
+        "[int]$host.sessionId",
+        "[bool]$validation.targetUnchanged",
     ):
         assert forbidden not in source
+
+    assert source.count("[Threading.Mutex]::new(") == 1
+    wait = source.index("$estateMutex.WaitOne(")
+    preflight = source.index(
+        '. $modulePaths["GodotLabEstateAcceptance.Preflight.ps1"]'
+    )
+    execute = source.index(
+        '. $modulePaths["GodotLabEstateAcceptance.Execute.ps1"]'
+    )
+    assert wait < preflight < execute
 
 
 def test_estate_acceptance_documentation_preserves_truth_boundary() -> None:
@@ -113,12 +148,17 @@ def test_estate_acceptance_documentation_preserves_truth_boundary() -> None:
         "Every target",
         "target-bound",
         "machine-wide Windows named mutex",
+        "before manifest and target preflight",
         "duplicate JSON",
         "tracked repository-relative",
+        "stable open file descriptor",
+        "exact JSON types",
         "explicit target-owned host run root",
         "<ordinal>-<target-id>-<sha-prefix>",
         "Windows device-name and",
         "not scan the shared host receipt tree",
+        "schema 1.3",
+        "host-acceptance.json schema 1.1",
         "every exit path",
         "SHA-256",
         "physical controller",
