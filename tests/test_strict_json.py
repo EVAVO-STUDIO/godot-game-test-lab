@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -72,3 +73,57 @@ def test_strict_json_rejects_symbolic_links(tmp_path: Path) -> None:
 
     with pytest.raises(StrictJsonError, match="non-symbolic-link"):
         load_strict_json_object(linked, maximum_bytes=1024)
+
+
+def test_strict_json_rejects_descriptor_identity_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = write_bytes(tmp_path / "manifest.json", b'{"value":1}')
+    original_fstat = os.fstat
+    calls = 0
+
+    def drifting_fstat(descriptor: int) -> os.stat_result:
+        nonlocal calls
+        calls += 1
+        observed = original_fstat(descriptor)
+        if calls == 2:
+            values = list(observed)
+            values[6] += 1
+            return os.stat_result(values)
+        return observed
+
+    monkeypatch.setattr(os, "fstat", drifting_fstat)
+
+    with pytest.raises(StrictJsonError, match="changed while it was read"):
+        load_strict_json_object(path, maximum_bytes=1024)
+
+
+def test_strict_json_reads_through_one_open_descriptor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = write_bytes(tmp_path / "manifest.json", b'{"value":1}')
+    original_open = os.open
+    original_read = os.read
+    opened: list[int] = []
+    reads: list[int] = []
+
+    def observed_open(target: os.PathLike[str], flags: int) -> int:
+        descriptor = original_open(target, flags)
+        opened.append(descriptor)
+        return descriptor
+
+    def observed_read(descriptor: int, count: int) -> bytes:
+        reads.append(descriptor)
+        return original_read(descriptor, count)
+
+    monkeypatch.setattr(os, "open", observed_open)
+    monkeypatch.setattr(os, "read", observed_read)
+
+    value, _ = load_strict_json_object(path, maximum_bytes=1024)
+
+    assert value == {"value": 1}
+    assert len(opened) == 1
+    assert reads
+    assert set(reads) == set(opened)
