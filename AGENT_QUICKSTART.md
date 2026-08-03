@@ -109,12 +109,15 @@ and host acceptance in Greg's logged-in desktop session:
 ```
 
 The initializer registers the loopback-only MCP worker as an interactive at-logon
-task, starts it, verifies both managed Godot flavours, runs the doctor and MCP
-self-test, inventories video and sound devices, probes `127.0.0.1:8765`, and
-retains `host-acceptance.json` outside every source repository. Use
-`scripts/Test-GodotLabAgentHost.ps1` to repeat acceptance or include a clean real
-game repository, native journey profile, or deterministic bot profile. See
-`docs/WINDOWS_AGENT_HOST_ACCEPTANCE.md`.
+task and starts it. The host's mandatory `worker-protocol-acceptance` stage then
+initializes a real Streamable HTTP MCP session, lists the worker tools, verifies
+the exact Lab, target, evidence and engine roots plus provisioning policy, checks
+both managed Godot flavours, runs the doctor and MCP self-test, inventories video
+and sound devices, and retains `host-acceptance.json` outside every source
+repository. Neither host entrypoint exposes a switch that can bypass this
+protocol proof. Use `scripts/Test-GodotLabAgentHost.ps1` to repeat acceptance or
+include a clean real game repository, native journey profile, or deterministic
+bot profile. See `docs/WINDOWS_AGENT_HOST_ACCEPTANCE.md`.
 
 ## Test another repository
 
