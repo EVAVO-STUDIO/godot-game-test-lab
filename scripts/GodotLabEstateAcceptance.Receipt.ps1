@@ -98,7 +98,7 @@ function Test-HostSourceChecksPassed {
     }
 
     $labChecks = @($allChecks | Where-Object { $_.id -eq "lab" })
-    $targetChecks = @($allChecks | Where-Object { $_.id -eq $Target.id })
+    $targetChecks = @($allChecks | Where-Object { $_.id -eq "target" })
     if ($labChecks.Count -ne 1 -or $targetChecks.Count -ne 1) {
         return $false
     }
