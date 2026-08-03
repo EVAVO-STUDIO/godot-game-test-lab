@@ -1,0 +1,43 @@
+name: Export pinned Prettier 3.6.2
+
+on:
+  push:
+    branches:
+      - work/export-prettier-3.6.2-20260803
+
+permissions:
+  contents: read
+
+concurrency:
+  group: export-prettier-3-6-2
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify runtime and obtain exact package
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const [major] = process.versions.node.split(".").map(Number); if (major < 20) throw new Error(process.version)'
+          mkdir -p out
+          npm pack prettier@3.6.2 --pack-destination out
+          test -f out/prettier-3.6.2.tgz
+          printf '%s  %s\n' \
+            'sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==' \
+            'out/prettier-3.6.2.tgz' > out/npm-integrity.txt
+          sha256sum out/prettier-3.6.2.tgz > out/prettier-3.6.2.tgz.sha256
+
+      - name: Upload exact formatter package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: prettier-3.6.2
+          path: |
+            out/prettier-3.6.2.tgz
+            out/prettier-3.6.2.tgz.sha256
+            out/npm-integrity.txt
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
