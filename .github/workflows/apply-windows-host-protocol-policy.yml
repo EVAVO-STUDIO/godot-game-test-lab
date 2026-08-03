@@ -102,6 +102,8 @@ jobs:
           import subprocess
 
           expected = {
+              ".evavo/windows-host-protocol.py.gz.b64",
+              ".github/workflows/apply-windows-host-protocol-policy.yml",
               "scripts/Initialize-GodotLabAgentHost.ps1",
               "scripts/Register-GodotLabMcpWorker.ps1",
               "scripts/Test-GodotLabAgentHost.ps1",
