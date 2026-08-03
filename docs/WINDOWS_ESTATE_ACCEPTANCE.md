@@ -121,16 +121,36 @@ target may register or start the worker; every target must independently prove
 the same complete worker roots, interactive policy, engine policy and required
 MCP tool set.
 
+Each manifest target receives one explicit target-owned host run root:
+
+```text
+estate-acceptance/<stamp>/targets/<ordinal>-<target-id>-<sha-prefix>/host
+```
+
+The directory component combines the target ordinal, stable target ID and the
+first 12 characters of the exact target SHA. This avoids Windows device-name and
+trailing-dot collisions while remaining deterministic and reviewable. The estate
+runner passes the resulting absolute non-existing path through `HostRunRoot`.
+
+The host command requires its parent to exist, requires the path to remain
+strictly beneath `EvidenceRoot`, rejects reparse points and existing paths, and
+creates the run directory and receipts without overwrite. Aggregate admission
+therefore reads the one exact `host-acceptance.json` path it assigned; it does
+not scan the shared host receipt tree or infer ownership from timestamps.
+
 Host, worker, validation, native and bot evidence is admitted only when exact
 Lab, repository, target SHA, `projectSubpath`, profile SHA-256, stage set,
 interactive desktop state, source-mutation state and required journey/campaign
-outcomes agree. Unrelated concurrent host receipts are ignored. More than one
-matching receipt for the same target fails closed instead of guessing.
+outcomes agree. Unrelated standalone host receipts cannot enter the target's
+admission path.
 
-`estate-acceptance.json` schema 1.2 records manifest and evidence hashes plus a
-final `sourceChecks` result for the Lab and every target. Those source checks run
-on every exit path, including host failure and receipt-admission failure. The
-named mutex is released even if the final receipt cannot be written.
+`estate-acceptance.json` schema 1.2 records
+`hostReceiptPolicy: explicit-target-root-v1`, manifest and evidence hashes, and
+a final `sourceChecks` result for the Lab and every target. The legacy
+`ignoredConcurrentHostReceipts` field remains an empty array for schema-1.2
+consumer compatibility because no shared receipt scan occurs. Those source checks
+run on every exit path, including host failure and receipt-admission failure.
+The named mutex is released even if the final receipt cannot be written.
 
 ## Acceptance boundary
 
