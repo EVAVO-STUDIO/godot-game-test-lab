@@ -27,7 +27,11 @@ $manifest = $manifestRecord.Value
 Assert-ExactProperties -Value $manifest `
     -Expected @("schemaVersion", "targets") `
     -Label "Estate acceptance manifest"
-if ([string]$manifest.schemaVersion -ne "1.0") {
+Assert-JsonString -Value $manifest.schemaVersion `
+    -Label "Estate acceptance manifest schemaVersion"
+Assert-JsonObjectArray -Value $manifest.targets `
+    -Label "Estate acceptance manifest targets"
+if ($manifest.schemaVersion -ne "1.0") {
     throw "Estate acceptance manifest schemaVersion must be 1.0."
 }
 $entries = @($manifest.targets)
@@ -107,8 +111,12 @@ foreach ($entry in $entries) {
     Assert-ExactProperties -Value $entry `
         -Expected $requiredProperties `
         -Label "Estate acceptance target"
+    foreach ($property in $requiredProperties) {
+        Assert-JsonString -Value $entry.$property `
+            -Label "Estate acceptance target $property"
+    }
 
-    $id = [string]$entry.id
+    $id = $entry.id
     if ($id -notmatch '^[a-z0-9][a-z0-9._-]{0,63}$') {
         throw "Target id must be a lowercase stable identifier: $id"
     }
@@ -116,21 +124,20 @@ foreach ($entry in $entries) {
         throw "Target ids must be unique: $id"
     }
 
-    $expectedSha = ([string]$entry.expectedSha).ToLowerInvariant()
+    $expectedSha = $entry.expectedSha.ToLowerInvariant()
     if ($expectedSha -notmatch '^[0-9a-f]{40}$') {
         throw "Target $id must declare an exact 40-character expectedSha."
     }
-    $projectKind = ([string]$entry.expectedProjectKind).ToLowerInvariant()
+    $projectKind = $entry.expectedProjectKind.ToLowerInvariant()
     if ($projectKind -notin @("gdscript", "csharp")) {
         throw "Target $id expectedProjectKind must be gdscript or csharp."
     }
-    $mode = ([string]$entry.acceptanceMode).ToLowerInvariant()
+    $mode = $entry.acceptanceMode.ToLowerInvariant()
     if ($mode -notin @("validate", "native", "bot", "all")) {
         throw "Target $id acceptanceMode must be validate, native, bot, or all."
     }
 
-    $repository = (Resolve-Path `
-        -LiteralPath ([string]$entry.repositoryPath)).Path
+    $repository = (Resolve-Path -LiteralPath $entry.repositoryPath).Path
     Assert-NoReparsePoint -Path $repository
     $insideAllowedRoot = $false
     foreach ($root in $resolvedRoots) {
@@ -174,7 +181,7 @@ foreach ($entry in $entries) {
         throw "Target $id must be completely clean before estate acceptance."
     }
 
-    $projectSubpath = ([string]$entry.projectSubpath).Replace('\', '/')
+    $projectSubpath = $entry.projectSubpath.Replace('\', '/')
     $projectPattern = `
         '^(?:\.|[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)$'
     if ($projectSubpath -notmatch $projectPattern -or
@@ -229,18 +236,18 @@ foreach ($entry in $entries) {
     $botProfile = ""
     if ($mode -in @("native", "all")) {
         $nativeProfile = Resolve-TargetOwnedFile -RepositoryPath $repository `
-            -SuppliedPath ([string]$entry.nativeProfilePath) `
+            -SuppliedPath $entry.nativeProfilePath `
             -Label "Target $id nativeProfilePath"
     }
-    elseif ([string]$entry.nativeProfilePath) {
+    elseif ($entry.nativeProfilePath) {
         throw "Target $id supplies nativeProfilePath without native acceptance."
     }
     if ($mode -in @("bot", "all")) {
         $botProfile = Resolve-TargetOwnedFile -RepositoryPath $repository `
-            -SuppliedPath ([string]$entry.botProfilePath) `
+            -SuppliedPath $entry.botProfilePath `
             -Label "Target $id botProfilePath"
     }
-    elseif ([string]$entry.botProfilePath) {
+    elseif ($entry.botProfilePath) {
         throw "Target $id supplies botProfilePath without bot acceptance."
     }
 
@@ -307,14 +314,16 @@ $receiptPath = Join-Path $runRoot "estate-acceptance.json"
 $targetResults = [Collections.ArrayList]::new()
 $sourceChecks = [Collections.ArrayList]::new()
 $receipt = [ordered]@{
-    schemaVersion = "1.2"
+    schemaVersion = "1.3"
     status = "running"
     startedAt = [DateTimeOffset]::UtcNow.ToString("o")
     labRoot = $lab
     labSha = $labSha
     manifestPath = $manifestFile
     manifestSha256 = $manifestRecord.Sha256
-    strictJsonProfile = "bounded-utf8-unique-names-v1"
+    strictJsonProfile = "bounded-utf8-unique-names-stable-file-v2"
+    receiptTypePolicy = "closed-authority-types-v1"
+    preflightLeasePolicy = "global-before-preflight-v1"
     evidenceRoot = $evidence
     engineRoot = $engines
     runRoot = $runRoot

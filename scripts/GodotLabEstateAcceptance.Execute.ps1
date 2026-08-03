@@ -1,27 +1,8 @@
 $receipt.hostReceiptPolicy = "explicit-target-root-v1"
 $failure = $null
 $receiptWriteFailure = $null
-$mutexAcquired = $false
-$mutexAbandoned = $false
-$estateMutex = [Threading.Mutex]::new(
-    $false,
-    "Global\EVAVO.GodotLab.EstateAcceptance"
-)
 
 try {
-    try {
-        $mutexAcquired = $estateMutex.WaitOne(
-            [TimeSpan]::FromSeconds($EstateLockTimeoutSeconds)
-        )
-    }
-    catch [Threading.AbandonedMutexException] {
-        $mutexAcquired = $true
-        $mutexAbandoned = $true
-    }
-    if (-not $mutexAcquired) {
-        throw "Another Godot estate acceptance owns the machine-wide lease."
-    }
-    $receipt.abandonedMutexRecovered = $mutexAbandoned
     $targetsRoot = Join-Path $runRoot "targets"
     New-Item -ItemType Directory -Path $targetsRoot | Out-Null
     Assert-NoReparsePoint -Path $targetsRoot
@@ -136,7 +117,7 @@ try {
 
             $targetResult.status = "passed"
             $targetResult.hostReceiptSha256 = $accepted.HostReceiptSha256
-            $targetResult.hostRunRoot = [string]$hostReceipt.runRoot
+            $targetResult.hostRunRoot = $hostReceipt.runRoot
             $targetResult.validationReceipt = $accepted.ValidationReceiptPath
             $targetResult.validationReceiptSha256 = `
                 $accepted.ValidationReceiptSha256
@@ -173,6 +154,8 @@ finally {
         id = "lab"
         repositoryPath = $lab
         expectedSha = $labSha
+        observedSha = ""
+        gitStatus = ""
         status = "running"
     }
     try {
@@ -206,6 +189,8 @@ finally {
             id = $target.id
             repositoryPath = $target.repositoryPath
             expectedSha = $target.expectedSha
+            observedSha = ""
+            gitStatus = ""
             status = "running"
         }
         try {
@@ -266,16 +251,6 @@ finally {
         else {
             $failure = $receiptWriteFailure
         }
-    }
-    finally {
-        if ($mutexAcquired) {
-            try {
-                $estateMutex.ReleaseMutex()
-            }
-            catch [ApplicationException] {
-            }
-        }
-        $estateMutex.Dispose()
     }
 }
 

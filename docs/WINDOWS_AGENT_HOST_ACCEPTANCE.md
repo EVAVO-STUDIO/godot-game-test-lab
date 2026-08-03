@@ -53,7 +53,8 @@ This path:
 10. initializes a real Streamable HTTP MCP session, lists tools, matches the exact
     roots and provisioning policy, and verifies managed engines, doctor, hardware
     inventory, and the MCP self-test;
-11. writes an acceptance receipt under
+11. rechecks the complete Lab and selected target Git states on every exit path;
+12. writes an acceptance receipt under
     `C:\GodotLabEvidence\host-acceptance\<run-id>`.
 
 Docker Desktop must already be installed and running in Linux-container mode when
@@ -80,9 +81,12 @@ Set-Location $Lab
   -StartWorker
 ```
 
-The target repository must be completely clean. Validation executes through a
-separate run directory under `C:\GodotLabEvidence`; the target checkout is not
-used as an evidence directory and must have the same SHA and status afterward.
+The target path must be the canonical Git top-level directory and must remain
+inside an allowed target root, disjoint from the Lab, and completely clean. The
+host records its exact SHA and complete status before any toolchain or worker
+stage. Validation executes through a separate run directory under
+`C:\GodotLabEvidence`; the target checkout is not used as an evidence directory
+and must have the same SHA and status afterward.
 
 ## Native authored journey acceptance
 
@@ -124,7 +128,7 @@ journeys, and bot exploration in one evidence bundle.
 
 ## Acceptance receipt
 
-`host-acceptance.json` records:
+`host-acceptance.json` schema 1.1 records:
 
 - exact Lab and target SHAs;
 - canonical Lab, target, engine, and evidence roots;
@@ -135,7 +139,15 @@ journeys, and bot exploration in one evidence bundle.
 - scheduled-task state and protocol-bound worker identity, roots, policy, and tools;
 - Windows, video-controller, sound-device, and optional NVIDIA evidence;
 - target validation, authored journey, and bot stages when requested;
-- exact per-stage status, duration, and retained evidence paths.
+- exact per-stage status, duration, and retained evidence paths; and
+- final `sourceChecks` for the Lab and selected target.
+
+The final Lab check requires the original exact SHA and an empty complete tracked
+and untracked Git status. When a target is selected, the target check requires
+the original exact SHA and the same complete status captured before execution.
+Both checks run before receipt publication on successful and failed paths. A
+source-check failure changes the host receipt to failed while preserving the
+original failure, and a simultaneous receipt-write failure is also retained.
 
 The receipt does not contain environment-variable values, credentials, private
 keys, raw user data, or arbitrary command output from the target.
@@ -145,8 +157,10 @@ keys, raw user data, or arbitrary command output from the target.
 The host acceptance path fails closed when:
 
 - the Lab or target SHA does not match;
-- tracked Lab files changed;
+- the Lab has tracked or untracked source changes;
 - the target checkout is not completely clean;
+- the target path is not its canonical Git top-level directory;
+- the target is outside every configured target root or overlaps the Lab;
 - a root traverses a reparse point;
 - evidence or engine storage overlaps source repositories;
 - the project subpath escapes the target Git root;
@@ -154,7 +168,8 @@ The host acceptance path fails closed when:
 - Standard or .NET Godot is not ready;
 - the MCP self-test or live protocol worker probe fails;
 - the required scheduled task is absent;
-- a target run changes or obscures the target repository.
+- the retained worker receipt uses incorrect JSON authority types; or
+- a host stage changes or obscures the Lab or target repository.
 
 The worker binds to `127.0.0.1` only. It does not expose arbitrary shell
 execution and does not gain authority to edit, commit, push, release, deploy, or
@@ -163,7 +178,8 @@ sign a target game.
 ## Truth boundaries
 
 A passing host receipt proves that the local worker, managed tools, loopback MCP
-surface, and requested bounded journeys worked on that machine at the recorded
-SHAs. It does not prove every game state, every physical controller, long-session
-stability, accessibility, art direction, game feel, thermals, or final audio mix.
-Those require the matching dedicated evidence lane and human review.
+surface, final source checks, and requested bounded journeys worked on that
+machine at the recorded SHAs. It does not prove every game state, every physical
+controller, long-session stability, accessibility, art direction, game feel,
+thermals, or final audio mix. Those require the matching dedicated evidence lane
+and human review.

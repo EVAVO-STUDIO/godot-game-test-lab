@@ -219,18 +219,20 @@ foreach ($protected in @($lab, $evidence) + @($resolvedRoots)) {
     }
 }
 
-$labSha = Get-GitText -Root $lab -Arguments @("rev-parse", "HEAD") -Label "Resolve Lab SHA"
+$labSha = Get-GitText -Root $lab -Arguments @("rev-parse", "HEAD") `
+    -Label "Resolve Lab SHA"
 if (-not $ExpectedLabSha) {
     $ExpectedLabSha = $labSha
 }
-if ($ExpectedLabSha -notmatch '^[0-9a-f]{40}$' -or $labSha -ne $ExpectedLabSha) {
+if ($ExpectedLabSha -notmatch '^[0-9a-f]{40}$' -or
+    $labSha -ne $ExpectedLabSha) {
     throw "The Lab checkout does not match ExpectedLabSha."
 }
-$labTrackedStatus = Get-GitText -Root $lab -Arguments @(
+$labStatusBefore = Get-GitText -Root $lab -Arguments @(
     "status", "--porcelain=v1", "--untracked-files=all"
-) -Label "Read Lab tracked status"
-if ($labTrackedStatus) {
-    throw "The Lab checkout has tracked changes."
+) -Label "Read complete Lab status"
+if ($labStatusBefore) {
+    throw "The Lab checkout must be completely clean before host acceptance."
 }
 $currentSession = [Diagnostics.Process]::GetCurrentProcess().SessionId
 $explorerSessions = @(
@@ -278,8 +280,9 @@ if (-not (Test-IsWithinPath -Candidate $runRoot -Parent $evidence) -or
 }
 $receiptPath = Join-Path $runRoot "host-acceptance.json"
 $stages = [Collections.ArrayList]::new()
+$sourceChecks = [Collections.ArrayList]::new()
 $receipt = [ordered]@{
-    schemaVersion = "1.0"
+    schemaVersion = "1.1"
     status = "running"
     startedAt = [DateTimeOffset]::UtcNow.ToString("o")
     labRoot = $lab
@@ -295,11 +298,62 @@ $receipt = [ordered]@{
     explorerSessions = $explorerSessions
     endpoint = "http://127.0.0.1:$Port/mcp"
     stages = $stages
+    sourceChecks = $sourceChecks
 }
 $failure = $null
 $receiptWriteFailure = $null
+$target = $null
+$targetSha = ""
+$targetStatusBefore = ""
 
 try {
+    if ($AcceptanceRepositoryPath) {
+        $target = (Resolve-Path -LiteralPath $AcceptanceRepositoryPath).Path
+        Assert-NoReparsePoint -Path $target
+        $targetTopLevel = Get-GitText -Root $target -Arguments @(
+            "rev-parse", "--show-toplevel"
+        ) -Label "Resolve acceptance target Git root"
+        $targetTopLevel = (Resolve-Path -LiteralPath $targetTopLevel).Path
+        if (-not $target.Equals(
+            $targetTopLevel,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+            throw (
+                "AcceptanceRepositoryPath must identify the target Git root; " +
+                "use ProjectSubpath for monorepos."
+            )
+        }
+        if (Test-PathsOverlap -Left $target -Right $lab) {
+            throw "The host acceptance target must remain disjoint from the Lab."
+        }
+        $targetAllowed = $false
+        foreach ($root in $resolvedRoots) {
+            if (Test-IsWithinPath -Candidate $target -Parent $root) {
+                $targetAllowed = $true
+                break
+            }
+        }
+        if (-not $targetAllowed) {
+            throw "The host acceptance target is outside every allowed target root."
+        }
+        $targetSha = Get-GitText -Root $target -Arguments @(
+            "rev-parse", "HEAD"
+        ) -Label "Resolve acceptance target SHA"
+        if (-not $ExpectedTargetSha) {
+            $ExpectedTargetSha = $targetSha
+        }
+        if ($ExpectedTargetSha -notmatch '^[0-9a-f]{40}$' -or
+            $targetSha -ne $ExpectedTargetSha) {
+            throw "The acceptance target does not match ExpectedTargetSha."
+        }
+        $targetStatusBefore = Get-GitText -Root $target -Arguments @(
+            "status", "--porcelain=v1", "--untracked-files=all"
+        ) -Label "Read complete acceptance target status"
+        if ($targetStatusBefore) {
+            throw "The acceptance target must be completely clean before host acceptance."
+        }
+    }
+
     Invoke-Stage -Id "toolchain" -Stages $stages -Action {
         $toolchain = Get-CommandText -Command $python -Arguments @(
             "scripts/check_repository_toolchain.py", "--native-family", "--installed"
@@ -453,33 +507,29 @@ try {
         & $testWorker @probeParameters
         $probe = Get-Content -Raw -LiteralPath $workerReceipt |
             ConvertFrom-Json
+        if ($probe.status -isnot [string] -or
+            $probe.status -ne "passed" -or
+            $probe.capabilities -isnot [pscustomobject] -or
+            $probe.capabilities.bridge -isnot [string] -or
+            $probe.capabilities.allowedTargetRoots -isnot [array] -or
+            $probe.capabilities.autoProvisionEngines -isnot [bool]) {
+            throw "The retained MCP worker receipt has invalid authority types."
+        }
         return [ordered]@{
             receipt = $workerReceipt
-            bridge = [string]$probe.capabilities.bridge
-            allowedTargetRoots = @($probe.capabilities.allowedTargetRoots)
-            autoProvisionEngines = [bool]$probe.capabilities.autoProvisionEngines
+            bridge = $probe.capabilities.bridge
+            allowedTargetRoots = $probe.capabilities.allowedTargetRoots
+            autoProvisionEngines = $probe.capabilities.autoProvisionEngines
         }
     } | Out-Null
 
-    if ($AcceptanceRepositoryPath) {
-        $target = (Resolve-Path -LiteralPath $AcceptanceRepositoryPath).Path
-        $targetSha = Get-GitText -Root $target -Arguments @(
-            "rev-parse", "HEAD"
-        ) -Label "Resolve acceptance target SHA"
-        if (-not $ExpectedTargetSha) {
-            $ExpectedTargetSha = $targetSha
-        }
-        if ($ExpectedTargetSha -notmatch '^[0-9a-f]{40}$' -or
-            $targetSha -ne $ExpectedTargetSha) {
-            throw "The acceptance target does not match ExpectedTargetSha."
-        }
-
+    if ($null -ne $target) {
         Invoke-Stage -Id "target-validation" -Stages $stages -Action {
             $validationRoot = Join-Path $runRoot "target-validation"
             & (Join-Path $lab "scripts\Invoke-GodotLabNativeValidation.ps1") `
                 -TargetRepositoryPath $target `
                 -ProjectSubpath $ProjectSubpath `
-                -AllowedTargetRoots $AllowedTargetRoots `
+                -AllowedTargetRoots @($resolvedRoots) `
                 -ExpectedLabSha $labSha `
                 -ExpectedTargetSha $targetSha `
                 -ArtifactPath $validationRoot `
@@ -535,6 +585,87 @@ catch {
     $receipt.error = $failure.Message
 }
 finally {
+    $sourceErrors = [Collections.ArrayList]::new()
+    $labCheck = [ordered]@{
+        id = "lab"
+        repositoryPath = $lab
+        expectedSha = $labSha
+        observedSha = ""
+        gitStatus = ""
+        status = "running"
+    }
+    try {
+        $labShaAfter = Get-GitText -Root $lab -Arguments @(
+            "rev-parse", "HEAD"
+        ) -Label "Final host Lab SHA"
+        $labStatusAfter = Get-GitText -Root $lab -Arguments @(
+            "status", "--porcelain=v1", "--untracked-files=all"
+        ) -Label "Final host Lab status"
+        $labCheck.observedSha = $labShaAfter
+        $labCheck.gitStatus = $labStatusAfter
+        if ($labShaAfter -ne $labSha -or $labStatusAfter) {
+            throw "The Lab checkout changed during host acceptance."
+        }
+        $labCheck.status = "passed"
+    }
+    catch {
+        $labCheck.status = "failed"
+        $labCheck.error = $_.Exception.Message
+        [void]$sourceErrors.Add($_.Exception.Message)
+    }
+    finally {
+        [void]$sourceChecks.Add($labCheck)
+    }
+
+    if ($null -ne $target) {
+        $targetCheck = [ordered]@{
+            id = "target"
+            repositoryPath = $target
+            expectedSha = $targetSha
+            observedSha = ""
+            gitStatus = ""
+            status = "running"
+        }
+        try {
+            $targetShaAfter = Get-GitText -Root $target -Arguments @(
+                "rev-parse", "HEAD"
+            ) -Label "Final host target SHA"
+            $targetStatusAfter = Get-GitText -Root $target -Arguments @(
+                "status", "--porcelain=v1", "--untracked-files=all"
+            ) -Label "Final host target status"
+            $targetCheck.observedSha = $targetShaAfter
+            $targetCheck.gitStatus = $targetStatusAfter
+            if ($targetShaAfter -ne $targetSha -or
+                $targetStatusAfter -ne $targetStatusBefore) {
+                throw "The target checkout changed during host acceptance."
+            }
+            $targetCheck.status = "passed"
+        }
+        catch {
+            $targetCheck.status = "failed"
+            $targetCheck.error = $_.Exception.Message
+            [void]$sourceErrors.Add($_.Exception.Message)
+        }
+        finally {
+            [void]$sourceChecks.Add($targetCheck)
+        }
+    }
+
+    if ($sourceErrors.Count -ne 0) {
+        $sourceMessage = "Final host source verification failed: " + `
+            ($sourceErrors -join " | ")
+        $receipt.status = "failed"
+        if ($receipt.error) {
+            $receipt.error = "$($receipt.error) | $sourceMessage"
+        }
+        else {
+            $receipt.error = $sourceMessage
+        }
+        if (-not $failure) {
+            $failure = [InvalidOperationException]::new($sourceMessage)
+        }
+    }
+
     $receipt.finishedAt = [DateTimeOffset]::UtcNow.ToString("o")
     try {
         Write-AtomicJson -Path $receiptPath -Value $receipt

@@ -46,7 +46,10 @@ declare exactly the documented fields.
 
 Profile paths must be tracked repository-relative files. Absolute paths,
 traversal, untracked profiles, extra target fields, ambiguous project paths and
-noncanonical project subpaths fail before any target process starts.
+noncanonical project subpaths fail before any target process starts. Manifest
+objects, arrays, strings, booleans and integers must also use their exact JSON
+types. Authority-bearing values are not converted from strings, numbers or other
+truthy PowerShell values.
 
 ```json
 {
@@ -109,17 +112,28 @@ prove that worker and host acceptance preserve the no-download policy.
 
 Every target performs the real MCP protocol probe and receives its own full
 host, toolchain, engine, hardware, validation, journey, media, and
-source-mutation receipt. Each retained JSON evidence file is read once through
-the bounded strict parser; the same admitted bytes are parsed and SHA-256
-hashed. Duplicate names, invalid UTF-8, BOMs, negative zero, non-finite numbers,
+source-mutation receipt. Each retained JSON evidence file is read through one
+stable open file descriptor. The parser compares the path identity with the
+opened descriptor before and after the bounded read, rejects replacement or
+size/metadata drift, then parses and SHA-256 hashes those exact admitted bytes.
+Duplicate names, invalid UTF-8, BOMs, negative zero, non-finite numbers,
 excessive nesting, symbolic links and oversized evidence fail closed.
+
+Receipt admission requires exact JSON types before any comparison. In
+particular, strings such as `"false"` cannot satisfy boolean fields, numeric
+strings cannot satisfy integer fields, arrays cannot substitute for objects, and
+closed authority records reject missing or additional properties. This applies
+to the host, worker, native validation, source-check and authority-bearing native
+and bot summary fields.
 
 The aggregate runner uses
 `Global\EVAVO.GodotLab.EstateAcceptance`, a machine-wide Windows named mutex, so
-separate interactive sessions cannot run competing estate admissions. The first
-target may register or start the worker; every target must independently prove
-the same complete worker roots, interactive policy, engine policy and required
-MCP tool set.
+separate interactive sessions cannot run competing estate admissions. The
+machine-wide lease is acquired before manifest and target preflight, and remains
+held through target execution, evidence admission, final source verification and
+aggregate receipt publication. The first target may register or start the
+worker; every target must independently prove the same complete worker roots,
+interactive policy, engine policy and required MCP tool set.
 
 Each manifest target receives one explicit target-owned host run root:
 
@@ -138,19 +152,33 @@ creates the run directory and receipts without overwrite. Aggregate admission
 therefore reads the one exact `host-acceptance.json` path it assigned; it does
 not scan the shared host receipt tree or infer ownership from timestamps.
 
+Each `host-acceptance.json` schema 1.1 receipt contains final Lab and target
+`sourceChecks`. A passing host receipt must prove both repositories still have
+the exact expected SHA and an empty complete Git status after worker, validation,
+native and bot work. These checks run on every host exit path before the receipt
+is written.
+
 Host, worker, validation, native and bot evidence is admitted only when exact
 Lab, repository, target SHA, `projectSubpath`, profile SHA-256, stage set,
 interactive desktop state, source-mutation state and required journey/campaign
 outcomes agree. Unrelated standalone host receipts cannot enter the target's
 admission path.
 
-`estate-acceptance.json` schema 1.2 records
-`hostReceiptPolicy: explicit-target-root-v1`, manifest and evidence hashes, and
-a final `sourceChecks` result for the Lab and every target. The legacy
-`ignoredConcurrentHostReceipts` field remains an empty array for schema-1.2
-consumer compatibility because no shared receipt scan occurs. Those source checks
-run on every exit path, including host failure and receipt-admission failure.
-The named mutex is released even if the final receipt cannot be written.
+`estate-acceptance.json` schema 1.3 records:
+
+- `hostReceiptPolicy: explicit-target-root-v1`;
+- `strictJsonProfile: bounded-utf8-unique-names-stable-file-v2`;
+- `receiptTypePolicy: closed-authority-types-v1`;
+- `preflightLeasePolicy: global-before-preflight-v1`;
+- manifest and admitted evidence hashes;
+- exact target identities and profile hashes; and
+- final `sourceChecks` for the Lab and every target.
+
+The legacy `ignoredConcurrentHostReceipts` field remains an empty array for
+consumer compatibility because no shared receipt scan occurs. Aggregate source
+checks run on every exit path, including host failure and receipt-admission
+failure. The named mutex is released even if preflight, execution or final
+receipt publication fails.
 
 ## Acceptance boundary
 

@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import stat
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -72,26 +73,81 @@ def _validate_value(value: Any, *, depth: int = 0) -> None:
     raise StrictJsonError(f"unsupported JSON value type: {type(value).__name__}")
 
 
+def _stat_signature(value: os.stat_result) -> tuple[int, int, int]:
+    return (value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+
+
+def _read_stable_regular_file(source: Path, *, maximum_bytes: int) -> bytes:
+    try:
+        path_before = source.lstat()
+    except OSError as error:
+        raise StrictJsonError(f"JSON file is unavailable: {source}") from error
+    if not stat.S_ISREG(path_before.st_mode):
+        raise StrictJsonError("JSON path must be a regular non-symbolic-link file")
+    if path_before.st_size < 1 or path_before.st_size > maximum_bytes:
+        raise StrictJsonError(
+            f"JSON byte length must be between 1 and {maximum_bytes}"
+        )
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOINHERIT", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(source, flags)
+    except OSError as error:
+        raise StrictJsonError(f"JSON file could not be opened: {source}") from error
+
+    try:
+        opened_before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened_before.st_mode)
+            or not os.path.samestat(path_before, opened_before)
+        ):
+            raise StrictJsonError("JSON path changed before it was opened")
+
+        chunks: list[bytes] = []
+        remaining = maximum_bytes + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(65_536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+        opened_after = os.fstat(descriptor)
+    except OSError as error:
+        raise StrictJsonError(f"JSON file could not be read: {source}") from error
+    finally:
+        os.close(descriptor)
+
+    try:
+        path_after = source.lstat()
+    except OSError as error:
+        raise StrictJsonError("JSON path changed while it was read") from error
+    if (
+        not os.path.samestat(opened_before, opened_after)
+        or not os.path.samestat(opened_after, path_after)
+        or _stat_signature(opened_before) != _stat_signature(opened_after)
+        or _stat_signature(path_before) != _stat_signature(path_after)
+        or len(payload) != opened_after.st_size
+    ):
+        raise StrictJsonError("JSON file changed while it was read")
+    if len(payload) < 1 or len(payload) > maximum_bytes:
+        raise StrictJsonError(
+            f"JSON byte length must be between 1 and {maximum_bytes}"
+        )
+    return payload
+
+
 def load_strict_json_object(
     path: Path,
     *,
     maximum_bytes: int,
 ) -> tuple[dict[str, Any], str]:
     source = Path(os.path.abspath(os.fspath(path.expanduser())))
-    try:
-        stats = source.lstat()
-    except OSError as error:
-        raise StrictJsonError(f"JSON file is unavailable: {source}") from error
-    if source.is_symlink() or not source.is_file():
-        raise StrictJsonError("JSON path must be a regular non-symbolic-link file")
-    if stats.st_size < 1 or stats.st_size > maximum_bytes:
-        raise StrictJsonError(
-            f"JSON byte length must be between 1 and {maximum_bytes}"
-        )
-    try:
-        payload = source.read_bytes()
-    except OSError as error:
-        raise StrictJsonError(f"JSON file could not be read: {source}") from error
+    payload = _read_stable_regular_file(source, maximum_bytes=maximum_bytes)
     if payload.startswith(b"\xef\xbb\xbf"):
         raise StrictJsonError("UTF-8 BOM is not accepted")
     try:

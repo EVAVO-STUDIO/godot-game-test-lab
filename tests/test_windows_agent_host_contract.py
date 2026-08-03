@@ -66,6 +66,7 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "Register-GodotLabMcpWorker.ps1",
         "Test-GodotLabMcpWorker.ps1",
         "RequireScheduledTask = $true",
+        "The retained MCP worker receipt has invalid authority types.",
         'endpoint = "http://127.0.0.1:$Port/mcp"',
         "Invoke-GodotLabNativeValidation.ps1",
         "Invoke-GodotLabNativeAgentQA.ps1",
@@ -77,6 +78,14 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "HostRunRoot parent must already exist",
         "Resolved HostRunRoot must remain beneath EvidenceRoot.",
         "Evidence receipt already exists",
+        'schemaVersion = "1.1"',
+        "sourceChecks = $sourceChecks",
+        "Read complete acceptance target status",
+        "Final host Lab SHA",
+        "Final host Lab status",
+        "Final host target SHA",
+        "Final host target status",
+        "Final host source verification failed",
         "host-acceptance.json",
         "Write-AtomicJson -Path $receiptPath",
         "Receipt write failed",
@@ -86,6 +95,7 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
     for forbidden in (
         "SkipWorkerProbe",
         "if ($RegisterWorker -or $StartWorker)",
+        "[bool]$probe.capabilities.autoProvisionEngines",
         "git commit",
         "git push",
         "git reset --hard",
@@ -104,6 +114,18 @@ def test_protocol_proof_is_single_unconditional_and_precedes_target_work() -> No
     stage = 'Invoke-Stage -Id "worker-protocol-acceptance"'
 
     assert source.count(stage) == 1
-    assert source.index(stage) < source.index("if ($AcceptanceRepositoryPath)")
+    assert source.index(stage) < source.index('Invoke-Stage -Id "target-validation"')
     assert "if (-not $SkipWorkerProbe)" not in source
     assert "RequireScheduledTask = $true" in source
+
+
+def test_host_final_source_checks_precede_receipt_publication() -> None:
+    source = ACCEPTANCE.read_text(encoding="utf-8")
+    final_lab = source.index("Final host Lab SHA")
+    final_target = source.index("Final host target SHA")
+    final_error = source.index("Final host source verification failed")
+    write_receipt = source.index("Write-AtomicJson -Path $receiptPath")
+
+    assert final_lab < final_target < final_error < write_receipt
+    assert source.count("sourceChecks = $sourceChecks") == 1
+    assert 'schemaVersion = "1.1"' in source

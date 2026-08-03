@@ -22,16 +22,55 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$estateModules = @(
+$moduleNames = @(
     "GodotLabEstateAcceptance.Common.ps1",
     "GodotLabEstateAcceptance.Receipt.ps1",
     "GodotLabEstateAcceptance.Preflight.ps1",
     "GodotLabEstateAcceptance.Execute.ps1"
 )
-foreach ($moduleName in $estateModules) {
+$modulePaths = [ordered]@{}
+foreach ($moduleName in $moduleNames) {
     $modulePath = Join-Path $PSScriptRoot $moduleName
     if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) {
         throw "Required estate acceptance module is missing: $modulePath"
     }
-    . $modulePath
+    $modulePaths[$moduleName] = $modulePath
+}
+
+. $modulePaths["GodotLabEstateAcceptance.Common.ps1"]
+. $modulePaths["GodotLabEstateAcceptance.Receipt.ps1"]
+
+$mutexAcquired = $false
+$mutexAbandoned = $false
+$estateMutex = [Threading.Mutex]::new(
+    $false,
+    "Global\EVAVO.GodotLab.EstateAcceptance"
+)
+try {
+    try {
+        $mutexAcquired = $estateMutex.WaitOne(
+            [TimeSpan]::FromSeconds($EstateLockTimeoutSeconds)
+        )
+    }
+    catch [Threading.AbandonedMutexException] {
+        $mutexAcquired = $true
+        $mutexAbandoned = $true
+    }
+    if (-not $mutexAcquired) {
+        throw "Another Godot estate acceptance owns the machine-wide lease."
+    }
+
+    . $modulePaths["GodotLabEstateAcceptance.Preflight.ps1"]
+    $receipt.abandonedMutexRecovered = $mutexAbandoned
+    . $modulePaths["GodotLabEstateAcceptance.Execute.ps1"]
+}
+finally {
+    if ($mutexAcquired) {
+        try {
+            $estateMutex.ReleaseMutex()
+        }
+        catch [ApplicationException] {
+        }
+    }
+    $estateMutex.Dispose()
 }
