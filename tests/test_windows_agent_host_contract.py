@@ -67,8 +67,16 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "Invoke-GodotLabNativeValidation.ps1",
         "Invoke-GodotLabNativeAgentQA.ps1",
         "Invoke-GodotLabBotQA.ps1",
+        '[string]$HostRunRoot = ""',
+        "HostRunRoot must be an absolute path.",
+        "HostRunRoot must remain beneath EvidenceRoot.",
+        "HostRunRoot must not already exist",
+        "HostRunRoot parent must already exist",
+        "Resolved HostRunRoot must remain beneath EvidenceRoot.",
+        "Evidence receipt already exists",
         "host-acceptance.json",
         "Write-AtomicJson -Path $receiptPath",
+        "Receipt write failed",
     ):
         assert token in source, token
 
@@ -81,5 +89,6 @@ def test_agent_host_acceptance_proves_interactive_worker_and_real_toolchain() ->
         "0.0.0.0",
         "wrangler deploy",
         "vercel deploy",
+        "Move-Item -LiteralPath $temporary -Destination $Path -Force",
     ):
         assert forbidden not in source

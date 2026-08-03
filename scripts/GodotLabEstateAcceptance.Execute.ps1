@@ -1,3 +1,4 @@
+$receipt.hostReceiptPolicy = "explicit-target-root-v1"
 $failure = $null
 $receiptWriteFailure = $null
 $mutexAcquired = $false
@@ -21,8 +22,19 @@ try {
         throw "Another Godot estate acceptance owns the machine-wide lease."
     }
     $receipt.abandonedMutexRecovered = $mutexAbandoned
+    $targetsRoot = Join-Path $runRoot "targets"
+    New-Item -ItemType Directory -Path $targetsRoot | Out-Null
+    Assert-NoReparsePoint -Path $targetsRoot
     for ($index = 0; $index -lt $targets.Count; $index++) {
         $target = $targets[$index]
+        $targetDirectoryName = "{0:D2}-{1}-{2}" -f @(
+            ($index + 1),
+            $target.id,
+            $target.expectedSha.Substring(0, 12)
+        )
+        $targetEvidenceRoot = Join-Path $targetsRoot $targetDirectoryName
+        $hostRunRoot = Join-Path $targetEvidenceRoot "host"
+        $hostReceiptPath = Join-Path $hostRunRoot "host-acceptance.json"
         $targetResult = [ordered]@{
             id = $target.id
             repositoryPath = $target.repositoryPath
@@ -31,22 +43,25 @@ try {
             acceptanceMode = $target.acceptanceMode
             nativeProfileSha256 = $target.nativeProfileSha256
             botProfileSha256 = $target.botProfileSha256
+            hostReceiptPolicy = "explicit-target-root-v1"
+            evidenceDirectoryName = $targetDirectoryName
+            hostRunRoot = $hostRunRoot
+            hostReceipt = $hostReceiptPath
+            ignoredConcurrentHostReceipts = @()
             status = "running"
             startedAt = [DateTimeOffset]::UtcNow.ToString("o")
         }
         [void]$targetResults.Add($targetResult)
-        $beforeReceipts = [Collections.Generic.HashSet[string]]::new(
-            [StringComparer]::OrdinalIgnoreCase
-        )
-        foreach ($path in (Get-HostReceiptPaths -Root $evidence)) {
-            [void]$beforeReceipts.Add($path)
-        }
 
         try {
+            New-Item -ItemType Directory -Path $targetEvidenceRoot |
+                Out-Null
+            Assert-NoReparsePoint -Path $targetEvidenceRoot
             $parameters = @{
                 LabRoot = $lab
                 AllowedTargetRoots = @($resolvedRoots)
                 EvidenceRoot = $evidence
+                HostRunRoot = $hostRunRoot
                 EngineRoot = $engines
                 TaskName = $TaskName
                 Port = $Port
@@ -81,32 +96,29 @@ try {
             )
             & $hostAcceptance @parameters
 
-            $newReceipts = @(
-                Get-HostReceiptPaths -Root $evidence |
-                    Where-Object { -not $beforeReceipts.Contains($_) }
-            )
-            $matches = @(
-                $newReceipts | ForEach-Object {
-                    Test-HostReceiptCandidate `
-                        -Path $_ `
-                        -Target $target `
-                        -LabRoot $lab `
-                        -LabSha $labSha `
-                        -AllowedTargetRoots @($resolvedRoots) `
-                        -EvidenceRoot $evidence `
-                        -EngineRoot $engines `
-                        -EngineOffline ([bool]$EngineOffline) `
-                        -PythonExecutable $python
-                } | Where-Object { $null -ne $_ }
-            )
-            if ($matches.Count -ne 1) {
+            if (-not (Test-Path -LiteralPath $hostReceiptPath `
+                -PathType Leaf)) {
                 throw (
-                    "Target $($target.id) did not create exactly one " +
-                    "target-bound accepted host receipt."
+                    "Target $($target.id) did not create its exact " +
+                    "host receipt: $hostReceiptPath"
                 )
             }
-            $accepted = $matches[0]
-            $hostReceiptPath = $accepted.Path
+            $accepted = Test-HostReceiptCandidate `
+                -Path $hostReceiptPath `
+                -Target $target `
+                -LabRoot $lab `
+                -LabSha $labSha `
+                -AllowedTargetRoots @($resolvedRoots) `
+                -EvidenceRoot $evidence `
+                -EngineRoot $engines `
+                -EngineOffline ([bool]$EngineOffline) `
+                -PythonExecutable $python
+            if ($null -eq $accepted) {
+                throw (
+                    "Target $($target.id) exact host receipt failed " +
+                    "target-bound admission: $hostReceiptPath"
+                )
+            }
             $hostReceipt = $accepted.HostReceipt
 
             $shaAfter = Get-GitText -Root $target.repositoryPath -Arguments @(
@@ -123,7 +135,6 @@ try {
             }
 
             $targetResult.status = "passed"
-            $targetResult.hostReceipt = $hostReceiptPath
             $targetResult.hostReceiptSha256 = $accepted.HostReceiptSha256
             $targetResult.hostRunRoot = [string]$hostReceipt.runRoot
             $targetResult.validationReceipt = $accepted.ValidationReceiptPath
@@ -137,9 +148,6 @@ try {
             $targetResult.botSummary = $accepted.BotSummaryPath
             $targetResult.botSummarySha256 = $accepted.BotSummarySha256
             $targetResult.workerProtocolProbed = $true
-            $targetResult.ignoredConcurrentHostReceipts = @(
-                $newReceipts | Where-Object { $_ -ne $hostReceiptPath }
-            )
         }
         catch {
             $targetResult.status = "failed"

@@ -3,6 +3,7 @@ param(
     [string]$LabRoot = "",
     [string[]]$AllowedTargetRoots = @("C:\GitRepos"),
     [string]$EvidenceRoot = "C:\GodotLabEvidence",
+    [string]$HostRunRoot = "",
     [string]$EngineRoot = "$env:LOCALAPPDATA\EVAVO\GodotGameTestLab\engines",
     [string]$TaskName = "EVAVO Godot Game Test Lab MCP",
     [ValidateRange(1, 65535)]
@@ -82,13 +83,28 @@ function Get-GitText {
 
 function Write-AtomicJson {
     param([string]$Path, [object]$Value)
+    if (Test-Path -LiteralPath $Path) {
+        throw "Evidence receipt already exists: $Path"
+    }
+    $parent = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        throw "Evidence receipt parent does not exist: $parent"
+    }
+    Assert-NoReparsePoint -Path $parent
     $temporary = "$Path.tmp-$PID-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
-    [IO.File]::WriteAllText(
-        $temporary,
-        ($Value | ConvertTo-Json -Depth 14) + [Environment]::NewLine,
-        [Text.UTF8Encoding]::new($false)
-    )
-    Move-Item -LiteralPath $temporary -Destination $Path -Force
+    try {
+        [IO.File]::WriteAllText(
+            $temporary,
+            ($Value | ConvertTo-Json -Depth 14) + [Environment]::NewLine,
+            [Text.UTF8Encoding]::new($false)
+        )
+        Move-Item -LiteralPath $temporary -Destination $Path
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporary) {
+            Remove-Item -LiteralPath $temporary -Force
+        }
+    }
 }
 
 function Invoke-Stage {
@@ -217,7 +233,6 @@ $labTrackedStatus = Get-GitText -Root $lab -Arguments @(
 if ($labTrackedStatus) {
     throw "The Lab checkout has tracked changes."
 }
-
 $currentSession = [Diagnostics.Process]::GetCurrentProcess().SessionId
 $explorerSessions = @(
     Get-Process -Name explorer -ErrorAction SilentlyContinue |
@@ -227,9 +242,41 @@ if ($currentSession -eq 0 -or $explorerSessions -notcontains $currentSession) {
     throw "Agent-host acceptance requires Explorer in the current nonzero Windows session."
 }
 
-$stamp = [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmssfff")
-$runRoot = Join-Path $evidence "host-acceptance\$stamp"
-New-Item -ItemType Directory -Path $runRoot | Out-Null
+if ($HostRunRoot) {
+    if (-not [IO.Path]::IsPathRooted($HostRunRoot)) {
+        throw "HostRunRoot must be an absolute path."
+    }
+    $candidateRunRoot = [IO.Path]::GetFullPath($HostRunRoot)
+    Assert-NoReparsePointForCandidate -Path $candidateRunRoot
+    if (-not (Test-IsWithinPath -Candidate $candidateRunRoot `
+        -Parent $evidence) -or
+        $candidateRunRoot.Equals(
+            $evidence,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw "HostRunRoot must remain beneath EvidenceRoot."
+    }
+    if (Test-Path -LiteralPath $candidateRunRoot) {
+        throw "HostRunRoot must not already exist: $candidateRunRoot"
+    }
+    $runParent = Split-Path -Parent $candidateRunRoot
+    if (-not (Test-Path -LiteralPath $runParent -PathType Container)) {
+        throw "HostRunRoot parent must already exist: $runParent"
+    }
+    Assert-NoReparsePoint -Path $runParent
+}
+else {
+    $stamp = [DateTimeOffset]::UtcNow.ToString("yyyyMMdd-HHmmssfff")
+    $candidateRunRoot = Join-Path $evidence "host-acceptance\$stamp"
+    Assert-NoReparsePointForCandidate -Path $candidateRunRoot
+}
+New-Item -ItemType Directory -Path $candidateRunRoot | Out-Null
+$runRoot = (Resolve-Path -LiteralPath $candidateRunRoot).Path
+Assert-NoReparsePoint -Path $runRoot
+if (-not (Test-IsWithinPath -Candidate $runRoot -Parent $evidence) -or
+    $runRoot.Equals($evidence, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Resolved HostRunRoot must remain beneath EvidenceRoot."
+}
 $receiptPath = Join-Path $runRoot "host-acceptance.json"
 $stages = [Collections.ArrayList]::new()
 $receipt = [ordered]@{
@@ -251,6 +298,7 @@ $receipt = [ordered]@{
     stages = $stages
 }
 $failure = $null
+$receiptWriteFailure = $null
 
 try {
     Invoke-Stage -Id "toolchain" -Stages $stages -Action {
@@ -493,7 +541,22 @@ catch {
 }
 finally {
     $receipt.finishedAt = [DateTimeOffset]::UtcNow.ToString("o")
-    Write-AtomicJson -Path $receiptPath -Value $receipt
+    try {
+        Write-AtomicJson -Path $receiptPath -Value $receipt
+    }
+    catch {
+        $receiptWriteFailure = $_.Exception
+        if ($failure) {
+            $failure = [InvalidOperationException]::new(
+                "$($failure.Message) | Receipt write failed: " +
+                $receiptWriteFailure.Message,
+                $failure
+            )
+        }
+        else {
+            $failure = $receiptWriteFailure
+        }
+    }
 }
 
 if ($failure) {
