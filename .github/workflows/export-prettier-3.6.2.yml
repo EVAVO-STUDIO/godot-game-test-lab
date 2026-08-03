@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - work/export-prettier-3.6.2-20260803
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -14,6 +17,9 @@ concurrency:
 
 jobs:
   export:
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.ref == 'work/export-prettier-3.6.2-20260803'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -25,9 +31,9 @@ jobs:
           mkdir -p out
           npm pack prettier@3.6.2 --pack-destination out
           test -f out/prettier-3.6.2.tgz
-          printf '%s  %s\n' \
+          printf '%s\n' \
             'sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==' \
-            'out/prettier-3.6.2.tgz' > out/npm-integrity.txt
+            > out/npm-integrity.txt
           sha256sum out/prettier-3.6.2.tgz > out/prettier-3.6.2.tgz.sha256
 
       - name: Upload exact formatter package
