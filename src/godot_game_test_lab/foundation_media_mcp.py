@@ -27,6 +27,9 @@ from .asset_audit_mcp_policy import (
     resolve_target,
 )
 from .foundation_media_plan import validate_foundation_media_plan
+from .foundation_media_release_report import (
+    build_foundation_media_release_report,
+)
 
 DEFAULT_CONTRACT = (
     "examples/playable_foundation_hub/data/"
@@ -54,6 +57,37 @@ def _evidence_path(
     raise AssetAuditError(f"{label} must remain inside the {boundary}")
 
 
+def build_release_report_for_mcp(
+    *,
+    target: AssetAuditTarget,
+    config: AssetAuditMcpConfig,
+    contract_path: Path,
+    audit_path: Path,
+    plan_path: Path,
+    output: Path,
+) -> dict[str, Any]:
+    report = build_foundation_media_release_report(
+        Path(target.project_root),
+        contract_path,
+        audit_path,
+        plan_path,
+        strict=True,
+    )
+    if report.get("targetSha") != target.target_sha:
+        raise AssetAuditError(
+            "Foundation release report target SHA differs from MCP target authority"
+        )
+    written = write_evidence_json(
+        report,
+        output=output,
+        evidence_root=config.evidence_root,
+        protected_roots=(config.lab_root, Path(target.git_root)),
+        replace=False,
+    )
+    report["outputPath"] = str(written)
+    return report
+
+
 def build_server(config: AssetAuditMcpConfig):
     if FastMCP is None:
         raise RuntimeError(
@@ -63,10 +97,12 @@ def build_server(config: AssetAuditMcpConfig):
         name="EVAVO Foundation Kit Media Plan Gate",
         instructions=(
             "Validate exact Foundation Kit media plans against the game-owned "
-            "contract and Art Studio audit. The target repository is read-only. "
-            "Optional reports are create-only beneath the configured evidence root. "
-            "Long-running upstream audits, mastering and native captures should use "
-            "cancellable MCP Tasks with progress evidence."
+            "contract and Art Studio audit. Build clean-current-HEAD release "
+            "reports only after binding the audit and plan to the actual current "
+            "target bytes and independent PNG evidence. The target repository is "
+            "read-only. Reports are create-only beneath the configured evidence "
+            "root. Long-running upstream audits, mastering and native captures "
+            "should use cancellable MCP Tasks with progress evidence."
         ),
         json_response=True,
     )
@@ -95,19 +131,26 @@ def build_server(config: AssetAuditMcpConfig):
             "tools": [
                 "foundation_media_plan_capabilities",
                 "foundation_validate_media_plan",
+                "foundation_build_media_release_report",
             ],
             "checks": [
                 "exact game-contract SHA-256 binding",
                 "exact Art Studio audit SHA-256 binding",
                 "stable current source identities",
+                "current target source SHA-256 and byte-length binding",
+                "audit-root and plan-root binding to the selected target",
+                "independent current PNG structure and alpha evidence",
                 "role-owned runtime roots and import policy",
+                "current exact-canvas, alpha and target-collision blockers",
                 "five authored native review surfaces",
                 "audio analysis and listening routes",
                 "strict no-blocker and no-review readiness",
+                "clean exact-current-HEAD release evidence",
             ],
             "truthBoundaries": [
                 "A passing plan is not creative approval.",
-                "The tool does not import Godot or listen to audio.",
+                "A current-source report is not Godot import or native approval.",
+                "The tool does not listen to audio.",
                 "The tool has no deletion or publication authority.",
             ],
         }
@@ -188,6 +231,69 @@ def build_server(config: AssetAuditMcpConfig):
             progress=1.0,
             total=1.0,
             message="Foundation Kit media plan validation complete",
+        )
+        return report
+
+    @server.tool(
+        name="foundation_build_media_release_report",
+        structured_output=True,
+    )
+    async def build_release_report(
+        target: str,
+        audit: str,
+        plan: str,
+        expected_target_sha: str,
+        output: str,
+        ctx: Context,
+        contract: str = DEFAULT_CONTRACT,
+        project_subpath: str | None = None,
+    ) -> dict[str, Any]:
+        """Build one create-only clean-HEAD/current-source release report."""
+        await ctx.report_progress(
+            progress=0.05,
+            total=1.0,
+            message="Resolving exact clean target HEAD",
+        )
+        record = await asyncio.to_thread(
+            resolve_target,
+            target,
+            config=config,
+            project_subpath=project_subpath,
+            expected_target_sha=expected_target_sha,
+        )
+        contract_path = _evidence_path(
+            contract,
+            label="Foundation Kit media contract",
+            target=record,
+            config=config,
+            target_only=True,
+        )
+        audit_path = resolve_audit_path(audit, target=record, config=config)
+        plan_path = _evidence_path(
+            plan,
+            label="Foundation Kit media plan",
+            target=record,
+            config=config,
+            target_only=False,
+        )
+        await ctx.report_progress(
+            progress=0.35,
+            total=1.0,
+            message="Rechecking current target bytes, roots and PNG evidence",
+        )
+        report = await asyncio.to_thread(
+            build_release_report_for_mcp,
+            target=record,
+            config=config,
+            contract_path=contract_path,
+            audit_path=audit_path,
+            plan_path=plan_path,
+            output=Path(output),
+        )
+        await ctx.report_progress(
+            progress=1.0,
+            total=1.0,
+            message="Foundation Kit exact-head release report complete",
         )
         return report
 
