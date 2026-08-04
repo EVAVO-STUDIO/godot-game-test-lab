@@ -60,15 +60,18 @@ if ($allTargetRoots.Count -eq 0) {
     throw "At least one target root is required."
 }
 
+$workerOffline = $EngineOffline -or [bool]$OfflineSourceDir
 $installParameters = @{
     LabRoot = $lab
     EngineVersion = $EngineVersion
     EngineRoot = $EngineRoot
     TargetRoot = $allTargetRoots[0]
+    AdditionalTargetRoots = @($allTargetRoots | Select-Object -Skip 1)
     EvidenceRoot = $EvidenceRoot
     InstallPrerequisites = $InstallPrerequisites
 }
 if ($OfflineSourceDir) { $installParameters.OfflineSourceDir = $OfflineSourceDir }
+if ($workerOffline) { $installParameters.EngineOffline = $true }
 if ($PrepareEstate) { $installParameters.PrepareEstate = $true }
 if ($PrepareLinuxSandboxImages) {
     $installParameters.PrepareLinuxSandboxImages = $true
@@ -87,7 +90,6 @@ $labSha = (& git -C $lab rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $labSha -notmatch '^[0-9a-f]{40}$') {
     throw "Unable to resolve the exact Lab SHA after installation."
 }
-$workerOffline = $EngineOffline -or [bool]$OfflineSourceDir
 $registerParameters = @{
     LabRoot = $lab
     AllowedTargetRoots = @($allTargetRoots)
