@@ -3,16 +3,20 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
 import py_compile
 import sys
 import tempfile
 import tomllib
+from pathlib import Path, PurePosixPath
 
 ROOT = Path.cwd().resolve(strict=True)
 MAXIMUM_SOURCE_BYTES = 1_000_000
 FILES = {
-    "core": "src/godot_game_test_lab/audio_analysis.py",
+    "public": "src/godot_game_test_lab/audio_analysis.py",
+    "contract": "src/godot_game_test_lab/audio_analysis_contract.py",
+    "io": "src/godot_game_test_lab/audio_analysis_io.py",
+    "media": "src/godot_game_test_lab/audio_analysis_media.py",
+    "types": "src/godot_game_test_lab/audio_analysis_types.py",
     "mcp": "src/godot_game_test_lab/audio_analysis_mcp.py",
     "tests": "tests/test_audio_analysis.py",
     "mcpTests": "tests/test_audio_analysis_mcp.py",
@@ -56,9 +60,19 @@ def forbid_tokens(label: str, source: str, tokens: tuple[str, ...]) -> None:
 
 
 def compile_sources() -> None:
+    keys = (
+        "public",
+        "contract",
+        "io",
+        "media",
+        "types",
+        "mcp",
+        "tests",
+        "mcpTests",
+    )
     with tempfile.TemporaryDirectory(prefix="godot-lab-audio-compile-") as value:
         cache = Path(value)
-        for index, key in enumerate(("core", "mcp", "tests", "mcpTests")):
+        for index, key in enumerate(keys):
             source = ROOT.joinpath(*PurePosixPath(FILES[key]).parts)
             try:
                 py_compile.compile(
@@ -91,9 +105,13 @@ def main() -> int:
     if any("audio_analysis" in path for path in per_file):
         fail("Brass audio-analysis source may not use a Ruff per-file exemption")
 
+    runtime = "\n".join(
+        sources[key]
+        for key in ("public", "contract", "io", "media", "types", "mcp")
+    )
     require_tokens(
-        "audio-analysis core",
-        sources["core"],
+        "audio-analysis runtime",
+        runtime,
         (
             'CONTRACT_ID = "evavo_brass_brine_audio_production_contract_v1"',
             'SELECTION_ID = "evavo_brass_brine_audio_selection_v1"',
@@ -123,8 +141,8 @@ def main() -> int:
         ),
     )
     forbid_tokens(
-        "audio-analysis core",
-        sources["core"],
+        "audio-analysis runtime",
+        runtime,
         (
             "shell=True",
             "shell: true",
@@ -154,19 +172,6 @@ def main() -> int:
             '"arbitraryExecutablePathsAllowed": False',
             "Streamable HTTP is restricted to an explicit loopback host",
             "write_report",
-        ),
-    )
-    forbid_tokens(
-        "audio-analysis MCP",
-        sources["mcp"],
-        (
-            "shell=True",
-            "git push",
-            "git commit",
-            "--ffprobe",
-            "--ffmpeg",
-            "OPENAI_API_KEY",
-            "ANTHROPIC_API_KEY",
         ),
     )
     require_tokens(
@@ -204,8 +209,9 @@ def main() -> int:
             "Development Studio",
         ),
     )
-    if len(sources["core"].encode("utf-8")) > 64_000:
-        fail("audio-analysis core exceeds the bounded 64 KiB source limit")
+    for key in ("public", "contract", "io", "media", "types"):
+        if len(sources[key].encode("utf-8")) > 32_000:
+            fail(f"{FILES[key]} exceeds the bounded 32 KiB source limit")
     if len(sources["mcp"].encode("utf-8")) > 32_000:
         fail("audio-analysis MCP exceeds the bounded 32 KiB source limit")
 
