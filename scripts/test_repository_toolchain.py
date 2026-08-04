@@ -48,6 +48,7 @@ FILES = [
     "src/godot_game_test_lab/foundation_media_mcp.py",
     "src/godot_game_test_lab/foundation_media_plan.py",
     "src/godot_game_test_lab/foundation_media_release_report.py",
+    "src/godot_game_test_lab/foundation_media_source_authority.py",
     "src/godot_game_test_lab/media_production_plan.py",
     "src/godot_game_test_lab/strict_json.py",
     "src/godot_game_test_lab/godot-engine-lock.json",
@@ -371,6 +372,17 @@ def main() -> int:
     exercise(
         lambda root: mutate_text(
             root,
+            "src/godot_game_test_lab/foundation_media_source_authority.py",
+            lambda value: value.replace(
+                "current-source-identity-mismatch",
+                "current-source-identity-unchecked",
+            ),
+        ),
+        "Foundation current-source identity removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
             "src/godot_game_test_lab/foundation_media_release_report.py",
             lambda value: value.replace("return not dirty", "return dirty"),
         ),
@@ -386,7 +398,7 @@ def main() -> int:
     print("Godot lab repository toolchain adversarial tests passed.")
     print(
         "- Python, lockfile, workflow, sandbox, asset-audit, media-plan, "
-        "exact-head release and truth-boundary drift fail closed"
+        "current-source, exact-head release and truth-boundary drift fail closed"
     )
     return 0
 
