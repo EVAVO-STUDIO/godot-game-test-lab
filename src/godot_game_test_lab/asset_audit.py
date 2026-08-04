@@ -13,7 +13,6 @@ from .asset_audit_io import (
     default_lab_root,
     read_git_state,
     resolve_directory,
-    resolve_regular_file,
     write_evidence_json,
 )
 from .asset_audit_validation import (
@@ -119,7 +118,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if args.output is not None:
             project_root = resolve_directory(args.project, "Godot project")
-            audit_source = resolve_regular_file(args.audit, "Art Studio audit")
             git_state = read_git_state(project_root)
             lab_root = default_lab_root()
             protected = [project_root, lab_root]
