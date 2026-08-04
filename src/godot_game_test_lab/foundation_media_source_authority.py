@@ -313,7 +313,7 @@ def validate_current_foundation_media_sources(
                 )
             )
 
-        actual_image = None
+        actual_image = row.image
         if extension == ".png":
             if stable.payload is None:
                 findings.append(
@@ -325,18 +325,18 @@ def validate_current_foundation_media_sources(
                     )
                 )
             else:
-                try:
-                    actual_image = probe_image_bytes(stable.payload, extension)
-                    probed_png += 1
-                except AssetAuditError as error:
+                actual_image = probe_image_bytes(stable.payload, extension)
+                probed_png += 1
+                if not actual_image.valid or not actual_image.probe_complete:
                     findings.append(
                         _finding(
-                            "current-source-png-probe-failed",
-                            str(error),
+                            "current-source-png-invalid",
+                            "Current PNG failed the independent structural or alpha probe.",
                             path=relative,
+                            warnings=list(actual_image.warnings),
                         )
                     )
-        if actual_image is not None:
+        if extension == ".png" and actual_image is not None:
             if row.image is None:
                 findings.append(
                     _finding(
@@ -353,6 +353,7 @@ def validate_current_foundation_media_sources(
                 or row.image.has_alpha_channel != actual_image.has_alpha_channel
                 or row.image.alpha_usage != actual_image.alpha_usage
                 or row.image.probe_complete != actual_image.probe_complete
+                or tuple(row.image.warnings) != tuple(actual_image.warnings)
             ):
                 findings.append(
                     _finding(
