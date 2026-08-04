@@ -26,11 +26,13 @@ FILES = [
     "docs/MEDIA_PRODUCTION_PLAN_GATE.md",
     "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
     "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
+    "docs/BRASS_BRINE_AUDIO_ANALYSIS.md",
     "evavo.reliability.json",
     "pyproject.toml",
     "schemas/repository-owned-reliability-profile.schema.json",
     "scripts/check_asset_audit_toolchain.py",
     "scripts/check_foundation_media_toolchain.py",
+    "scripts/check_audio_analysis_toolchain.py",
     "scripts/check_repository_toolchain.py",
     "scripts/check_repository_toolchain_core.py",
     "src/godot_game_test_lab/__init__.py",
@@ -45,6 +47,12 @@ FILES = [
     "src/godot_game_test_lab/asset_audit_model.py",
     "src/godot_game_test_lab/asset_audit_png.py",
     "src/godot_game_test_lab/asset_audit_validation.py",
+    "src/godot_game_test_lab/audio_analysis.py",
+    "src/godot_game_test_lab/audio_analysis_contract.py",
+    "src/godot_game_test_lab/audio_analysis_io.py",
+    "src/godot_game_test_lab/audio_analysis_mcp.py",
+    "src/godot_game_test_lab/audio_analysis_media.py",
+    "src/godot_game_test_lab/audio_analysis_types.py",
     "src/godot_game_test_lab/foundation_media_mcp.py",
     "src/godot_game_test_lab/foundation_media_plan.py",
     "src/godot_game_test_lab/foundation_media_release_report.py",
@@ -64,6 +72,8 @@ FILES = [
     "tests/test_asset_audit_mcp.py",
     "tests/test_asset_audit_png.py",
     "tests/test_asset_audit_release_contract.py",
+    "tests/test_audio_analysis.py",
+    "tests/test_audio_analysis_mcp.py",
     "tests/test_foundation_media_mcp.py",
     "tests/test_foundation_media_plan.py",
     "tests/test_foundation_media_release_report.py",
@@ -406,12 +416,16 @@ def main() -> int:
         ).unlink(),
         "Foundation media checker removal",
     )
+    exercise(
+        lambda root: (root / "scripts/check_audio_analysis_toolchain.py").unlink(),
+        "Brass audio-analysis checker removal",
+    )
 
     print("Godot lab repository toolchain adversarial tests passed.")
     print(
         "- Python, lockfile, workflow, sandbox, asset-audit, media-plan, "
-        "current-source, exact-head CLI/MCP release and truth-boundary drift "
-        "fail closed"
+        "current-source, exact-head CLI/MCP release, Brass audio-analysis and "
+        "truth-boundary drift fail closed"
     )
     return 0
 
