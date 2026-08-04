@@ -15,12 +15,50 @@ except ImportError:  # Core and source-only validation do not require MCP.
     FastMCP = None
 
 from .asset_audit import REPORT_SCHEMA_VERSION, validate_asset_audit
-from .asset_audit_io import AssetAuditError, write_evidence_json
+from .asset_audit_io import (
+    AssetAuditError,
+    is_within,
+    resolve_regular_file,
+    write_evidence_json,
+)
 from .asset_audit_mcp_policy import (
     AssetAuditMcpConfig,
+    AssetAuditTarget,
     resolve_audit_path,
     resolve_target,
 )
+from .media_production_plan import validate_media_production_plan
+
+DEFAULT_MEDIA_CONTRACT = (
+    "data/identity/brass_brine_media_production_contract_2026_08_04.json"
+)
+
+
+def _resolve_media_evidence_path(
+    value: str,
+    *,
+    label: str,
+    target: AssetAuditTarget,
+    config: AssetAuditMcpConfig,
+    allow_evidence_root: bool,
+) -> Path:
+    requested = Path(value).expanduser()
+    if not requested.is_absolute():
+        requested = Path(target.git_root) / requested
+    resolved = resolve_regular_file(requested, label)
+    in_target = is_within(resolved, Path(target.git_root))
+    in_evidence = allow_evidence_root and is_within(
+        resolved,
+        config.evidence_root,
+    )
+    if not (in_target or in_evidence):
+        boundary = (
+            "the target Git root or evidence root"
+            if allow_evidence_root
+            else "the target Git root"
+        )
+        raise AssetAuditError(f"{label} must remain inside {boundary}")
+    return resolved
 
 
 def build_server(config: AssetAuditMcpConfig):
@@ -30,11 +68,15 @@ def build_server(config: AssetAuditMcpConfig):
         )
 
     server = FastMCP(
-        name="EVAVO Godot Asset Audit Gate",
+        name="EVAVO Godot Asset Audit and Media Plan Gate",
         instructions=(
-            "Compare an exact EVAVO Art Studio audit with stable current bytes of an "
-            "allowed Godot project. This server is read-only for target source and "
-            "writes optional reports only beneath the configured evidence root."
+            "Compare exact EVAVO Art Studio audits and game-owned media plans with "
+            "stable current bytes of an allowed Godot project. Validate the audit "
+            "before compiling a plan, then bind that plan to the exact game contract "
+            "and audit identities. Planning mode may retain explicit repair work; "
+            "strict mode requires no blockers or unresolved review. This server is "
+            "read-only for target source and writes optional reports only beneath "
+            "the configured evidence root."
         ),
         json_response=True,
     )
@@ -42,17 +84,20 @@ def build_server(config: AssetAuditMcpConfig):
     @server.tool(name="godot_asset_audit_capabilities", structured_output=True)
     def capabilities() -> dict[str, Any]:
         return {
-            "schemaVersion": "1.1",
+            "schemaVersion": "1.2",
             "resultSchemaVersion": REPORT_SCHEMA_VERSION,
-            "bridge": "evavo-godot-asset-audit-gate",
+            "bridge": "evavo-godot-asset-and-media-plan-gate",
             "labRoot": str(config.lab_root),
-            "allowedTargetRoots": [str(path) for path in config.allowed_target_roots],
+            "allowedTargetRoots": [
+                str(path) for path in config.allowed_target_roots
+            ],
             "evidenceRoot": str(config.evidence_root),
             "writesTargetRepository": False,
             "performsGitMutation": False,
             "tools": [
                 "godot_asset_audit_capabilities",
                 "godot_validate_art_audit",
+                "godot_validate_media_production_plan",
             ],
             "checks": [
                 "strict duplicate-key-safe Art Studio schema and type authority",
@@ -63,12 +108,20 @@ def build_server(config: AssetAuditMcpConfig):
                 "duplicate, cleanup, missing-reference and animation continuity",
                 "optional exact target SHA and clean checkout",
                 "final byte, inventory and Git-state rechecks",
+                "exact game media-contract SHA-256 binding",
+                "exact Art Studio audit SHA-256 binding",
+                "work-item source, role, stage and target-root coherence",
+                "recomputed blocker, review and role summaries",
+                "strict no-blocker and no-review readiness",
+                "role-specific native capture and listening routes",
             ],
             "truthBoundaries": [
                 "A passing audit is not artistic or historical approval.",
+                "A valid planning report may deliberately retain repair blockers.",
+                "Strict plan validation does not prove Godot import or native rendering.",
                 "Static reference analysis is not deletion authority.",
                 "Compressed alpha requires decoded or native runtime verification.",
-                "Godot import, visual playback and human acceptance remain separate gates.",
+                "Native playback, audio listening and human acceptance remain separate gates.",
             ],
         }
 
@@ -142,13 +195,95 @@ def build_server(config: AssetAuditMcpConfig):
         )
         return report
 
+    @server.tool(
+        name="godot_validate_media_production_plan",
+        structured_output=True,
+    )
+    async def validate_production_plan(
+        target: str,
+        audit: str,
+        plan: str,
+        ctx: Context,
+        contract: str = DEFAULT_MEDIA_CONTRACT,
+        project_subpath: str | None = None,
+        expected_target_sha: str | None = None,
+        strict: bool = False,
+        output: str | None = None,
+    ) -> dict[str, Any]:
+        """Bind one media plan to exact game-contract and Art Studio evidence."""
+        await ctx.report_progress(
+            progress=0.05,
+            total=1.0,
+            message="Resolving exact target and media-plan authority",
+        )
+        record = await asyncio.to_thread(
+            resolve_target,
+            target,
+            config=config,
+            project_subpath=project_subpath,
+            expected_target_sha=expected_target_sha,
+        )
+        contract_path = _resolve_media_evidence_path(
+            contract,
+            label="Game media production contract",
+            target=record,
+            config=config,
+            allow_evidence_root=False,
+        )
+        audit_path = resolve_audit_path(audit, target=record, config=config)
+        plan_path = _resolve_media_evidence_path(
+            plan,
+            label="Media production plan",
+            target=record,
+            config=config,
+            allow_evidence_root=True,
+        )
+        await ctx.report_progress(
+            progress=0.3,
+            total=1.0,
+            message="Binding plan work items to stable contract and audit bytes",
+        )
+        report = await asyncio.to_thread(
+            validate_media_production_plan,
+            Path(record.project_root),
+            contract_path,
+            audit_path,
+            plan_path,
+            strict=strict,
+        )
+        report["target"] = {
+            "gitRoot": record.git_root,
+            "projectRoot": record.project_root,
+            "projectSubpath": record.project_subpath,
+            "targetSha": record.target_sha,
+        }
+        if output is not None:
+            written = await asyncio.to_thread(
+                write_evidence_json,
+                report,
+                output=Path(output),
+                evidence_root=config.evidence_root,
+                protected_roots=(config.lab_root, Path(record.git_root)),
+                replace=False,
+            )
+            report["outputPath"] = str(written)
+        await ctx.report_progress(
+            progress=1.0,
+            total=1.0,
+            message="Godot media production-plan validation complete",
+        )
+        return report
+
     return server
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="godot-lab-asset-audit-mcp",
-        description="Expose the root-restricted Godot Art Studio audit gate to MCP clients.",
+        description=(
+            "Expose root-restricted Godot Art Studio audit and media-plan "
+            "gates to MCP clients."
+        ),
     )
     parser.add_argument("--lab-root", type=Path)
     parser.add_argument("--allowed-root", type=Path, action="append", default=[])
@@ -166,8 +301,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    if args.transport == "streamable-http" and args.host not in {"127.0.0.1", "::1"}:
-        raise SystemExit("Streamable HTTP is restricted to an explicit loopback host")
+    if (
+        args.transport == "streamable-http"
+        and args.host not in {"127.0.0.1", "::1"}
+    ):
+        raise SystemExit(
+            "Streamable HTTP is restricted to an explicit loopback host"
+        )
     if not 1 <= args.port <= 65_535:
         raise SystemExit("--port must be between 1 and 65535")
     try:
@@ -178,17 +318,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         server = build_server(config)
     except (RuntimeError, AssetAuditError, OSError, ValueError) as error:
-        print(json.dumps({"status": "blocked", "error": str(error)}), file=sys.stderr)
+        print(
+            json.dumps({"status": "blocked", "error": str(error)}),
+            file=sys.stderr,
+        )
         return 2
     if args.self_test:
         print(
             json.dumps(
                 {
-                    "schemaVersion": "1.1",
+                    "schemaVersion": "1.2",
                     "status": "passed",
                     "server": server.name,
                     "transport": args.transport,
-                    "allowedTargetRoots": [str(path) for path in config.allowed_target_roots],
+                    "allowedTargetRoots": [
+                        str(path) for path in config.allowed_target_roots
+                    ],
                     "evidenceRoot": str(config.evidence_root),
                     "writesTargetRepository": False,
                     "performsGitMutation": False,
