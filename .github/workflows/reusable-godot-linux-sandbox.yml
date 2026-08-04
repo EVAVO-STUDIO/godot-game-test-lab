@@ -221,6 +221,13 @@ jobs:
           image="evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           artifacts="${GITHUB_WORKSPACE}/artifacts/linux-sandbox"
           work="${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          host_uid="$(id -u)"
+          host_gid="$(id -g)"
+          [[ "${host_uid}" =~ ^[0-9]+$ && "${host_gid}" =~ ^[0-9]+$ ]]
+          (( host_uid > 0 && host_gid > 0 )) || {
+            echo "Linux sandbox requires a non-root hosted runner identity" >&2
+            exit 1
+          }
           rm -rf "${work}"
           mkdir -p "${work}"
           chmod 0777 "${artifacts}" "${work}"
@@ -231,6 +238,7 @@ jobs:
             --read-only \
             --cap-drop ALL \
             --security-opt no-new-privileges \
+            --user "${host_uid}:${host_gid}" \
             --pids-limit 1024 \
             --cpus 4 \
             --memory 10g \
@@ -238,11 +246,12 @@ jobs:
             --ulimit nofile=4096:4096 \
             --shm-size 1g \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=1g,mode=1777 \
-            --tmpfs /home/godotlab:rw,nosuid,nodev,size=2g,mode=0700,uid=10001,gid=10001 \
+            --tmpfs "/home/godotlab:rw,nosuid,nodev,size=2g,mode=0700,uid=${host_uid},gid=${host_gid}" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/target-source,target=/workspace/source,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/profile.normalized.json,target=/workspace/profile.normalized.json,readonly" \
             --mount "type=bind,source=${work},target=/workspace/work" \
             --mount "type=bind,source=${artifacts},target=/artifacts" \
+            --env HOME=/home/godotlab \
             --env EVAVO_TARGET_REPOSITORY="${GITHUB_REPOSITORY}" \
             --env EVAVO_TARGET_SHA="${TARGET_SHA}" \
             --env EVAVO_LAB_SHA="${LAB_SHA}" \
@@ -324,6 +333,12 @@ jobs:
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
+          work="${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           docker rm -f "evavo-godot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
           docker image rm "evavo-godot-linux:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
-          rm -rf "${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "${work}"
+          [[ ! -e "${work}" ]] || {
+            echo "Linux sandbox ephemeral worktree cleanup failed" >&2
+            exit 1
+          }
