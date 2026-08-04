@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from asset_audit_fixtures import _audit, _codes, _project, _rgba, _write_audit
+
 from godot_game_test_lab.asset_audit import validate_asset_audit
 
 
