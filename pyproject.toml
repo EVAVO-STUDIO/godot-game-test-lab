@@ -47,3 +47,7 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/godot_game_test_lab/asset_audit.py" = ["E501", "I001", "UP035"]
+"src/godot_game_test_lab/asset_audit_mcp.py" = ["E501", "UP035"]
