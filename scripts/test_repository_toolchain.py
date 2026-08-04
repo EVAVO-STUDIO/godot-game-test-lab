@@ -24,10 +24,13 @@ FILES = [
     "containers/linux-sandbox/Dockerfile",
     "docs/ART_STUDIO_ASSET_AUDIT.md",
     "docs/MEDIA_PRODUCTION_PLAN_GATE.md",
+    "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
+    "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
     "evavo.reliability.json",
     "pyproject.toml",
     "schemas/repository-owned-reliability-profile.schema.json",
     "scripts/check_asset_audit_toolchain.py",
+    "scripts/check_foundation_media_toolchain.py",
     "scripts/check_repository_toolchain.py",
     "scripts/check_repository_toolchain_core.py",
     "src/godot_game_test_lab/__init__.py",
@@ -42,6 +45,9 @@ FILES = [
     "src/godot_game_test_lab/asset_audit_model.py",
     "src/godot_game_test_lab/asset_audit_png.py",
     "src/godot_game_test_lab/asset_audit_validation.py",
+    "src/godot_game_test_lab/foundation_media_mcp.py",
+    "src/godot_game_test_lab/foundation_media_plan.py",
+    "src/godot_game_test_lab/foundation_media_release_report.py",
     "src/godot_game_test_lab/media_production_plan.py",
     "src/godot_game_test_lab/strict_json.py",
     "src/godot_game_test_lab/godot-engine-lock.json",
@@ -57,6 +63,8 @@ FILES = [
     "tests/test_asset_audit_mcp.py",
     "tests/test_asset_audit_png.py",
     "tests/test_asset_audit_release_contract.py",
+    "tests/test_foundation_media_plan.py",
+    "tests/test_foundation_media_release_report.py",
     "tests/test_media_production_plan.py",
 ]
 
@@ -360,11 +368,25 @@ def main() -> int:
         ),
         "media-plan audit identity removal",
     )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/foundation_media_release_report.py",
+            lambda value: value.replace("return not dirty", "return dirty"),
+        ),
+        "Foundation exact-head cleanliness inversion",
+    )
+    exercise(
+        lambda root: (
+            root / "scripts/check_foundation_media_toolchain.py"
+        ).unlink(),
+        "Foundation media checker removal",
+    )
 
     print("Godot lab repository toolchain adversarial tests passed.")
     print(
-        "- Python, lockfile, workflow, sandbox, asset-audit, media-plan and "
-        "truth-boundary drift fail closed"
+        "- Python, lockfile, workflow, sandbox, asset-audit, media-plan, "
+        "exact-head release and truth-boundary drift fail closed"
     )
     return 0
 
