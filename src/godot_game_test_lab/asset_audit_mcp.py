@@ -18,7 +18,6 @@ from .asset_audit import REPORT_SCHEMA_VERSION, validate_asset_audit
 from .asset_audit_io import AssetAuditError, write_evidence_json
 from .asset_audit_mcp_policy import (
     AssetAuditMcpConfig,
-    AssetAuditTarget,
     resolve_audit_path,
     resolve_target,
 )
