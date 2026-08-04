@@ -12,10 +12,10 @@ import pytest
 
 from godot_game_test_lab.audio_analysis import (
     ANALYSIS_ID,
-    AudioAnalysisVerificationError,
     INVENTORY_ID,
     REPORT_ID,
     TARGET_REPOSITORY,
+    AudioAnalysisVerificationError,
     validate_audio_analysis,
     write_report,
 )
