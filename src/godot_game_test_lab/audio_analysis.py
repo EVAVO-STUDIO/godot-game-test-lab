@@ -44,7 +44,6 @@ from .audio_analysis_types import (
     AudioAnalysisVerificationError,
 )
 
-
 __all__ = (
     "ANALYSIS_ID",
     "AudioAnalysisVerificationError",
