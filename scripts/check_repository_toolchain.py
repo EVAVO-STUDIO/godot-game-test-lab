@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path.cwd().resolve(strict=True)
 ASSET_AUDIT_PATH = ROOT / "scripts" / "check_asset_audit_toolchain.py"
+FOUNDATION_MEDIA_PATH = ROOT / "scripts" / "check_foundation_media_toolchain.py"
 CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 EXPECTED_WORKFLOWS = {
     "ci.yml",
@@ -81,6 +82,13 @@ def _preflight_errors() -> list[str]:
     )
     errors.extend(
         _validate_checker(
+            FOUNDATION_MEDIA_PATH,
+            "Foundation media checker",
+            "def main() -> int:",
+        )
+    )
+    errors.extend(
+        _validate_checker(
             CORE_PATH,
             "toolchain core",
             "def main() -> int:",
@@ -112,6 +120,12 @@ def main() -> int:
     asset_result = _run_checker(ASSET_AUDIT_PATH, "asset-audit-checker")
     if asset_result != 0:
         return asset_result
+    foundation_result = _run_checker(
+        FOUNDATION_MEDIA_PATH,
+        "foundation-media-checker",
+    )
+    if foundation_result != 0:
+        return foundation_result
     return _run_checker(CORE_PATH, "toolchain-core")
 
 
