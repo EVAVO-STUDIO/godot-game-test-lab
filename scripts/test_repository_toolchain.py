@@ -23,6 +23,7 @@ FILES = [
     ".python-version",
     "containers/linux-sandbox/Dockerfile",
     "docs/ART_STUDIO_ASSET_AUDIT.md",
+    "docs/MEDIA_PRODUCTION_PLAN_GATE.md",
     "evavo.reliability.json",
     "pyproject.toml",
     "schemas/repository-owned-reliability-profile.schema.json",
@@ -41,6 +42,7 @@ FILES = [
     "src/godot_game_test_lab/asset_audit_model.py",
     "src/godot_game_test_lab/asset_audit_png.py",
     "src/godot_game_test_lab/asset_audit_validation.py",
+    "src/godot_game_test_lab/media_production_plan.py",
     "src/godot_game_test_lab/strict_json.py",
     "src/godot_game_test_lab/godot-engine-lock.json",
     "src/godot_game_test_lab/engine_manager.py",
@@ -55,6 +57,7 @@ FILES = [
     "tests/test_asset_audit_mcp.py",
     "tests/test_asset_audit_png.py",
     "tests/test_asset_audit_release_contract.py",
+    "tests/test_media_production_plan.py",
 ]
 
 
@@ -346,11 +349,22 @@ def main() -> int:
         ),
         "asset-audit private bridge import",
     )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/media_production_plan.py",
+            lambda value: value.replace(
+                "plan-audit-identity-mismatch",
+                "plan-audit-recheck-removed",
+            ),
+        ),
+        "media-plan audit identity removal",
+    )
 
     print("Godot lab repository toolchain adversarial tests passed.")
     print(
-        "- Python, lockfile, workflow, sandbox, asset-audit and truth-boundary drift "
-        "fail closed"
+        "- Python, lockfile, workflow, sandbox, asset-audit, media-plan and "
+        "truth-boundary drift fail closed"
     )
     return 0
 
