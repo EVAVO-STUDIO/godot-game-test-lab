@@ -43,6 +43,7 @@ def _mcp_fixture(tmp_path: Path):
     targets = tmp_path / "targets"
     targets.mkdir()
     fixture_root = targets / "foundation"
+    fixture_root.mkdir()
     project, contract, audit_source, plan_source = _fixture(fixture_root)
     head = _clean_repo(project)
 
