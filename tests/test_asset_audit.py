@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import struct
 import zlib
+from pathlib import Path
 
 from godot_game_test_lab.asset_audit import validate_asset_audit
 
