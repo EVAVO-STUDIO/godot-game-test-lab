@@ -9,6 +9,9 @@ ROOT = Path.cwd().resolve(strict=True)
 ERRORS: list[str] = []
 FILES = {
     "gate": "src/godot_game_test_lab/foundation_media_plan.py",
+    "source_authority": (
+        "src/godot_game_test_lab/foundation_media_source_authority.py"
+    ),
     "release": "src/godot_game_test_lab/foundation_media_release_report.py",
     "mcp": "src/godot_game_test_lab/foundation_media_mcp.py",
     "tests": "tests/test_foundation_media_plan.py",
@@ -99,19 +102,64 @@ def main() -> int:
     )
 
     require(
+        "Foundation current-source authority",
+        sources["source_authority"],
+        (
+            "validate_current_foundation_media_sources",
+            "resolve_project_file",
+            "read_stable_regular_file",
+            "probe_image_bytes",
+            "current-audit-root-mismatch",
+            "current-plan-audit-root-mismatch",
+            "current-plan-audit-authority-split",
+            "current-source-identity-mismatch",
+            "current-source-extension-mismatch",
+            "current-source-png-invalid",
+            "current-source-image-evidence-mismatch",
+            "current-source-required-blocker-missing",
+            "current-source-target-collision-blocker-missing",
+            "runtime-target-collision",
+            "exact-canvas-mismatch",
+            "meaningful-alpha-required",
+            "opaque-art-cannot-be-fully-transparent",
+            "MAXIMUM_IMAGE_PROBE_BYTES",
+        ),
+    )
+    forbid(
+        "Foundation current-source authority",
+        sources["source_authority"],
+        (
+            "git push",
+            "git commit",
+            "subprocess.run(",
+            "shell=True",
+            "unlink(",
+            "rmtree(",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ),
+    )
+
+    require(
         "Foundation media exact-head release report",
         sources["release"],
         (
             "build_foundation_media_release_report",
+            "validate_current_foundation_media_sources",
+            "_attach_current_source_authority",
             "read_git_state",
             'dirty = value.get("dirty")',
             "return not dirty",
             'report["targetSha"] = target_sha',
             'report["targetClean"] = True',
             'report["exactHeadBound"] = True',
+            'report["currentSourceBound"] = current_source_bound',
             'report["releaseEvidenceEligible"] = bool(',
             'report["targetMutationPerformed"] = False',
             'report["publicationAuthority"] = False',
+            'policy["currentTargetBytesRechecked"] = True',
+            'policy["currentPngEvidenceRechecked"] = True',
+            'policy["auditAndPlanRootBound"] = True',
             "Target Git state changed while release evidence was built",
             "A clean target worktree is required for release evidence",
             "replace=False",
@@ -170,6 +218,8 @@ def main() -> int:
             "test_foundation_plan_repository_mismatch_fails",
             '"nativeViewports"',
             '"requiresAudioAnalysis"',
+            "_rgba(32, 32",
+            '"auditRoot": str(audit_root.resolve())',
         ),
     )
     require(
@@ -179,9 +229,18 @@ def main() -> int:
             "test_release_report_binds_clean_exact_head",
             "test_release_report_rejects_dirty_worktree",
             "test_release_report_preserves_plan_failure_and_head_identity",
+            "test_release_report_rejects_clean_head_with_stale_audit_bytes",
+            "test_release_report_rejects_split_audit_root_authority",
+            "test_release_report_rejects_omitted_current_canvas_blocker",
             'assert report["targetSha"] == head',
             'assert report["targetClean"] is True',
+            'assert report["currentSourceBound"] is True',
             'assert report["releaseEvidenceEligible"] is True',
+            "current-source-identity-mismatch",
+            "current-audit-root-mismatch",
+            "current-plan-audit-root-mismatch",
+            "current-source-required-blocker-missing",
+            "exact-canvas-mismatch",
             "strict-plan-blocked-items",
         ),
     )
@@ -211,7 +270,10 @@ def main() -> int:
             '"targetSha"',
             '"targetClean": true',
             '"exactHeadBound": true',
+            '"currentSourceBound": true',
             '"releaseEvidenceEligible": true',
+            "current target bytes",
+            "audit root",
             "testLabArtPlanReport",
             "does not approve creative work or import Godot",
         ),
@@ -251,6 +313,7 @@ def main() -> int:
         return 1
     print("Foundation media toolchain check passed.")
     print("- exact Foundation Kit contract and Art Studio audit remain bound")
+    print("- current target bytes, audit roots and PNG evidence are rechecked")
     print("- five authored surfaces and audio listening routes remain explicit")
     print("- clean current HEAD is required for Development Studio evidence")
     print("- Linux evidence returns under the non-root hosted runner identity")
