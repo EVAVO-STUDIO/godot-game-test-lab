@@ -50,6 +50,17 @@ git pull --ff-only origin main
   -InitializeHost
 ```
 
+When `-InitializeHost` is present, the initializer installs the governed host,
+registers and starts the scheduled MCP worker, and completes live protocol
+acceptance once. The physical operator then reuses that same scheduled worker
+for the estate. It deliberately does not stop, replace, or start it again before
+the first target. This removes a redundant worker restart between successful
+host acceptance and target execution.
+
+Without `-InitializeHost`, `-RegisterWorker` and `-StartWorker` control the first
+estate target. Set either Boolean explicitly to `$false` when reusing an already
+prepared host through the lower-level path.
+
 Add `-PrepareLinuxSandboxImages` only when Docker Desktop is ready. Add
 `-EngineOffline` only after the governed Standard and .NET editors, templates,
 .NET SDK and media tools have already been provisioned.
