@@ -64,6 +64,7 @@ FILES = [
     "tests/test_asset_audit_mcp.py",
     "tests/test_asset_audit_png.py",
     "tests/test_asset_audit_release_contract.py",
+    "tests/test_foundation_media_mcp.py",
     "tests/test_foundation_media_plan.py",
     "tests/test_foundation_media_release_report.py",
     "tests/test_media_production_plan.py",
@@ -383,6 +384,17 @@ def main() -> int:
     exercise(
         lambda root: mutate_text(
             root,
+            "src/godot_game_test_lab/foundation_media_mcp.py",
+            lambda value: value.replace(
+                "foundation_build_media_release_report",
+                "foundation_release_tool_removed",
+            ),
+        ),
+        "Foundation release MCP removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
             "src/godot_game_test_lab/foundation_media_release_report.py",
             lambda value: value.replace("return not dirty", "return dirty"),
         ),
@@ -398,7 +410,8 @@ def main() -> int:
     print("Godot lab repository toolchain adversarial tests passed.")
     print(
         "- Python, lockfile, workflow, sandbox, asset-audit, media-plan, "
-        "current-source, exact-head release and truth-boundary drift fail closed"
+        "current-source, exact-head CLI/MCP release and truth-boundary drift "
+        "fail closed"
     )
     return 0
 
