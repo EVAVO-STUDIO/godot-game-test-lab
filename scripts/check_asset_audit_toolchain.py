@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when the Art Studio asset-audit authority drifts."""
+"""Fail closed when the Art Studio asset-audit and media-plan authority drifts."""
 
 from __future__ import annotations
 
@@ -23,13 +23,16 @@ FILES = {
     "png": "src/godot_game_test_lab/asset_audit_png.py",
     "validation": "src/godot_game_test_lab/asset_audit_validation.py",
     "strictJson": "src/godot_game_test_lab/strict_json.py",
+    "mediaPlan": "src/godot_game_test_lab/media_production_plan.py",
     "fixtures": "tests/asset_audit_fixtures.py",
     "tests": "tests/test_asset_audit.py",
     "authorityTests": "tests/test_asset_audit_authority.py",
     "mcpTests": "tests/test_asset_audit_mcp.py",
     "pngTests": "tests/test_asset_audit_png.py",
     "releaseTests": "tests/test_asset_audit_release_contract.py",
+    "mediaPlanTests": "tests/test_media_production_plan.py",
     "docs": "docs/ART_STUDIO_ASSET_AUDIT.md",
+    "mediaPlanDocs": "docs/MEDIA_PRODUCTION_PLAN_GATE.md",
     "pyproject": "pyproject.toml",
 }
 
@@ -97,8 +100,11 @@ def main() -> int:
         .get("lint", {})
         .get("per-file-ignores", {})
     )
-    if any("asset_audit" in path for path in per_file):
-        fail("asset-audit source may not use a Ruff per-file exemption")
+    if any(
+        "asset_audit" in source_path or "media_production_plan" in source_path
+        for source_path in per_file
+    ):
+        fail("asset-audit and media-plan source may not use a Ruff per-file exemption")
 
     require_tokens(
         "asset-audit CLI",
@@ -178,8 +184,11 @@ def main() -> int:
         (
             "godot_asset_audit_capabilities",
             "godot_validate_art_audit",
+            "godot_validate_media_production_plan",
+            "validate_media_production_plan",
             '"writesTargetRepository": False',
             '"performsGitMutation": False',
+            "allow_evidence_root=False",
             "Streamable HTTP is restricted to an explicit loopback host",
         ),
     )
@@ -205,12 +214,46 @@ def main() -> int:
             ),
         )
     require_tokens(
+        "media production-plan gate",
+        sources["mediaPlan"],
+        (
+            "load_art_studio_audit",
+            "load_strict_json_object",
+            "read_stable_regular_file",
+            "portable_path_key",
+            "brass_brine_media_production_plan_v1",
+            "plan-game-contract-identity-mismatch",
+            "plan-audit-identity-mismatch",
+            "plan-work-item-source-drift",
+            "plan-work-item-role-drift",
+            "plan-summary-invalid",
+            "strict-plan-blocked-items",
+            "strict-plan-review-required",
+            '"publicationAuthority": False',
+            '"deletionAuthority": False',
+        ),
+    )
+    forbid_tokens(
+        "media production-plan gate",
+        sources["mediaPlan"],
+        (
+            "git push",
+            "subprocess.run(",
+            "unlink(",
+            "rmtree(",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ),
+    )
+    require_tokens(
         "asset-audit release tests",
         sources["releaseTests"],
         (
             "test_asset_audit_source_and_policy_are_permanently_governed",
             "test_asset_audit_has_no_ruff_exemption",
             "test_asset_audit_mcp_self_test_uses_root_restricted_configuration",
+            "media_production_plan.py",
+            "godot_validate_media_production_plan",
         ),
     )
     require_tokens(
@@ -232,6 +275,16 @@ def main() -> int:
         ),
     )
     require_tokens(
+        "media production-plan tests",
+        sources["mediaPlanTests"],
+        (
+            "test_exact_ready_plan_passes_strict_validation",
+            "test_review_blockers_pass_planning_but_fail_strict",
+            "test_plan_hash_and_source_drift_fail_closed",
+            "test_contract_must_remain_inside_project",
+        ),
+    )
+    require_tokens(
         "asset-audit documentation",
         sources["docs"],
         (
@@ -239,7 +292,20 @@ def main() -> int:
             "stable bounded descriptor",
             "strictly beneath `--evidence-root`",
             "godot_validate_art_audit",
+            "godot_validate_media_production_plan",
             "does not prove artistic quality",
+        ),
+    )
+    require_tokens(
+        "media production-plan documentation",
+        sources["mediaPlanDocs"],
+        (
+            "game contract SHA-256",
+            "Art Studio audit SHA-256",
+            "blocked work items = 0",
+            "review-required work items = 0",
+            "1280×720",
+            "signed Development Studio publication transaction",
         ),
     )
     if len(sources["cli"].encode("utf-8")) > 32_000:
@@ -248,6 +314,8 @@ def main() -> int:
         fail("asset-audit MCP surface must remain split from path authority")
     if len(sources["mcpPolicy"].encode("utf-8")) > 64_000:
         fail("asset-audit MCP path authority exceeds its bounded source limit")
+    if len(sources["mediaPlan"].encode("utf-8")) > 64_000:
+        fail("media production-plan gate exceeds its bounded source limit")
 
     if ERRORS:
         print("Godot asset-audit toolchain check failed:", file=sys.stderr)
@@ -257,6 +325,7 @@ def main() -> int:
         return 1
     print("Godot asset-audit toolchain check passed.")
     print("- strict Art Studio schema, stable bytes and portable paths agree")
+    print("- exact game-contract and audit-bound media plans remain fail-closed")
     print("- PNG, output, MCP and source-mutation boundaries remain fail-closed")
     return 0
 

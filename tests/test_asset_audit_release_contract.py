@@ -21,12 +21,15 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
         "src/godot_game_test_lab/asset_audit_png.py",
         "src/godot_game_test_lab/asset_audit_mcp.py",
         "src/godot_game_test_lab/asset_audit_mcp_policy.py",
+        "src/godot_game_test_lab/media_production_plan.py",
         "tests/asset_audit_fixtures.py",
         "tests/test_asset_audit.py",
         "tests/test_asset_audit_authority.py",
         "tests/test_asset_audit_png.py",
         "tests/test_asset_audit_mcp.py",
+        "tests/test_media_production_plan.py",
         "docs/ART_STUDIO_ASSET_AUDIT.md",
+        "docs/MEDIA_PRODUCTION_PLAN_GATE.md",
     )
     for relative in required:
         assert (ROOT / relative).is_file(), relative
@@ -48,6 +51,9 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
     )
     mcp_policy = (
         ROOT / "src/godot_game_test_lab/asset_audit_mcp_policy.py"
+    ).read_text(encoding="utf-8")
+    media_plan = (
+        ROOT / "src/godot_game_test_lab/media_production_plan.py"
     ).read_text(encoding="utf-8")
     for token in (
         "load_art_studio_audit",
@@ -84,6 +90,8 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
         "writesTargetRepository",
         "performsGitMutation",
         "godot_validate_art_audit",
+        "godot_validate_media_production_plan",
+        "allow_evidence_root=False",
     ):
         assert token in mcp
     for token in (
@@ -92,6 +100,20 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
         "Art Studio audit must remain inside",
     ):
         assert token in mcp_policy
+    for token in (
+        "load_art_studio_audit",
+        "load_strict_json_object",
+        "read_stable_regular_file",
+        "brass_brine_media_production_plan_v1",
+        "plan-game-contract-identity-mismatch",
+        "plan-audit-identity-mismatch",
+        "plan-work-item-source-drift",
+        "strict-plan-blocked-items",
+        "strict-plan-review-required",
+        '"publicationAuthority": False',
+        '"deletionAuthority": False',
+    ):
+        assert token in media_plan
     for prohibited in (
         "from .agent_bridge import",
         "BridgeConfig",
@@ -101,6 +123,7 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
     ):
         assert prohibited not in mcp
         assert prohibited not in mcp_policy
+        assert prohibited not in media_plan
 
 
 def test_asset_audit_has_no_ruff_exemption() -> None:
@@ -109,7 +132,10 @@ def test_asset_audit_has_no_ruff_exemption() -> None:
         "per-file-ignores",
         {},
     )
-    assert not any("asset_audit" in path for path in per_file)
+    assert not any(
+        "asset_audit" in path or "media_production_plan" in path
+        for path in per_file
+    )
 
 
 def test_asset_audit_mcp_self_test_uses_root_restricted_configuration(
@@ -140,3 +166,4 @@ def test_asset_audit_mcp_self_test_uses_root_restricted_configuration(
     output = capsys.readouterr().out
     assert '"status": "passed"' in output
     assert '"writesTargetRepository": false' in output
+    assert '"performsGitMutation": false' in output

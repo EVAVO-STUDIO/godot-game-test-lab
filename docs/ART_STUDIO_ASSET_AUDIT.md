@@ -119,13 +119,15 @@ The bridge exposes:
 ```text
 godot_asset_audit_capabilities
 godot_validate_art_audit
+godot_validate_media_production_plan
 ```
 
 It resolves the exact target Git root, requires an explicit `project_subpath`
 when a repository contains multiple Godot projects, can bind an expected target
-SHA and defaults to a clean target checkout. An audit may be inside the selected
-target repository or the configured evidence root. Optional retained results are
-confined to the evidence root.
+SHA and defaults asset-audit validation to a clean target checkout. An audit or
+production plan may be inside the selected target repository or the configured
+evidence root. The game-owned production contract must remain in the selected
+Git root. Optional retained results are confined to the evidence root.
 
 The bridge owns no managed-engine cache because this stage does not launch Godot.
 It does not import private agent-bridge helpers and grants no arbitrary shell,
@@ -149,6 +151,32 @@ A present alpha channel is not proof of transparency. Independent evidence
 separates `none`, `opaque-channel`, `meaningful`, `fully-transparent` and
 `unknown`.
 
+## Production plan handoff
+
+A validated Art Studio audit can be consumed by Brass & Brine's deterministic
+media production planner. The plan records the exact game-contract and audit
+SHA-256 plus one role-aware work item for every selected source.
+
+Validate planning coherence:
+
+```powershell
+python -m godot_game_test_lab.media_production_plan `
+  C:\GitRepos\Brass_Brine `
+  C:\GitRepos\Brass_Brine\data\identity\brass_brine_media_production_contract_2026_08_04.json `
+  C:\GodotLabEvidence\Brass_Brine\art-audit.json `
+  C:\GodotLabEvidence\Brass_Brine\media-production-plan.json
+```
+
+Planning mode can retain explicit repair and review work. Add `--strict` only
+after every blocker and review item has been resolved. The plan gate independently
+rechecks strict JSON, contract and audit identities, work-item source identities,
+role-owned runtime policy, deterministic ordering, summary counts, target Git
+state and final evidence bytes.
+
+The result also derives required native viewport, alpha-edge, motion and audio
+acceptance routes. Those are requirements, not completed captures or approvals.
+See `docs/MEDIA_PRODUCTION_PLAN_GATE.md`.
+
 ## Truth boundaries
 
 A passing result proves current file identity and the declared source-level audit
@@ -156,6 +184,10 @@ contract. It does not prove artistic quality, style consistency, historical
 accuracy, animation feel, Godot import, runtime rendering, GPU behaviour,
 physical controller behaviour, accessibility, deletion safety, final mix or
 release readiness.
+
+A passing media production plan additionally proves coherence with one exact
+Brass & Brine contract and audit. It still does not prove mastering quality,
+native rendering, animation feel, audio listening or human creative approval.
 
 Continue with the matching Standard or .NET editor, C# compilation when needed,
 Godot import, bounded boot, native or no-network sandbox journeys, retained image
