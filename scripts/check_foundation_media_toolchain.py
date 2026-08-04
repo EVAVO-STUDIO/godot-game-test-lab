@@ -16,6 +16,7 @@ FILES = {
     "mcp": "src/godot_game_test_lab/foundation_media_mcp.py",
     "tests": "tests/test_foundation_media_plan.py",
     "release_tests": "tests/test_foundation_media_release_report.py",
+    "mcp_tests": "tests/test_foundation_media_mcp.py",
     "docs": "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
     "release_docs": "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
     "linux_workflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
@@ -186,13 +187,21 @@ def main() -> int:
         (
             "foundation_media_plan_capabilities",
             "foundation_validate_media_plan",
+            "foundation_build_media_release_report",
+            "build_release_report_for_mcp",
+            "build_foundation_media_release_report",
             "validate_foundation_media_plan",
+            "expected_target_sha: str",
+            "Foundation release report target SHA differs from MCP target authority",
+            "Rechecking current target bytes, roots and PNG evidence",
+            "Foundation Kit exact-head release report complete",
             '"writesTargetRepository": False',
             '"performsGitMutation": False',
             '"longRunningUpstreamOperationsUseTasks": True',
             '"taskCancellationRequired": True',
             "ctx.report_progress",
             "target_only=True",
+            "replace=False",
             "Streamable HTTP is restricted to an explicit loopback host",
         ),
     )
@@ -242,6 +251,20 @@ def main() -> int:
             "current-source-required-blocker-missing",
             "exact-canvas-mismatch",
             "strict-plan-blocked-items",
+        ),
+    )
+    require(
+        "Foundation media MCP tests",
+        sources["mcp_tests"],
+        (
+            "test_mcp_release_helper_writes_exact_current_source_report",
+            "test_mcp_release_helper_is_create_only",
+            "test_mcp_release_helper_rejects_target_write",
+            "build_release_report_for_mcp",
+            'assert report["currentSourceBound"] is True',
+            'assert report["releaseEvidenceEligible"] is True',
+            "currentBytesRechecked",
+            "forbidden-release-report.json",
         ),
     )
 
@@ -316,6 +339,7 @@ def main() -> int:
     print("- current target bytes, audit roots and PNG evidence are rechecked")
     print("- five authored surfaces and audio listening routes remain explicit")
     print("- clean current HEAD is required for Development Studio evidence")
+    print("- exact-head release reports are available through CLI and MCP")
     print("- Linux evidence returns under the non-root hosted runner identity")
     print("- MCP remains root-restricted, progress-aware and mutation-free")
     return 0
