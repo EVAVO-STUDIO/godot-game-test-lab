@@ -5,7 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_IMAGE = (
-    "ubuntu:noble-20260610@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
+    "ubuntu:noble-20260610@sha256:"
+    "4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
 )
 
 
@@ -20,7 +21,9 @@ def test_linux_container_is_pinned_and_fail_closed() -> None:
     assert f"FROM {BASE_IMAGE}" in dockerfile
     assert BASE_IMAGE in reliability
     assert "ARG GODOT_VERSION=4.6.3" in dockerfile
-    engine_lock = json.loads(_read("src/godot_game_test_lab/godot-engine-lock.json"))
+    engine_lock = json.loads(
+        _read("src/godot_game_test_lab/godot-engine-lock.json")
+    )
     assert engine_lock["minimumVersion"] == "4.6.2"
     assert engine_lock["defaultVersion"] == "4.6.3"
     assert "SHA512-SUMS.txt" in dockerfile
@@ -59,6 +62,25 @@ def test_linux_workflow_enforces_exact_sha_and_sandbox_boundaries() -> None:
     assert "persist-credentials: false" in workflow
     assert "git reset" not in workflow
     assert "git push" not in workflow
+
+
+def test_reusable_workflow_preserves_host_file_ownership() -> None:
+    workflow = _read(".github/workflows/reusable-godot-linux-sandbox.yml")
+    for marker in [
+        'host_uid="$(id -u)"',
+        'host_gid="$(id -g)"',
+        "Linux sandbox requires a non-root hosted runner identity",
+        '--user "${host_uid}:${host_gid}"',
+        'uid=${host_uid},gid=${host_gid}',
+        "--env HOME=/home/godotlab",
+        '[[ ! -e "${work}" ]]',
+        "Linux sandbox ephemeral worktree cleanup failed",
+    ]:
+        assert marker in workflow
+    assert "uid=10001,gid=10001" not in workflow
+    assert "--user root" not in workflow
+    assert "sudo chown" not in workflow
+    assert "sudo chmod" not in workflow
 
 
 def test_entrypoint_requires_read_only_source_and_uses_ephemeral_copy() -> None:
