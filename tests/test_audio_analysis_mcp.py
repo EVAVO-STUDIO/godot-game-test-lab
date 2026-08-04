@@ -4,7 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from godot_game_test_lab.audio_analysis import AudioAnalysisVerificationError, REPORT_ID
+from godot_game_test_lab.audio_analysis import (
+    REPORT_ID,
+    AudioAnalysisVerificationError,
+)
 from godot_game_test_lab.audio_analysis_mcp import (
     AudioAnalysisMcpConfig,
     _resolve_contract,
