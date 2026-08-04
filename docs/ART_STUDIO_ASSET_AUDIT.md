@@ -4,6 +4,8 @@ Godot Game Test Lab can independently validate an EVAVO Art Studio bulk reposito
 
 This closes the gap between an offline art review and the repository that Godot will actually import and run.
 
+After a valid audit is used to compile a game-owned media production plan, Test Lab can also bind that plan to the exact game contract and audit bytes. See `docs/MEDIA_PRODUCTION_PLAN_GATE.md`.
+
 ## Produce the Art Studio audit
 
 From EVAVO Art Studio:
@@ -17,8 +19,6 @@ pnpm art -- inspect `
 The report includes file SHA-256 values, supported decoded dimensions and PNG alpha use, role-specific transparency policies, source/resource demand, missing references, duplicate groups, animation families, optimization guidance and review-only cleanup candidates.
 
 ## Validate it from Test Lab
-
-Run from the installed package or repository checkout:
 
 ```powershell
 python -m godot_game_test_lab.asset_audit `
@@ -62,7 +62,7 @@ Each allowance is written into the JSON result. These switches are diagnostic au
 
 ## MCP access for ChatGPT and Claude
 
-Install the optional agent dependency and start the dedicated root-restricted module:
+Install the optional agent dependency and start the dedicated root-restricted server:
 
 ```powershell
 pip install -e ".[agent]"
@@ -78,9 +78,10 @@ The server exposes:
 ```text
 godot_asset_audit_capabilities
 godot_validate_art_audit
+godot_validate_media_production_plan
 ```
 
-An audit path may be relative to the selected target Git root or absolute beneath either that Git root or the configured evidence root. Symlink traversal and every other location fail closed.
+An audit or plan path may be relative to the selected target Git root or absolute beneath either that Git root or the configured evidence root. The game media contract must remain in the selected Git root. Symlink traversal and every other location fail closed.
 
 The MCP server is deliberately separate from mutation tooling. It cannot edit, delete, move, commit, push or publish a target repository.
 
@@ -103,6 +104,22 @@ The gate respects Art Studio's asymmetric role policy:
 - dialogue close-ups ordinarily preserve authored opaque or black presentation stages;
 - standing characters, crew cut-outs, UI icons, ship profiles and weather overlays require meaningful alpha;
 - maps, backgrounds and document plates ordinarily preserve opaque authored plates.
+
+## Production plan handoff
+
+A validated audit can be consumed by Brass & Brine's deterministic production planner. The resulting plan records the exact contract and audit SHA-256 and one role-aware work item per source.
+
+Validate planning coherence:
+
+```powershell
+python -m godot_game_test_lab.media_production_plan `
+  C:\GitRepos\Brass_Brine `
+  C:\GitRepos\Brass_Brine\data\identity\brass_brine_media_production_contract_2026_08_04.json `
+  C:\GodotLabEvidence\Brass_Brine\art-audit.json `
+  C:\GodotLabEvidence\Brass_Brine\media-production-plan.json
+```
+
+Add `--strict` only after every blocker and review item has been resolved. Strict plan validation still does not claim native rendering, animation feel, audio listening or human creative approval.
 
 ## Truth boundaries
 
