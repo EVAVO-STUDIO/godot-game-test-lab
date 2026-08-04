@@ -22,11 +22,11 @@ from .foundation_media_source_authority import (
 )
 from .strict_json import StrictJsonError
 
-REPORT_SCHEMA_VERSION = "1.0"
+REPORT_SCHEMA_VERSION = "1.1"
 
 
 class FoundationMediaReleaseReportError(AssetAuditError):
-    """Raised when a plan report cannot become exact-head release evidence."""
+    """Raised when a plan report cannot become exact-state release evidence."""
 
 
 def _head_from_state(value: dict[str, Any]) -> str | None:
@@ -120,19 +120,28 @@ def build_foundation_media_release_report(
     plan: Path,
     *,
     strict: bool = True,
+    publication_candidate: bool = False,
 ) -> dict[str, Any]:
     project_root = resolve_directory(project, "Godot project")
     state_before = read_git_state(project_root)
     before = state_before.to_dict()
     target_sha = _head_from_state(before)
     clean = _clean_from_state(before)
-    if not state_before.available or target_sha is None:
+    if not state_before.available or target_sha is None or clean is None:
         raise FoundationMediaReleaseReportError(
-            "Exact Git HEAD is required for Foundation Kit release evidence"
+            "Exact Git HEAD and worktree state are required for Foundation Kit "
+            "release evidence"
         )
-    if clean is not True:
+    if publication_candidate:
+        if clean is not False:
+            raise FoundationMediaReleaseReportError(
+                "Publication-candidate release evidence requires an exact changed "
+                "worktree"
+            )
+    elif clean is not True:
         raise FoundationMediaReleaseReportError(
-            "A clean target worktree is required for release evidence"
+            "A clean target worktree is required for release evidence "
+            "unless publication_candidate is enabled"
         )
 
     report = validate_foundation_media_plan(
@@ -142,6 +151,7 @@ def build_foundation_media_release_report(
         plan,
         strict=strict,
     )
+    report["schemaVersion"] = REPORT_SCHEMA_VERSION
     source_authority = validate_current_foundation_media_sources(
         project_root,
         contract,
@@ -154,27 +164,47 @@ def build_foundation_media_release_report(
     after = state_after.to_dict()
     after_sha = _head_from_state(after)
     after_clean = _clean_from_state(after)
-    if after_sha != target_sha or after_clean is not True:
+    state_unchanged = before == after
+    if (
+        after_sha != target_sha
+        or after_clean is not clean
+        or not state_unchanged
+    ):
         raise FoundationMediaReleaseReportError(
             "Target Git state changed while release evidence was built"
         )
 
+    report["sourceState"] = {
+        "before": before,
+        "after": after,
+        "unchanged": True,
+    }
+    policy = report.setdefault("policy", {})
+    policy["publicationCandidate"] = publication_candidate
+    policy["requireCleanTarget"] = not publication_candidate
+    policy["exactWorkingTreeStateRequired"] = True
+
     report["targetSha"] = target_sha
-    report["targetClean"] = True
+    report["targetClean"] = clean
+    # Clean mode retains report["targetClean"] = True authority.
     report["exactHeadBound"] = True
+    report["exactWorkingTreeBound"] = True
+    report["publicationCandidateBound"] = publication_candidate
     report["targetMutationPerformed"] = False
     report["publicationAuthority"] = False
     report["releaseEvidenceEligible"] = bool(
         strict
         and report.get("status") == "passed"
         and report.get("currentSourceBound") is True
+        and state_unchanged
+        and (clean is True or publication_candidate)
     )
-    if report.get("status") != "passed":
-        return report
-
-    report["schemaVersion"] = REPORT_SCHEMA_VERSION
     report["truthBoundaries"] = [
         *list(report.get("truthBoundaries", [])),
+        (
+            "A publication-candidate report binds an unchanged working-tree "
+            "state; it does not stage, commit or publish that state."
+        ),
         "A head-bound report is not native Godot or human creative approval.",
         "Release eligibility remains contingent on all downstream evidence.",
     ]
@@ -185,8 +215,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m godot_game_test_lab.foundation_media_release_report",
         description=(
-            "Build an explicit clean-current-HEAD Foundation Kit media-plan "
-            "report for Development Studio evidence admission."
+            "Build clean-HEAD or exact publication-candidate Foundation Kit "
+            "media-plan evidence for Development Studio admission."
         ),
     )
     parser.add_argument("project", type=Path)
@@ -194,6 +224,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("audit", type=Path)
     parser.add_argument("plan", type=Path)
     parser.add_argument("--strict", action="store_true", default=True)
+    parser.add_argument(
+        "--publication-candidate",
+        action="store_true",
+        help=(
+            "Bind one unchanged dirty working tree intended for canonical "
+            "Development Studio publication instead of requiring a clean target."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--evidence-root",
@@ -212,6 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.audit,
             args.plan,
             strict=args.strict,
+            publication_candidate=args.publication_candidate,
         )
         project_root = resolve_directory(args.project, "Godot project")
         state = read_git_state(project_root)
@@ -237,10 +276,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = {
             "schemaVersion": REPORT_SCHEMA_VERSION,
             "tool": "godot-game-test-lab",
-            "check": "foundation-media-release-report",
+            "check": "foundation-media-production-plan",
             "status": "failed",
             "releaseEvidenceEligible": False,
             "exactHeadBound": False,
+            "exactWorkingTreeBound": False,
+            "publicationCandidateBound": bool(
+                getattr(args, "publication_candidate", False)
+            ),
             "currentSourceBound": False,
             "targetMutationPerformed": False,
             "publicationAuthority": False,

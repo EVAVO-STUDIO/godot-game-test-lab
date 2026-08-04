@@ -60,14 +60,20 @@ def test_release_report_binds_clean_exact_head(tmp_path: Path) -> None:
         strict=True,
     )
 
+    assert report["schemaVersion"] == "1.1"
     assert report["status"] == "passed"
     assert report["targetSha"] == head
     assert report["targetClean"] is True
     assert report["exactHeadBound"] is True
+    assert report["exactWorkingTreeBound"] is True
+    assert report["publicationCandidateBound"] is False
     assert report["currentSourceBound"] is True
     assert report["releaseEvidenceEligible"] is True
     assert report["targetMutationPerformed"] is False
     assert report["publicationAuthority"] is False
+    assert report["policy"]["publicationCandidate"] is False
+    assert report["policy"]["requireCleanTarget"] is True
+    assert report["sourceState"]["unchanged"] is True
     assert report["summary"]["currentSourceValidatedItems"] == 1
     assert report["summary"]["currentSourceProbedPngItems"] == 1
     assert report["currentSourceAuthority"]["currentBytesRechecked"] is True
@@ -92,6 +98,62 @@ def test_release_report_rejects_dirty_worktree(tmp_path: Path) -> None:
             audit,
             plan,
             strict=True,
+        )
+
+
+def test_release_report_binds_dirty_publication_candidate(
+    tmp_path: Path,
+) -> None:
+    project, contract, audit, plan = _fixture(tmp_path)
+    head = _initialize_clean_main(project)
+    (project / "publication-selection-note.txt").write_text(
+        "candidate state\n",
+        encoding="utf-8",
+    )
+
+    report = build_foundation_media_release_report(
+        project,
+        contract,
+        audit,
+        plan,
+        strict=True,
+        publication_candidate=True,
+    )
+
+    assert report["schemaVersion"] == "1.1"
+    assert report["status"] == "passed"
+    assert report["targetSha"] == head
+    assert report["targetClean"] is False
+    assert report["exactHeadBound"] is True
+    assert report["exactWorkingTreeBound"] is True
+    assert report["publicationCandidateBound"] is True
+    assert report["currentSourceBound"] is True
+    assert report["releaseEvidenceEligible"] is True
+    assert report["policy"]["publicationCandidate"] is True
+    assert report["policy"]["requireCleanTarget"] is False
+    assert report["sourceState"]["unchanged"] is True
+    assert report["sourceState"]["before"]["dirty"] is True
+    assert report["sourceState"]["before"]["statusCount"] == 1
+    assert report["sourceState"]["before"] == report["sourceState"]["after"]
+
+
+def test_publication_candidate_mode_rejects_clean_worktree(
+    tmp_path: Path,
+) -> None:
+    project, contract, audit, plan = _fixture(tmp_path)
+    _initialize_clean_main(project)
+
+    with pytest.raises(
+        FoundationMediaReleaseReportError,
+        match="requires an exact changed worktree",
+    ):
+        build_foundation_media_release_report(
+            project,
+            contract,
+            audit,
+            plan,
+            strict=True,
+            publication_candidate=True,
         )
 
 
