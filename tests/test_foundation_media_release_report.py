@@ -4,12 +4,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from test_foundation_media_plan import _fixture
 
 from godot_game_test_lab.foundation_media_release_report import (
     FoundationMediaReleaseReportError,
     build_foundation_media_release_report,
 )
-from test_foundation_media_plan import _fixture
 
 
 def _run_git(project: Path, *args: str) -> str:
