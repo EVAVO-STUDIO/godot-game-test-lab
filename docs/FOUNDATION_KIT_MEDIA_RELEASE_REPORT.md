@@ -2,7 +2,7 @@
 
 `foundation_media_release_report` converts one strict Foundation Kit media-plan validation into explicit Development Studio release evidence.
 
-It does not approve creative work or import Godot. It adds a clean current Git HEAD boundary around the existing exact contract/audit/plan checks.
+It does not approve creative work or import Godot. It adds a clean current Git HEAD boundary and independently binds the audit and plan to the current target bytes.
 
 ## Command
 
@@ -27,9 +27,19 @@ A passing report includes:
   "targetSha": "<clean current 40-character HEAD>",
   "targetClean": true,
   "exactHeadBound": true,
+  "currentSourceBound": true,
   "releaseEvidenceEligible": true,
   "targetMutationPerformed": false,
-  "publicationAuthority": false
+  "publicationAuthority": false,
+  "currentSourceAuthority": {
+    "validatedItems": 1,
+    "probedPngItems": 1,
+    "requiredBlockers": {},
+    "auditRootBound": true,
+    "planAuditRootBound": true,
+    "currentBytesRechecked": true,
+    "currentPngEvidenceRechecked": true
+  }
 }
 ```
 
@@ -40,13 +50,39 @@ The wrapper reads the target Git state before validation and again afterward. It
 - the worktree is dirty;
 - HEAD changes during validation;
 - the worktree becomes dirty during validation;
-- the strict media plan retains blockers or review items.
+- the strict media plan retains blockers or review items;
+- the Art Studio audit root differs from the current project;
+- the plan audit root differs from the current project or audit;
+- a current source path is missing, escaped, unreadable or oversized;
+- current source bytes, SHA-256, byte length or extension differ from the plan or audit;
+- current PNG structure, dimensions or alpha evidence differ from the audit;
+- a current PNG is structurally invalid or cannot be independently probed;
+- the plan omits an exact-canvas, alpha or runtime-target collision blocker required by current target bytes.
 
-A strict plan failure still records the exact `targetSha` and `targetClean` state, but sets `releaseEvidenceEligible` to false.
+The current file check is independent of plan/audit coherence. A stale audit and a stale plan may agree with each other and still fail because the clean current target files no longer match them.
+
+A strict plan or current-source failure still records the exact `targetSha` and `targetClean` state, but sets `currentSourceBound` and `releaseEvidenceEligible` to false as applicable.
+
+## Current source authority
+
+For every work item the release wrapper reopens the current project file under the selected project root and compares:
+
+```text
+current target path
+current byte length
+current SHA-256
+current extension
+plan source identity
+audit source identity
+```
+
+PNG work items receive an independent bounded CRC, structure, dimensions and alpha probe. Non-PNG image roles retain their audit image evidence only after the exact current source bytes match the audit SHA-256 and byte length.
+
+The role-owned canvas and alpha policy are then evaluated again. Any independently required blocker absent from the plan is a release error. Duplicate runtime targets must declare `runtime-target-collision` on every affected work item.
 
 ## Development Studio handoff
 
-Development Studio's Foundation Kit production bundle recognises top-level `targetSha` as exact target identity. Use this release report for:
+Development Studio's Foundation Kit production bundle recognises top-level `targetSha` as exact target identity and separately requires `currentSourceBound=true`. Use this release report for:
 
 ```text
 testLabArtPlanReport
@@ -59,6 +95,10 @@ The report must bind the same target SHA as native Godot evidence, campaign play
 A passing exact-head report proves only that:
 
 - the contract, Art Studio audit and work order are exact and coherent;
+- the audit root and plan root name the current target project;
+- the selected current source bytes match the plan and audit;
+- independently probed PNG evidence remains valid;
+- current role-owned blocker requirements are represented;
 - the selected target repository was clean;
 - the target HEAD remained unchanged;
 - strict plan blockers and review items were absent.
