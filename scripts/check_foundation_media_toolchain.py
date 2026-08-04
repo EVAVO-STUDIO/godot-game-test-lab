@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when Foundation Kit media-plan authority drifts."""
+"""Fail closed when Foundation Kit media and host handoff authority drift."""
 from __future__ import annotations
 
 import sys
@@ -15,6 +15,7 @@ FILES = {
     "release_tests": "tests/test_foundation_media_release_report.py",
     "docs": "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
     "release_docs": "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
+    "linux_workflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
 }
 MAXIMUM_SOURCE_BYTES = 1_000_000
 
@@ -216,6 +217,33 @@ def main() -> int:
         ),
     )
 
+    require(
+        "Linux sandbox hosted-runner ownership handoff",
+        sources["linux_workflow"],
+        (
+            'host_uid="$(id -u)"',
+            'host_gid="$(id -g)"',
+            "Linux sandbox requires a non-root hosted runner identity",
+            '--user "${host_uid}:${host_gid}"',
+            'uid=${host_uid},gid=${host_gid}',
+            "--env HOME=/home/godotlab",
+            'work="${RUNNER_TEMP}/godot-linux-work-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+            '[[ ! -e "${work}" ]]',
+            "Linux sandbox ephemeral worktree cleanup failed",
+        ),
+    )
+    forbid(
+        "Linux sandbox hosted-runner ownership handoff",
+        sources["linux_workflow"],
+        (
+            "uid=10001,gid=10001",
+            "--user root",
+            "sudo chown",
+            "sudo chmod",
+            "chmod -R 0777",
+        ),
+    )
+
     if ERRORS:
         print("Foundation media toolchain check failed:", file=sys.stderr)
         for error in ERRORS:
@@ -225,6 +253,7 @@ def main() -> int:
     print("- exact Foundation Kit contract and Art Studio audit remain bound")
     print("- five authored surfaces and audio listening routes remain explicit")
     print("- clean current HEAD is required for Development Studio evidence")
+    print("- Linux evidence returns under the non-root hosted runner identity")
     print("- MCP remains root-restricted, progress-aware and mutation-free")
     return 0
 
