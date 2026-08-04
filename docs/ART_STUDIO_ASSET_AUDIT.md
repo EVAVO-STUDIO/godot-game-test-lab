@@ -18,8 +18,10 @@ The report includes file SHA-256 values, supported decoded dimensions and PNG al
 
 ## Validate it from Test Lab
 
+Run from the installed package or repository checkout:
+
 ```powershell
-godot-lab-asset-audit `
+python -m godot_game_test_lab.asset_audit `
   C:\GitRepos\Brass_Brine `
   C:\GodotLabEvidence\Brass_Brine\art-audit.json `
   --output C:\GodotLabEvidence\Brass_Brine\art-audit-validation.json
@@ -45,7 +47,7 @@ The command exits with code `0` only when the effective policy passes and `2` wh
 Incomplete migrations can be inspected without weakening the default release gate:
 
 ```powershell
-godot-lab-asset-audit `
+python -m godot_game_test_lab.asset_audit `
   C:\GitRepos\Brass_Brine `
   C:\GodotLabEvidence\Brass_Brine\art-audit.json `
   --allow-unrecorded-assets `
@@ -60,12 +62,12 @@ Each allowance is written into the JSON result. These switches are diagnostic au
 
 ## MCP access for ChatGPT and Claude
 
-Install the optional agent dependency and start the dedicated root-restricted server:
+Install the optional agent dependency and start the dedicated root-restricted module:
 
 ```powershell
 pip install -e ".[agent]"
 
-godot-lab-asset-audit-mcp `
+python -m godot_game_test_lab.asset_audit_mcp `
   --lab-root C:\GitRepos\godot-game-test-lab `
   --allowed-root C:\GitRepos `
   --evidence-root C:\GodotLabEvidence
