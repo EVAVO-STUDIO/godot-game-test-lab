@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preflight the immutable workflow boundary, then run the toolchain core."""
+"""Preflight immutable source boundaries, then run the toolchain core."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path.cwd().resolve(strict=True)
+ASSET_AUDIT_PATH = ROOT / "scripts" / "check_asset_audit_toolchain.py"
 CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 EXPECTED_WORKFLOWS = {
     "ci.yml",
@@ -26,6 +27,26 @@ FORBIDDEN_STAGING_PATHS = (
     ".github/workflows/dispatch-agent-audio-upgrade.yml",
     "scripts/apply_agent_audio_upgrade.py",
 )
+
+
+def _validate_checker(path: Path, label: str, entrypoint: str) -> list[str]:
+    errors: list[str] = []
+    if path.is_symlink() or not path.is_file():
+        return [f"{label} must be a regular file"]
+    try:
+        if path.resolve(strict=True) != path.absolute():
+            errors.append(f"{label} path must be canonical")
+        elif path.stat().st_size > 4_000_000:
+            errors.append(f"{label} exceeds the bounded source limit")
+        else:
+            source = path.read_text(encoding="utf-8")
+            if source.startswith(chr(0xFEFF)):
+                errors.append(f"{label} contains a UTF-8 BOM")
+            if entrypoint not in source:
+                errors.append(f"{label} does not expose its expected entrypoint")
+    except (OSError, UnicodeError) as error:
+        errors.append(f"{label} could not be validated: {error}")
+    return errors
 
 
 def _preflight_errors() -> list[str]:
@@ -51,23 +72,32 @@ def _preflight_errors() -> list[str]:
         if path.exists() or path.is_symlink():
             errors.append(f"one-time publication residue remains: {relative}")
 
-    if CORE_PATH.is_symlink() or not CORE_PATH.is_file():
-        errors.append("toolchain core must be a regular file")
-    else:
-        try:
-            if CORE_PATH.resolve(strict=True) != CORE_PATH.absolute():
-                errors.append("toolchain core path must be canonical")
-            elif CORE_PATH.stat().st_size > 4_000_000:
-                errors.append("toolchain core exceeds the bounded source limit")
-            else:
-                source = CORE_PATH.read_text(encoding="utf-8")
-                if source.startswith(chr(0xFEFF)):
-                    errors.append("toolchain core contains a UTF-8 BOM")
-                if "def main() -> int:" not in source:
-                    errors.append("toolchain core does not expose its expected entrypoint")
-        except (OSError, UnicodeError) as error:
-            errors.append(f"toolchain core could not be validated: {error}")
+    errors.extend(
+        _validate_checker(
+            ASSET_AUDIT_PATH,
+            "asset-audit checker",
+            "def main() -> int:",
+        )
+    )
+    errors.extend(
+        _validate_checker(
+            CORE_PATH,
+            "toolchain core",
+            "def main() -> int:",
+        )
+    )
     return errors
+
+
+def _run_checker(path: Path, label: str) -> int:
+    namespace = runpy.run_path(str(path), run_name=f"godot_{label.replace('-', '_')}")
+    checker_main = namespace.get("main")
+    if not callable(checker_main):
+        raise RuntimeError(f"{label} does not expose callable main")
+    result = checker_main()
+    if not isinstance(result, int):
+        raise RuntimeError(f"{label} main must return an integer exit code")
+    return result
 
 
 def main() -> int:
@@ -79,14 +109,10 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
         return 1
 
-    namespace = runpy.run_path(str(CORE_PATH), run_name="godot_toolchain_core")
-    core_main = namespace.get("main")
-    if not callable(core_main):
-        raise RuntimeError("toolchain core does not expose callable main")
-    result = core_main()
-    if not isinstance(result, int):
-        raise RuntimeError("toolchain core main must return an integer exit code")
-    return result
+    asset_result = _run_checker(ASSET_AUDIT_PATH, "asset-audit-checker")
+    if asset_result != 0:
+        return asset_result
+    return _run_checker(CORE_PATH, "toolchain-core")
 
 
 if __name__ == "__main__":
