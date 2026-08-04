@@ -237,7 +237,7 @@ def main() -> int:
         (
             "schema `1.0`, analysis `1.0`",
             "stable bounded descriptor",
-            "strictly beneath `EvidenceRoot`",
+            "strictly beneath `--evidence-root`",
             "godot_validate_art_audit",
             "does not prove artistic quality",
         ),
