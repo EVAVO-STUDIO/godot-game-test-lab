@@ -11,11 +11,19 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
     required = (
         "src/godot_game_test_lab/asset_audit.py",
+        "src/godot_game_test_lab/asset_audit_checks.py",
         "src/godot_game_test_lab/asset_audit_contract.py",
+        "src/godot_game_test_lab/asset_audit_contract_groups.py",
+        "src/godot_game_test_lab/asset_audit_contract_scalar.py",
         "src/godot_game_test_lab/asset_audit_io.py",
+        "src/godot_game_test_lab/asset_audit_model.py",
+        "src/godot_game_test_lab/asset_audit_validation.py",
         "src/godot_game_test_lab/asset_audit_png.py",
         "src/godot_game_test_lab/asset_audit_mcp.py",
+        "src/godot_game_test_lab/asset_audit_mcp_policy.py",
+        "tests/asset_audit_fixtures.py",
         "tests/test_asset_audit.py",
+        "tests/test_asset_audit_authority.py",
         "tests/test_asset_audit_png.py",
         "tests/test_asset_audit_mcp.py",
         "docs/ART_STUDIO_ASSET_AUDIT.md",
@@ -23,9 +31,9 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
     for relative in required:
         assert (ROOT / relative).is_file(), relative
 
-    source = (ROOT / "src/godot_game_test_lab/asset_audit.py").read_text(
-        encoding="utf-8"
-    )
+    source = (
+        ROOT / "src/godot_game_test_lab/asset_audit_validation.py"
+    ).read_text(encoding="utf-8")
     contract = (ROOT / "src/godot_game_test_lab/asset_audit_contract.py").read_text(
         encoding="utf-8"
     )
@@ -38,6 +46,9 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
     mcp = (ROOT / "src/godot_game_test_lab/asset_audit_mcp.py").read_text(
         encoding="utf-8"
     )
+    mcp_policy = (
+        ROOT / "src/godot_game_test_lab/asset_audit_mcp_policy.py"
+    ).read_text(encoding="utf-8")
     for token in (
         "load_art_studio_audit",
         "finalIdentityRecheck",
@@ -73,9 +84,14 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
         "writesTargetRepository",
         "performsGitMutation",
         "godot_validate_art_audit",
-        "Target Git root must remain disjoint from the Lab",
     ):
         assert token in mcp
+    for token in (
+        "Target Git root must remain disjoint from the Lab",
+        "Target contains multiple Godot projects",
+        "Art Studio audit must remain inside",
+    ):
+        assert token in mcp_policy
     for prohibited in (
         "from .agent_bridge import",
         "BridgeConfig",
@@ -84,6 +100,7 @@ def test_asset_audit_source_and_policy_are_permanently_governed() -> None:
         "subprocess.run([\"rm\"",
     ):
         assert prohibited not in mcp
+        assert prohibited not in mcp_policy
 
 
 def test_asset_audit_has_no_ruff_exemption() -> None:
