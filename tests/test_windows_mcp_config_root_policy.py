@@ -32,7 +32,7 @@ def _run_writer(
     root_list = ", ".join(_quote(root) for root in roots)
     arguments = [
         f"-LabRoot {_quote(lab)}",
-        f"-PythonExecutable {_quote(Path(sys.executable))}",
+        f"-PythonExecutable {_quote(Path(sys.executable).resolve())}",
         f"-AllowedTargetRoots @({root_list})",
         f"-EvidenceRoot {_quote(evidence)}",
         f"-EngineRoot {_quote(engine)}",
