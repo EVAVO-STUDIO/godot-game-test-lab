@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from asset_audit_fixtures import _codes, _init_git, _project, _rgba
 
 from godot_game_test_lab.asset_audit import main, validate_asset_audit
