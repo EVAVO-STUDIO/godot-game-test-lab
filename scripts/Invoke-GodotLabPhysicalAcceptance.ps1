@@ -126,11 +126,11 @@ $lab = (Resolve-Path -LiteralPath $LabRoot).Path
 Assert-NoReparsePoint -Path $lab
 $estate = Join-Path $lab "scripts\Invoke-GodotLabEstateAcceptance.ps1"
 $initializer = Join-Path $lab "scripts\Initialize-GodotLabAgentHost.ps1"
-foreach ($script in @($estate, $initializer)) {
-    if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
-        throw "Required physical-acceptance script is missing: $script"
+foreach ($scriptPath in @($estate, $initializer)) {
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        throw "Required physical-acceptance script is missing: $scriptPath"
     }
-    Assert-NoReparsePoint -Path $script
+    Assert-NoReparsePoint -Path $scriptPath
 }
 
 $labSha = Get-GitText -Root $lab -Arguments @(
@@ -257,6 +257,7 @@ $manifest = [ordered]@{
 Write-AtomicJson -Path $manifestPath -Value $manifest
 Write-Host "[godot-lab] Physical acceptance manifest: $manifestPath"
 
+$hostPreparedByInitializer = $false
 if ($InitializeHost) {
     $initializeParameters = @{
         LabRoot = $lab
@@ -279,6 +280,7 @@ if ($InitializeHost) {
     }
     Write-Host "[godot-lab] Initializing and accepting the governed Windows host."
     & $initializer @initializeParameters
+    $hostPreparedByInitializer = $true
 }
 
 $estateParameters = @{
@@ -293,11 +295,19 @@ $estateParameters = @{
     EstateLockTimeoutSeconds = $EstateLockTimeoutSeconds
     ExpectedLabSha = $labSha
 }
-if ($RegisterWorker) {
-    $estateParameters.RegisterWorker = $true
+if ($hostPreparedByInitializer) {
+    Write-Host (
+        "[godot-lab] Reusing the initialized and protocol-accepted scheduled worker; " +
+        "the estate will not register or start it a second time."
+    )
 }
-if ($StartWorker) {
-    $estateParameters.StartWorker = $true
+else {
+    if ($RegisterWorker) {
+        $estateParameters.RegisterWorker = $true
+    }
+    if ($StartWorker) {
+        $estateParameters.StartWorker = $true
+    }
 }
 if ($EngineOffline) {
     $estateParameters.EngineOffline = $true

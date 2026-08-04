@@ -5,8 +5,10 @@ param(
     [string]$EngineVersion = "4.6.3",
     [string]$EngineRoot = "$env:LOCALAPPDATA\EVAVO\GodotGameTestLab\engines",
     [string]$TargetRoot = "C:\GitRepos",
+    [string[]]$AdditionalTargetRoots = @(),
     [string]$EvidenceRoot = "C:\GodotLabEvidence",
     [string]$OfflineSourceDir = "",
+    [switch]$EngineOffline,
     [switch]$PrepareEstate,
     [switch]$PrepareLinuxSandboxImages,
     [switch]$SkipAgentBridge,
@@ -20,20 +22,58 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Test-PathWithin {
+function Test-IsWithinPath {
     param(
         [Parameter(Mandatory = $true)][string]$Candidate,
-        [Parameter(Mandatory = $true)][string]$Root
+        [Parameter(Mandatory = $true)][string]$Parent
     )
     $candidateFull = [IO.Path]::GetFullPath($Candidate).TrimEnd('\', '/')
-    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
-    if ($candidateFull.Equals($rootFull, [StringComparison]::OrdinalIgnoreCase)) {
-        return $true
-    }
-    return $candidateFull.StartsWith(
-        $rootFull + [IO.Path]::DirectorySeparatorChar,
-        [StringComparison]::OrdinalIgnoreCase
+    $parentFull = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/')
+    return (
+        $candidateFull.Equals(
+            $parentFull,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        $candidateFull.StartsWith(
+            $parentFull + [IO.Path]::DirectorySeparatorChar,
+            [StringComparison]::OrdinalIgnoreCase
+        )
     )
+}
+
+function Test-PathsOverlap {
+    param(
+        [Parameter(Mandatory = $true)][string]$Left,
+        [Parameter(Mandatory = $true)][string]$Right
+    )
+    return (
+        (Test-IsWithinPath -Candidate $Left -Parent $Right) -or
+        (Test-IsWithinPath -Candidate $Right -Parent $Left)
+    )
+}
+
+function Assert-NoReparsePoint {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force
+    while ($null -ne $item) {
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Path traverses a reparse point: $Path"
+        }
+        $item = $item.Parent
+    }
+}
+
+function Assert-NoReparsePointForCandidate {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $cursor = [IO.Path]::GetFullPath($Path)
+    while (-not (Test-Path -LiteralPath $cursor)) {
+        $parent = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parent) {
+            return
+        }
+        $cursor = $parent.FullName
+    }
+    Assert-NoReparsePoint -Path $cursor
 }
 
 function Add-ProcessPath {
@@ -92,29 +132,65 @@ if (-not $LabRoot) {
     $LabRoot = Split-Path -Parent $PSScriptRoot
 }
 $resolvedLab = (Resolve-Path -LiteralPath $LabRoot).Path
+Assert-NoReparsePoint -Path $resolvedLab
 $projectFile = Join-Path $resolvedLab "pyproject.toml"
 if (-not (Test-Path -LiteralPath $projectFile -PathType Leaf)) {
     throw "LabRoot does not identify the Godot Game Test Lab repository: $resolvedLab"
 }
 
-New-Item -ItemType Directory -Force -Path $EngineRoot, $EvidenceRoot | Out-Null
-$resolvedEngine = (Resolve-Path -LiteralPath $EngineRoot).Path
-$resolvedEvidence = (Resolve-Path -LiteralPath $EvidenceRoot).Path
-$resolvedTarget = (Resolve-Path -LiteralPath $TargetRoot).Path
-foreach ($pair in @(
-    @{ Name = "EngineRoot"; Value = $resolvedEngine },
-    @{ Name = "EvidenceRoot"; Value = $resolvedEvidence }
-)) {
-    if (Test-PathWithin $pair.Value $resolvedLab) {
-        throw "$($pair.Name) must remain outside the Lab checkout."
-    }
-    if (Test-PathWithin $pair.Value $resolvedTarget) {
-        throw "$($pair.Name) must remain outside the target repository root."
+$resolvedRoots = [Collections.Generic.List[string]]::new()
+$seenRoots = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase
+)
+foreach ($root in @($TargetRoot) + @($AdditionalTargetRoots)) {
+    $resolved = (Resolve-Path -LiteralPath $root).Path
+    Assert-NoReparsePoint -Path $resolved
+    if ($seenRoots.Add($resolved)) {
+        $resolvedRoots.Add($resolved)
     }
 }
-if ((Test-PathWithin $resolvedEngine $resolvedEvidence) -or
-    (Test-PathWithin $resolvedEvidence $resolvedEngine)) {
-    throw "EngineRoot and EvidenceRoot must be separate directories."
+if ($resolvedRoots.Count -eq 0) {
+    throw "At least one allowed target root is required."
+}
+$resolvedTarget = $resolvedRoots[0]
+$offlineEnginePolicy = $EngineOffline -or [bool]$OfflineSourceDir
+
+$candidateEngine = [IO.Path]::GetFullPath($EngineRoot)
+$candidateEvidence = [IO.Path]::GetFullPath($EvidenceRoot)
+Assert-NoReparsePointForCandidate -Path $candidateEngine
+Assert-NoReparsePointForCandidate -Path $candidateEvidence
+if (Test-PathsOverlap -Left $candidateEvidence -Right $resolvedLab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $candidateEvidence -Right $root) {
+        throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($resolvedLab, $candidateEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $candidateEngine -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $candidateEngine, $candidateEvidence |
+    Out-Null
+$resolvedEngine = (Resolve-Path -LiteralPath $candidateEngine).Path
+$resolvedEvidence = (Resolve-Path -LiteralPath $candidateEvidence).Path
+Assert-NoReparsePoint -Path $resolvedEngine
+Assert-NoReparsePoint -Path $resolvedEvidence
+if (Test-PathsOverlap -Left $resolvedEvidence -Right $resolvedLab) {
+    throw "EvidenceRoot must remain disjoint from the Lab checkout."
+}
+foreach ($root in $resolvedRoots) {
+    if (Test-PathsOverlap -Left $resolvedEvidence -Right $root) {
+        throw "EvidenceRoot must remain disjoint from every allowed target root."
+    }
+}
+foreach ($protected in @($resolvedLab, $resolvedEvidence) + @($resolvedRoots)) {
+    if (Test-PathsOverlap -Left $resolvedEngine -Right $protected) {
+        throw "EngineRoot must remain disjoint from Lab, target, and evidence roots."
+    }
 }
 
 if ($InstallPrerequisites) {
@@ -169,9 +245,14 @@ try {
     if ($ForceEngineInstall) {
         $engineArgs += "--force"
     }
+    $offline = ""
     if ($OfflineSourceDir) {
         $offline = (Resolve-Path -LiteralPath $OfflineSourceDir).Path
+        Assert-NoReparsePoint -Path $offline
         $engineArgs += @("--source-dir", $offline, "--offline")
+    }
+    elseif ($EngineOffline) {
+        $engineArgs += "--offline"
     }
     & $python @engineArgs
     if ($LASTEXITCODE -ne 0) {
@@ -179,16 +260,21 @@ try {
     }
 
     $bootstrap = Get-Content -Raw -LiteralPath $bootstrapReport | ConvertFrom-Json
-    $standard = $bootstrap.installations | Where-Object { $_.flavor -eq "standard" } | Select-Object -First 1
-    $mono = $bootstrap.installations | Where-Object { $_.flavor -eq "mono" } | Select-Object -First 1
+    $standard = $bootstrap.installations |
+        Where-Object { $_.flavor -eq "standard" } |
+        Select-Object -First 1
+    $mono = $bootstrap.installations |
+        Where-Object { $_.flavor -eq "mono" } |
+        Select-Object -First 1
     if (-not $standard -or -not $mono) {
         throw "Bootstrap did not produce both standard and .NET Godot editors."
     }
 
+    $allowedRootValue = @($resolvedRoots) -join [IO.Path]::PathSeparator
     $environment = [ordered]@{
         EVAVO_GODOT_LAB_ROOT = $resolvedLab
         EVAVO_GODOT_HOME = $resolvedEngine
-        EVAVO_GODOT_LAB_ALLOWED_ROOTS = $resolvedTarget
+        EVAVO_GODOT_LAB_ALLOWED_ROOTS = $allowedRootValue
         EVAVO_GODOT_LAB_EVIDENCE_ROOT = $resolvedEvidence
         GODOT_BIN = [string]$standard.executable
         GODOT_MONO_BIN = [string]$mono.executable
@@ -215,7 +301,7 @@ try {
     $envLines = @(
         "`$env:EVAVO_GODOT_LAB_ROOT = '$($resolvedLab.Replace("'", "''"))'",
         "`$env:EVAVO_GODOT_HOME = '$($resolvedEngine.Replace("'", "''"))'",
-        "`$env:EVAVO_GODOT_LAB_ALLOWED_ROOTS = '$($resolvedTarget.Replace("'", "''"))'",
+        "`$env:EVAVO_GODOT_LAB_ALLOWED_ROOTS = '$($allowedRootValue.Replace("'", "''"))'",
         "`$env:EVAVO_GODOT_LAB_EVIDENCE_ROOT = '$($resolvedEvidence.Replace("'", "''"))'",
         "`$env:GODOT_BIN = '$(([string]$standard.executable).Replace("'", "''"))'",
         "`$env:GODOT_MONO_BIN = '$(([string]$mono.executable).Replace("'", "''"))'"
@@ -226,22 +312,42 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
 
+    $estateReports = [Collections.Generic.List[string]]::new()
     if ($PrepareEstate) {
-        $estateReport = Join-Path $resolvedEvidence "managed-engine-estate.json"
-        $prepareArgs = @(
-            "-m", "godot_game_test_lab.cli", "engine", "prepare", $resolvedTarget,
-            "--root", $resolvedEngine,
-            "--output", $estateReport
-        )
-        if ($SkipExportTemplates) {
-            $prepareArgs += "--no-templates"
-        }
-        if ($OfflineSourceDir) {
-            $prepareArgs += @("--source-dir", $offline, "--offline")
-        }
-        & $python @prepareArgs
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "One or more estate projects could not be prepared. Review $estateReport."
+        for ($index = 0; $index -lt $resolvedRoots.Count; $index++) {
+            $reportName = if ($index -eq 0) {
+                "managed-engine-estate.json"
+            }
+            else {
+                "managed-engine-estate-{0:D2}.json" -f ($index + 1)
+            }
+            $estateReport = Join-Path $resolvedEvidence $reportName
+            $prepareArgs = @(
+                "-m", "godot_game_test_lab.cli", "engine", "prepare",
+                $resolvedRoots[$index],
+                "--root", $resolvedEngine,
+                "--output", $estateReport
+            )
+            if ($SkipExportTemplates) {
+                $prepareArgs += "--no-templates"
+            }
+            if ($ForceEngineInstall) {
+                $prepareArgs += "--force"
+            }
+            if ($OfflineSourceDir) {
+                $prepareArgs += @("--source-dir", $offline, "--offline")
+            }
+            elseif ($EngineOffline) {
+                $prepareArgs += "--offline"
+            }
+            & $python @prepareArgs
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning (
+                    "One or more estate projects beneath $($resolvedRoots[$index]) " +
+                    "could not be prepared. Review $estateReport."
+                )
+            }
+            [void]$estateReports.Add($estateReport)
         }
     }
 
@@ -252,22 +358,36 @@ try {
 
     $mcpConfig = Join-Path $resolvedEvidence "godot-lab-mcp.json"
     if (-not $SkipAgentBridge) {
-        & $python -m godot_game_test_lab.mcp_server `
-            --lab-root $resolvedLab `
-            --allowed-root $resolvedTarget `
-            --evidence-root $resolvedEvidence `
-            --engine-root $resolvedEngine `
-            --self-test
+        $mcpArguments = @(
+            "-m", "godot_game_test_lab.mcp_server",
+            "--lab-root", $resolvedLab,
+            "--evidence-root", $resolvedEvidence,
+            "--engine-root", $resolvedEngine,
+            "--self-test"
+        )
+        foreach ($root in $resolvedRoots) {
+            $mcpArguments += @("--allowed-root", $root)
+        }
+        if ($offlineEnginePolicy) {
+            $mcpArguments += "--no-auto-provision"
+        }
+        & $python @mcpArguments
         if ($LASTEXITCODE -ne 0) {
             throw "The MCP agent bridge self-test failed."
         }
+        $mcpConfigParameters = @{
+            LabRoot = $resolvedLab
+            PythonExecutable = $python
+            AllowedTargetRoots = @($resolvedRoots)
+            EvidenceRoot = $resolvedEvidence
+            EngineRoot = $resolvedEngine
+            OutputPath = $mcpConfig
+        }
+        if ($offlineEnginePolicy) {
+            $mcpConfigParameters.NoAutoProvision = $true
+        }
         & (Join-Path $resolvedLab "scripts\Write-GodotLabMcpConfig.ps1") `
-            -LabRoot $resolvedLab `
-            -PythonExecutable $python `
-            -AllowedTargetRoots @($resolvedTarget) `
-            -EvidenceRoot $resolvedEvidence `
-            -EngineRoot $resolvedEngine `
-            -OutputPath $mcpConfig
+            @mcpConfigParameters
     }
 
     $sandboxImages = @()
@@ -290,7 +410,9 @@ try {
             if ($LASTEXITCODE -ne 0) {
                 throw "The governed Linux $flavor sandbox image could not be prepared."
             }
-            $sandboxImages += (Get-Content -Raw -LiteralPath $imageReport | ConvertFrom-Json)
+            $sandboxImages += (
+                Get-Content -Raw -LiteralPath $imageReport | ConvertFrom-Json
+            )
         }
     }
 
@@ -329,15 +451,19 @@ try {
         monoGodot = [string]$mono.executable
         evidenceRoot = $resolvedEvidence
         targetRoot = $resolvedTarget
+        allowedTargetRoots = @($resolvedRoots)
         environmentFile = $envFile
         mcpConfig = if ($SkipAgentBridge) { $null } else { $mcpConfig }
         estatePrepared = [bool]$PrepareEstate
+        estateReports = @($estateReports)
+        engineOffline = [bool]$offlineEnginePolicy
         sandboxImagesPrepared = [bool]$PrepareLinuxSandboxImages
         sandboxImages = $sandboxImages
         installedAt = [DateTimeOffset]::UtcNow.ToString("o")
     }
     $receiptPath = Join-Path $resolvedEvidence "godot-lab-installation.json"
-    $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $receiptPath -Encoding utf8
+    $receipt | ConvertTo-Json -Depth 8 |
+        Set-Content -LiteralPath $receiptPath -Encoding utf8
     Write-Host "[godot-lab] Installation complete. Receipt: $receiptPath"
     Write-Host "[godot-lab] Reload the terminal or run: . '$envFile'"
 }

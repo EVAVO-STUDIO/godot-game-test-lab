@@ -65,6 +65,24 @@ def test_physical_acceptance_writes_manifest_before_estate_execution() -> None:
     assert source.count('acceptanceMode = "validate"') == 1
 
 
+def test_initialized_host_is_reused_without_duplicate_worker_registration() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    initialize = source.index("& $initializer @initializeParameters")
+    prepared = source.index("$hostPreparedByInitializer = $true")
+    reuse = source.index("if ($hostPreparedByInitializer)")
+    register = source.index("if ($RegisterWorker)", reuse)
+    start = source.index("if ($StartWorker)", register)
+    execute = source.index("& $estate @estateParameters")
+
+    assert initialize < prepared < reuse < register < start < execute
+    assert source.count("$hostPreparedByInitializer = $false") == 1
+    assert source.count("$hostPreparedByInitializer = $true") == 1
+    assert source.count("$estateParameters.RegisterWorker = $true") == 1
+    assert source.count("$estateParameters.StartWorker = $true") == 1
+    assert "the estate will not register or start it a second time" in source
+
+
 def test_physical_acceptance_runbook_preserves_machine_truth_boundary() -> None:
     source = DOC.read_text(encoding="utf-8")
 
@@ -73,6 +91,8 @@ def test_physical_acceptance_runbook_preserves_machine_truth_boundary() -> None:
         "one pure GDScript project",
         "one C# project",
         "estate-manifests",
+        "reuses that same scheduled worker",
+        "does not stop, replace, or start it again",
         "estate-acceptance.json schema 1.3",
         "host-acceptance.json schema 1.1",
         "mcp-worker-acceptance.json",
