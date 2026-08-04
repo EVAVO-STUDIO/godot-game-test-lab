@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from asset_audit_fixtures import _project
+from asset_audit_fixtures import _audit, _project, _rgba, _write_audit
 
 from godot_game_test_lab.asset_audit_contract import load_art_studio_audit
 from godot_game_test_lab.foundation_media_plan import validate_foundation_media_plan
@@ -80,6 +80,7 @@ def _plan(
     contract_sha: str,
     audit_sha: str,
     audit_row: object,
+    audit_root: Path,
     *,
     blockers: list[str] | None = None,
 ) -> dict[str, object]:
@@ -114,7 +115,7 @@ def _plan(
             "foundation_kit_media_production_contract_v1.json"
         ),
         "contractSha256": contract_sha,
-        "auditRoot": "C:/GitRepos/GodotGameFoundationKit",
+        "auditRoot": str(audit_root.resolve()),
         "auditSha256": audit_sha,
         "selectedRoles": ["shell-desktop-icon"],
         "summary": {
@@ -157,6 +158,9 @@ def _plan(
 
 def _fixture(tmp_path: Path, *, blockers: list[str] | None = None):
     project, audit_path = _project(tmp_path)
+    icon = project / "assets" / "art" / "ui" / "icons" / "cargo_icon.png"
+    icon.write_bytes(_rgba(32, 32, [255] * 1023 + [0]))
+    _write_audit(audit_path, _audit(project))
     contract_path = (
         project
         / "examples"
@@ -170,7 +174,13 @@ def _fixture(tmp_path: Path, *, blockers: list[str] | None = None):
     audit_row = next(row for row in audit.art_files if row.role == "ui-icon")
     _write_json(
         plan_path,
-        _plan(contract_sha, audit_sha, audit_row, blockers=blockers),
+        _plan(
+            contract_sha,
+            audit_sha,
+            audit_row,
+            project,
+            blockers=blockers,
+        ),
     )
     return project, contract_path, audit_path, plan_path
 
