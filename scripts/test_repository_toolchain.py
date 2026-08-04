@@ -22,12 +22,26 @@ FILES = [
     ".github/workflows/linux-sandbox-smoke.yml",
     ".python-version",
     "containers/linux-sandbox/Dockerfile",
+    "docs/ART_STUDIO_ASSET_AUDIT.md",
     "evavo.reliability.json",
     "pyproject.toml",
     "schemas/repository-owned-reliability-profile.schema.json",
+    "scripts/check_asset_audit_toolchain.py",
     "scripts/check_repository_toolchain.py",
     "scripts/check_repository_toolchain_core.py",
     "src/godot_game_test_lab/__init__.py",
+    "src/godot_game_test_lab/asset_audit.py",
+    "src/godot_game_test_lab/asset_audit_checks.py",
+    "src/godot_game_test_lab/asset_audit_contract.py",
+    "src/godot_game_test_lab/asset_audit_contract_groups.py",
+    "src/godot_game_test_lab/asset_audit_contract_scalar.py",
+    "src/godot_game_test_lab/asset_audit_io.py",
+    "src/godot_game_test_lab/asset_audit_mcp.py",
+    "src/godot_game_test_lab/asset_audit_mcp_policy.py",
+    "src/godot_game_test_lab/asset_audit_model.py",
+    "src/godot_game_test_lab/asset_audit_png.py",
+    "src/godot_game_test_lab/asset_audit_validation.py",
+    "src/godot_game_test_lab/strict_json.py",
     "src/godot_game_test_lab/godot-engine-lock.json",
     "src/godot_game_test_lab/engine_manager.py",
     "scripts/Install-GodotLab.ps1",
@@ -35,6 +49,12 @@ FILES = [
     "scripts/install-godot-lab.sh",
     "scripts/run-godot-lab-linux-sandbox.sh",
     "src/godot_game_test_lab/local_sandbox.py",
+    "tests/asset_audit_fixtures.py",
+    "tests/test_asset_audit.py",
+    "tests/test_asset_audit_authority.py",
+    "tests/test_asset_audit_mcp.py",
+    "tests/test_asset_audit_png.py",
+    "tests/test_asset_audit_release_contract.py",
 ]
 
 
@@ -63,11 +83,18 @@ def run(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def mutate_json(root: Path, relative: str, operation: Callable[[dict[str, Any]], None]) -> None:
+def mutate_json(
+    root: Path,
+    relative: str,
+    operation: Callable[[dict[str, Any]], None],
+) -> None:
     path = root / relative
     value = json.loads(path.read_text(encoding="utf-8"))
     operation(value)
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(value, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def mutate_text(root: Path, relative: str, operation: Callable[[str], str]) -> None:
@@ -123,7 +150,10 @@ def main() -> int:
         "managed Godot default drift",
     )
     exercise(
-        lambda root: (root / ".python-version").write_text("3.11.14\n", encoding="utf-8"),
+        lambda root: (root / ".python-version").write_text(
+            "3.11.14\n",
+            encoding="utf-8",
+        ),
         "hosted Python drift",
     )
     exercise(
@@ -137,7 +167,10 @@ def main() -> int:
         "unreviewed lockfile transition",
     )
     exercise(
-        lambda root: (root / "requirements.lock").write_text("pytest==8.3.0\n", encoding="utf-8"),
+        lambda root: (root / "requirements.lock").write_text(
+            "pytest==8.3.0\n",
+            encoding="utf-8",
+        ),
         "unreviewed lockfile appearance",
     )
     exercise(
@@ -155,7 +188,10 @@ def main() -> int:
         lambda root: mutate_text(
             root,
             ".github/workflows/ci.yml",
-            lambda value: value.replace('python-version: "3.11.15"', 'python-version: "3.11"'),
+            lambda value: value.replace(
+                'python-version: "3.11.15"',
+                'python-version: "3.11"',
+            ),
         ),
         "floating hosted Python",
     )
@@ -194,7 +230,8 @@ def main() -> int:
             root,
             ".github/workflows/evavo-linux-godot-sandbox.yml",
             lambda value: value.replace(
-                "permissions:\n  contents: read", "permissions:\n  contents: write"
+                "permissions:\n  contents: read",
+                "permissions:\n  contents: write",
             ),
         ),
         "administrative write authority",
@@ -255,9 +292,66 @@ def main() -> int:
         ),
         "BOM-prefixed profile",
     )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/asset_audit_contract.py",
+            lambda value: value.replace(
+                "load_strict_json_object",
+                "load_permissive_json_object",
+            ),
+        ),
+        "asset-audit strict JSON removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/asset_audit_validation.py",
+            lambda value: value.replace(
+                "asset-changed-after-admission",
+                "asset-recheck-removed",
+            ),
+        ),
+        "asset-audit final byte recheck removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/asset_audit_png.py",
+            lambda value: value.replace(
+                "PNG chunk CRC mismatch",
+                "PNG CRC unchecked",
+            ),
+        ),
+        "asset-audit PNG CRC removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "src/godot_game_test_lab/asset_audit_io.py",
+            lambda value: value.replace(
+                "Asset-audit output must remain strictly beneath EvidenceRoot",
+                "Asset-audit output may escape EvidenceRoot",
+            ),
+        ),
+        "asset-audit output confinement removal",
+    )
+    exercise(
+        lambda root: (root / "src/godot_game_test_lab/asset_audit_mcp.py").write_text(
+            (root / "src/godot_game_test_lab/asset_audit_mcp.py").read_text(
+                encoding="utf-8"
+            )
+            + "\nfrom .agent_bridge import BridgeConfig\n",
+            encoding="utf-8",
+        ),
+        "asset-audit private bridge import",
+    )
 
     print("Godot lab repository toolchain adversarial tests passed.")
-    print("- Python, lockfile, workflow, sandbox and truth-boundary drift fail closed")
+    print(
+        "- Python, lockfile, workflow, sandbox, asset-audit and truth-boundary drift "
+        "fail closed"
+    )
     return 0
 
 
