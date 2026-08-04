@@ -28,12 +28,20 @@ function Test-PathsOverlap {
 
 function Assert-NoReparsePoint {
     param([Parameter(Mandatory = $true)][string]$Path)
-    $item = Get-Item -LiteralPath $Path -Force
-    while ($null -ne $item) {
+    $cursor = [IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $cursor)) {
+        throw "Path does not exist: $Path"
+    }
+    while ($true) {
+        $item = Get-Item -LiteralPath $cursor -Force
         if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw "Path traverses a reparse point: $Path"
         }
-        $item = $item.Parent
+        $parent = [IO.Directory]::GetParent($cursor)
+        if ($null -eq $parent) {
+            break
+        }
+        $cursor = $parent.FullName
     }
 }
 
