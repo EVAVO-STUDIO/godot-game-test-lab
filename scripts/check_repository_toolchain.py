@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path.cwd().resolve(strict=True)
 ASSET_AUDIT_PATH = ROOT / "scripts" / "check_asset_audit_toolchain.py"
 FOUNDATION_MEDIA_PATH = ROOT / "scripts" / "check_foundation_media_toolchain.py"
+AUDIO_ANALYSIS_PATH = ROOT / "scripts" / "check_audio_analysis_toolchain.py"
 CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 EXPECTED_WORKFLOWS = {
     "ci.yml",
@@ -57,7 +58,9 @@ def _preflight_errors() -> list[str]:
         observed = {
             path.name
             for path in workflow_root.iterdir()
-            if path.is_file() and not path.is_symlink() and path.suffix in {".yml", ".yaml"}
+            if path.is_file()
+            and not path.is_symlink()
+            and path.suffix in {".yml", ".yaml"}
         }
     except OSError as error:
         return [f"workflow inventory could not be read: {error}"]
@@ -84,6 +87,13 @@ def _preflight_errors() -> list[str]:
         _validate_checker(
             FOUNDATION_MEDIA_PATH,
             "Foundation media checker",
+            "def main() -> int:",
+        )
+    )
+    errors.extend(
+        _validate_checker(
+            AUDIO_ANALYSIS_PATH,
+            "Brass audio-analysis checker",
             "def main() -> int:",
         )
     )
@@ -126,6 +136,12 @@ def main() -> int:
     )
     if foundation_result != 0:
         return foundation_result
+    audio_result = _run_checker(
+        AUDIO_ANALYSIS_PATH,
+        "Brass-audio-analysis-checker",
+    )
+    if audio_result != 0:
+        return audio_result
     return _run_checker(CORE_PATH, "toolchain-core")
 
 
