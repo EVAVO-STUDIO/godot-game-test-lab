@@ -33,7 +33,6 @@ from .audio_analysis_media import (
 )
 from .audio_analysis_types import (
     ANALYSIS_ID,
-    AudioAnalysisVerificationError,
     CHECK_ID,
     CONTRACT_ID,
     INVENTORY_ID,
@@ -42,6 +41,7 @@ from .audio_analysis_types import (
     REPORT_ID,
     SELECTION_ID,
     TARGET_REPOSITORY,
+    AudioAnalysisVerificationError,
 )
 
 
