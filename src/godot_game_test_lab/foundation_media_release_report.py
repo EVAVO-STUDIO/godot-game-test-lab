@@ -26,18 +26,32 @@ class FoundationMediaReleaseReportError(AssetAuditError):
 
 
 def _head_from_state(value: dict[str, Any]) -> str | None:
-    for key in ("headSha", "head_sha", "head", "commitSha", "commit_sha"):
+    for key in (
+        "targetSha",
+        "target_sha",
+        "headSha",
+        "head_sha",
+        "head",
+        "commitSha",
+        "commit_sha",
+    ):
         candidate = value.get(key)
         if (
             isinstance(candidate, str)
             and len(candidate) == 40
-            and all(character in "0123456789abcdefABCDEF" for character in candidate)
+            and all(
+                character in "0123456789abcdefABCDEF"
+                for character in candidate
+            )
         ):
             return candidate.lower()
     return None
 
 
 def _clean_from_state(value: dict[str, Any]) -> bool | None:
+    dirty = value.get("dirty")
+    if isinstance(dirty, bool):
+        return not dirty
     for key in ("clean", "worktreeClean", "worktree_clean"):
         candidate = value.get(key)
         if isinstance(candidate, bool):
@@ -69,6 +83,7 @@ def build_foundation_media_release_report(
         raise FoundationMediaReleaseReportError(
             "A clean target worktree is required for release evidence"
         )
+
     report = validate_foundation_media_plan(
         project_root,
         contract,
@@ -76,6 +91,7 @@ def build_foundation_media_release_report(
         plan,
         strict=strict,
     )
+
     state_after = read_git_state(project_root)
     after = state_after.to_dict()
     after_sha = _head_from_state(after)
@@ -84,18 +100,19 @@ def build_foundation_media_release_report(
         raise FoundationMediaReleaseReportError(
             "Target Git state changed while release evidence was built"
         )
-    if report.get("status") != "passed":
-        report["targetSha"] = target_sha
-        report["targetClean"] = True
-        report["releaseEvidenceEligible"] = False
-        return report
-    report["schemaVersion"] = REPORT_SCHEMA_VERSION
+
     report["targetSha"] = target_sha
     report["targetClean"] = True
-    report["targetBranch"] = before.get("branch") or before.get("branchName")
-    report["releaseEvidenceEligible"] = bool(strict)
     report["exactHeadBound"] = True
     report["targetMutationPerformed"] = False
+    report["publicationAuthority"] = False
+    report["releaseEvidenceEligible"] = bool(
+        strict and report.get("status") == "passed"
+    )
+    if report.get("status") != "passed":
+        return report
+
+    report["schemaVersion"] = REPORT_SCHEMA_VERSION
     report["truthBoundaries"] = [
         *list(report.get("truthBoundaries", [])),
         "A head-bound report is not native Godot or human creative approval.",
@@ -118,7 +135,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("plan", type=Path)
     parser.add_argument("--strict", action="store_true", default=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--evidence-root", type=Path, default=default_evidence_root())
+    parser.add_argument(
+        "--evidence-root",
+        type=Path,
+        default=default_evidence_root(),
+    )
     return parser
 
 
@@ -158,6 +179,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "check": "foundation-media-release-report",
             "status": "failed",
             "releaseEvidenceEligible": False,
+            "exactHeadBound": False,
             "targetMutationPerformed": False,
             "publicationAuthority": False,
             "findings": [
