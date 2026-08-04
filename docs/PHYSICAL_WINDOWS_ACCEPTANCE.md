@@ -78,6 +78,19 @@ For repositories beneath more than one estate root:
   -InitializeHost
 ```
 
+The installer now validates the Lab, every allowed target root, the evidence
+root, and the managed-engine root before it creates either managed directory.
+All allowed roots are carried into the environment file, MCP configuration,
+worker registration, protocol acceptance, and estate preparation. When
+`-PrepareEstate` is active, each root receives its own retained preparation
+report rather than only the first root being scanned.
+
+`-EngineOffline` is also propagated into managed-editor bootstrap, every estate
+preparation command, the generated MCP configuration, and the scheduled worker's
+no-auto-provision policy. It controls managed-engine network access; prerequisite
+package installation should already be complete when a fully disconnected run is
+required.
+
 The wrapper creates one create-only manifest beneath:
 
 ```text
