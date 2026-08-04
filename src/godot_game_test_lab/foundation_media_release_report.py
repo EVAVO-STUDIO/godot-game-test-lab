@@ -16,6 +16,10 @@ from .asset_audit_io import (
     write_evidence_json,
 )
 from .foundation_media_plan import validate_foundation_media_plan
+from .foundation_media_source_authority import (
+    FoundationMediaSourceAuthorityError,
+    validate_current_foundation_media_sources,
+)
 from .strict_json import StrictJsonError
 
 REPORT_SCHEMA_VERSION = "1.0"
@@ -62,6 +66,53 @@ def _clean_from_state(value: dict[str, Any]) -> bool | None:
     return None
 
 
+def _attach_current_source_authority(
+    report: dict[str, Any],
+    authority: dict[str, Any],
+) -> None:
+    findings = report.setdefault("findings", [])
+    findings.extend(authority.get("findings", []))
+    summary = report.setdefault("summary", {})
+    summary["currentSourceValidatedItems"] = authority.get(
+        "validatedItems",
+        0,
+    )
+    summary["currentSourceProbedPngItems"] = authority.get(
+        "probedPngItems",
+        0,
+    )
+    summary["currentSourceRequiredBlockers"] = len(
+        authority.get("requiredBlockers", {})
+    )
+    summary["errors"] = sum(
+        item.get("severity") == "error"
+        for item in findings
+        if isinstance(item, dict)
+    )
+    summary["warnings"] = sum(
+        item.get("severity") == "warning"
+        for item in findings
+        if isinstance(item, dict)
+    )
+    current_source_bound = not authority.get("findings")
+    report["currentSourceBound"] = current_source_bound
+    report["currentSourceAuthority"] = {
+        "validatedItems": authority.get("validatedItems", 0),
+        "probedPngItems": authority.get("probedPngItems", 0),
+        "requiredBlockers": authority.get("requiredBlockers", {}),
+        "auditRootBound": current_source_bound,
+        "planAuditRootBound": current_source_bound,
+        "currentBytesRechecked": True,
+        "currentPngEvidenceRechecked": True,
+    }
+    policy = report.setdefault("policy", {})
+    policy["currentTargetBytesRechecked"] = True
+    policy["currentPngEvidenceRechecked"] = True
+    policy["auditAndPlanRootBound"] = True
+    if not current_source_bound:
+        report["status"] = "failed"
+
+
 def build_foundation_media_release_report(
     project: Path,
     contract: Path,
@@ -91,6 +142,13 @@ def build_foundation_media_release_report(
         plan,
         strict=strict,
     )
+    source_authority = validate_current_foundation_media_sources(
+        project_root,
+        contract,
+        audit,
+        plan,
+    )
+    _attach_current_source_authority(report, source_authority)
 
     state_after = read_git_state(project_root)
     after = state_after.to_dict()
@@ -107,7 +165,9 @@ def build_foundation_media_release_report(
     report["targetMutationPerformed"] = False
     report["publicationAuthority"] = False
     report["releaseEvidenceEligible"] = bool(
-        strict and report.get("status") == "passed"
+        strict
+        and report.get("status") == "passed"
+        and report.get("currentSourceBound") is True
     )
     if report.get("status") != "passed":
         return report
@@ -169,6 +229,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (
         AssetAuditError,
         FoundationMediaReleaseReportError,
+        FoundationMediaSourceAuthorityError,
         OSError,
         StrictJsonError,
         ValueError,
@@ -180,6 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "status": "failed",
             "releaseEvidenceEligible": False,
             "exactHeadBound": False,
+            "currentSourceBound": False,
             "targetMutationPerformed": False,
             "publicationAuthority": False,
             "findings": [
