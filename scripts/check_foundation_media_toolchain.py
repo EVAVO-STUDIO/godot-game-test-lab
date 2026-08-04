@@ -9,9 +9,12 @@ ROOT = Path.cwd().resolve(strict=True)
 ERRORS: list[str] = []
 FILES = {
     "gate": "src/godot_game_test_lab/foundation_media_plan.py",
+    "release": "src/godot_game_test_lab/foundation_media_release_report.py",
     "mcp": "src/godot_game_test_lab/foundation_media_mcp.py",
     "tests": "tests/test_foundation_media_plan.py",
+    "release_tests": "tests/test_foundation_media_release_report.py",
     "docs": "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
+    "release_docs": "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
 }
 MAXIMUM_SOURCE_BYTES = 1_000_000
 
@@ -28,7 +31,9 @@ def read_text(relative: str) -> str:
     if not path.is_file() or path.is_symlink():
         raise RuntimeError(f"FOUNDATION_MEDIA_SOURCE_FILE_INVALID:{relative}")
     if path.resolve(strict=True) != path.absolute():
-        raise RuntimeError(f"FOUNDATION_MEDIA_SOURCE_FILE_NONCANONICAL:{relative}")
+        raise RuntimeError(
+            f"FOUNDATION_MEDIA_SOURCE_FILE_NONCANONICAL:{relative}"
+        )
     if path.stat().st_size > MAXIMUM_SOURCE_BYTES:
         raise RuntimeError(f"FOUNDATION_MEDIA_SOURCE_FILE_TOO_LARGE:{relative}")
     source = path.read_text(encoding="utf-8")
@@ -91,6 +96,41 @@ def main() -> int:
             "ANTHROPIC_API_KEY",
         ),
     )
+
+    require(
+        "Foundation media exact-head release report",
+        sources["release"],
+        (
+            "build_foundation_media_release_report",
+            "read_git_state",
+            'dirty = value.get("dirty")',
+            "return not dirty",
+            'report["targetSha"] = target_sha',
+            'report["targetClean"] = True',
+            'report["exactHeadBound"] = True',
+            'report["releaseEvidenceEligible"] = bool(',
+            'report["targetMutationPerformed"] = False',
+            'report["publicationAuthority"] = False',
+            "Target Git state changed while release evidence was built",
+            "A clean target worktree is required for release evidence",
+            "replace=False",
+        ),
+    )
+    forbid(
+        "Foundation media exact-head release report",
+        sources["release"],
+        (
+            "git push",
+            "git commit",
+            "shell=True",
+            "force push",
+            "unlink(",
+            "rmtree(",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ),
+    )
+
     require(
         "Foundation media MCP",
         sources["mcp"],
@@ -119,6 +159,7 @@ def main() -> int:
             "ANTHROPIC_API_KEY",
         ),
     )
+
     require(
         "Foundation media tests",
         sources["tests"],
@@ -130,6 +171,20 @@ def main() -> int:
             '"requiresAudioAnalysis"',
         ),
     )
+    require(
+        "Foundation media exact-head release tests",
+        sources["release_tests"],
+        (
+            "test_release_report_binds_clean_exact_head",
+            "test_release_report_rejects_dirty_worktree",
+            "test_release_report_preserves_plan_failure_and_head_identity",
+            'assert report["targetSha"] == head',
+            'assert report["targetClean"] is True',
+            'assert report["releaseEvidenceEligible"] is True',
+            "strict-plan-blocked-items",
+        ),
+    )
+
     require(
         "Foundation media documentation",
         sources["docs"],
@@ -146,6 +201,20 @@ def main() -> int:
             "signed publication transaction",
         ),
     )
+    require(
+        "Foundation media exact-head release documentation",
+        sources["release_docs"],
+        (
+            "Foundation Kit exact-head media release report",
+            "foundation_media_release_report",
+            '"targetSha"',
+            '"targetClean": true',
+            '"exactHeadBound": true',
+            '"releaseEvidenceEligible": true',
+            "testLabArtPlanReport",
+            "does not approve creative work or import Godot",
+        ),
+    )
 
     if ERRORS:
         print("Foundation media toolchain check failed:", file=sys.stderr)
@@ -155,6 +224,7 @@ def main() -> int:
     print("Foundation media toolchain check passed.")
     print("- exact Foundation Kit contract and Art Studio audit remain bound")
     print("- five authored surfaces and audio listening routes remain explicit")
+    print("- clean current HEAD is required for Development Studio evidence")
     print("- MCP remains root-restricted, progress-aware and mutation-free")
     return 0
 
