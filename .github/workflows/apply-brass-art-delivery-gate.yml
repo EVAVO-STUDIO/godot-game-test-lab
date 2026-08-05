@@ -1,0 +1,60 @@
+name: Apply bounded Brass art delivery gate
+
+on:
+  push:
+    branches: ["agent/brass-art-delivery-gate-20260805"]
+    paths: [".github/workflows/apply-brass-art-delivery-gate.yml", ".github/bootstrap/payload-*.bin"]
+
+permissions: {contents: write}
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with: {fetch-depth: 0, persist-credentials: true}
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with: {python-version: "3.11.15"}
+      - name: Apply, validate, commit and push exact product
+        shell: bash
+        env:
+          EXPECTED_BASE: cc4bf624566f8be9c95ef599a96da30a20d879be
+          EXPECTED_BRANCH: agent/brass-art-delivery-gate-20260805
+          EXPECTED_ARCHIVE_SHA256: 194acf90ef5bad273cb282eb90dc2853a93782dfc6e46b1d699029243bb8c29d
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$EXPECTED_BRANCH"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_BASE"
+          test "$(git hash-object pyproject.toml)" = 317866c33b649ff2b48a3fa15faf11ace97d54eb
+          test "$(git hash-object scripts/check_repository_toolchain.py)" = 58aee1cbc36ecca254e3065f3754da6c2ec1fba4
+          mapfile -t chunks < <(find .github/bootstrap -maxdepth 1 -type f -name 'payload-*.bin' -print | LC_ALL=C sort)
+          test "${#chunks[@]}" -eq 18
+          cat "${chunks[@]}" > "$RUNNER_TEMP/payload.tgz"
+          printf '%s  %s\n' "$EXPECTED_ARCHIVE_SHA256" "$RUNNER_TEMP/payload.tgz" | sha256sum -c --strict
+          tar -xOf "$RUNNER_TEMP/payload.tgz" bootstrap_apply.py > "$RUNNER_TEMP/apply.py"
+          python "$RUNNER_TEMP/apply.py" "$RUNNER_TEMP/payload.tgz" "$GITHUB_WORKSPACE"
+          test ! -e .github/workflows/apply-brass-art-delivery-gate.yml
+          test ! -e .github/bootstrap
+          python scripts/check_repository_toolchain.py
+          python scripts/test_repository_toolchain.py
+          python -m pip install --disable-pip-version-check ".[dev]"
+          python scripts/check_repository_toolchain.py --installed
+          python -m pip install --disable-pip-version-check ".[agent]"
+          python scripts/check_repository_toolchain.py --agent-installed
+          python -m compileall -q src scripts tests
+          python -m ruff check src scripts tests
+          python -m pytest
+          python -m pip wheel --no-deps --wheel-dir dist .
+          rm -rf dist .pytest_cache .ruff_cache src/*.egg-info
+          git diff --check
+          expected="$(printf '%s\n' docs/BRASS_BRINE_ART_DELIVERY_VALIDATION.md pyproject.toml scripts/check_art_delivery_toolchain.py scripts/check_repository_toolchain.py src/godot_game_test_lab/art_delivery.py src/godot_game_test_lab/art_delivery_contract.py src/godot_game_test_lab/art_delivery_image.py src/godot_game_test_lab/art_delivery_io.py src/godot_game_test_lab/art_delivery_mcp.py src/godot_game_test_lab/art_delivery_types.py tests/test_art_delivery.py tests/test_art_delivery_mcp.py | LC_ALL=C sort)"
+          actual="$(git status --porcelain=v1 --untracked-files=all | sed -E 's/^.. //' | LC_ALL=C sort)"
+          test "$actual" = "$expected"
+          git config user.name "EVAVO Studio Automation"
+          git config user.email "evavo.studio@gmail.com"
+          git add -A
+          test "$(git diff --cached --name-only | LC_ALL=C sort)" = "$expected"
+          git commit -m "feat(art): independently verify Brass delivery receipts" -m "Add a root-restricted Test Lab gate for exact Art Studio Brass staging manifests, receipts, current source bytes and staged PNG/WebP derivatives. Recompute canonical batch identity, independently inspect image storage and alpha, expose MCP tools, add adversarial regressions and bind the permanent repository checker. No game mutation, selection, promotion, creative approval or publication authority is added."
+          git push origin "HEAD:$EXPECTED_BRANCH"
