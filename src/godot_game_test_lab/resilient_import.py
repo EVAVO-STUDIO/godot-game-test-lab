@@ -14,9 +14,10 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 MAX_TIMEOUT_SECONDS = 7_200
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
