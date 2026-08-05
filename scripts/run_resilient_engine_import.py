@@ -6,10 +6,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
 
-from godot_game_test_lab.resilient_import import main  # noqa: E402
+def main() -> int:
+    root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(root / "src"))
+    from godot_game_test_lab.resilient_import import main as resilient_main
+
+    return resilient_main()
 
 
 if __name__ == "__main__":
