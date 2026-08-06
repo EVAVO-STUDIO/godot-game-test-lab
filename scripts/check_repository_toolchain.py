@@ -12,6 +12,7 @@ ASSET_AUDIT_PATH = ROOT / "scripts" / "check_asset_audit_toolchain.py"
 FOUNDATION_MEDIA_PATH = ROOT / "scripts" / "check_foundation_media_toolchain.py"
 AUDIO_ANALYSIS_PATH = ROOT / "scripts" / "check_audio_analysis_toolchain.py"
 CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
+VISUAL_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "visual_animation_admission.py"
 EXPECTED_WORKFLOWS = {
     "ci.yml",
     "evavo-linux-godot-sandbox.yml",
@@ -65,11 +66,14 @@ def _preflight_errors() -> list[str]:
         }
     except OSError as error:
         return [f"workflow inventory could not be read: {error}"]
-    if observed != EXPECTED_WORKFLOWS:
+    expected = set(EXPECTED_WORKFLOWS)
+    if not VISUAL_ADMISSION_PATH.exists() and not VISUAL_ADMISSION_PATH.is_symlink():
+        expected.remove("visual-animation-admission.yml")
+    if observed != expected:
         errors.append(
             "workflow inventory changed; "
-            f"missing={sorted(EXPECTED_WORKFLOWS - observed)} "
-            f"extra={sorted(observed - EXPECTED_WORKFLOWS)}"
+            f"missing={sorted(expected - observed)} "
+            f"extra={sorted(observed - expected)}"
         )
 
     for relative in FORBIDDEN_STAGING_PATHS:
@@ -77,34 +81,10 @@ def _preflight_errors() -> list[str]:
         if path.exists() or path.is_symlink():
             errors.append(f"one-time publication residue remains: {relative}")
 
-    errors.extend(
-        _validate_checker(
-            ASSET_AUDIT_PATH,
-            "asset-audit checker",
-            "def main() -> int:",
-        )
-    )
-    errors.extend(
-        _validate_checker(
-            FOUNDATION_MEDIA_PATH,
-            "Foundation media checker",
-            "def main() -> int:",
-        )
-    )
-    errors.extend(
-        _validate_checker(
-            AUDIO_ANALYSIS_PATH,
-            "Brass audio-analysis checker",
-            "def main() -> int:",
-        )
-    )
-    errors.extend(
-        _validate_checker(
-            CORE_PATH,
-            "toolchain core",
-            "def main() -> int:",
-        )
-    )
+    errors.extend(_validate_checker(ASSET_AUDIT_PATH, "asset-audit checker", "def main() -> int:"))
+    errors.extend(_validate_checker(FOUNDATION_MEDIA_PATH, "Foundation media checker", "def main() -> int:"))
+    errors.extend(_validate_checker(AUDIO_ANALYSIS_PATH, "Brass audio-analysis checker", "def main() -> int:"))
+    errors.extend(_validate_checker(CORE_PATH, "toolchain core", "def main() -> int:"))
     return errors
 
 
@@ -131,16 +111,10 @@ def main() -> int:
     asset_result = _run_checker(ASSET_AUDIT_PATH, "asset-audit-checker")
     if asset_result != 0:
         return asset_result
-    foundation_result = _run_checker(
-        FOUNDATION_MEDIA_PATH,
-        "foundation-media-checker",
-    )
+    foundation_result = _run_checker(FOUNDATION_MEDIA_PATH, "foundation-media-checker")
     if foundation_result != 0:
         return foundation_result
-    audio_result = _run_checker(
-        AUDIO_ANALYSIS_PATH,
-        "Brass-audio-analysis-checker",
-    )
+    audio_result = _run_checker(AUDIO_ANALYSIS_PATH, "Brass-audio-analysis-checker")
     if audio_result != 0:
         return audio_result
     return _run_checker(CORE_PATH, "toolchain-core")
