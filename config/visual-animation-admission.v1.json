@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "contract": "evavo.godot-visual-animation-admission.v1",
+  "staticEvaluationSchema": "evavo.brass-creative-candidate-evaluation.v1",
+  "animationEvaluationSchema": "evavo.brass-animation-sequence-evaluation.v1",
+  "engineEvidenceSchema": "evavo.godot-visual-animation-import-evidence.v1",
+  "reportSchema": "evavo.brass-visual-animation-test-lab-report.v1",
+  "requirements": {
+    "exactCurrentCandidateBytes": true,
+    "exactCurrentFrameBytes": true,
+    "artStudioStaticEvaluationPassed": true,
+    "artStudioAnimationEvaluationPassed": true,
+    "runtimeScaleEvidenceBound": true,
+    "matteEvidenceBound": true,
+    "animationContactSheetBound": true,
+    "spriteFramesDestinationExists": true,
+    "spriteFramesReferencesEveryFrame": true,
+    "spriteFramesClipIdentityRequired": true,
+    "engineImportEvidencePassed": true,
+    "engineVersionRequired": true,
+    "rendererRequired": true,
+    "zeroImportErrors": true,
+    "exactGameHeadRequired": true
+  },
+  "authority": {
+    "candidateMutation": false,
+    "gameMutation": false,
+    "resourceMutation": false,
+    "engineExecution": false,
+    "creativeApproval": false,
+    "historicalApproval": false,
+    "publication": false,
+    "forcePush": false
+  }
+}
