@@ -81,10 +81,34 @@ def _preflight_errors() -> list[str]:
         if path.exists() or path.is_symlink():
             errors.append(f"one-time publication residue remains: {relative}")
 
-    errors.extend(_validate_checker(ASSET_AUDIT_PATH, "asset-audit checker", "def main() -> int:"))
-    errors.extend(_validate_checker(FOUNDATION_MEDIA_PATH, "Foundation media checker", "def main() -> int:"))
-    errors.extend(_validate_checker(AUDIO_ANALYSIS_PATH, "Brass audio-analysis checker", "def main() -> int:"))
-    errors.extend(_validate_checker(CORE_PATH, "toolchain core", "def main() -> int:"))
+    errors.extend(
+        _validate_checker(
+            ASSET_AUDIT_PATH,
+            "asset-audit checker",
+            "def main() -> int:",
+        )
+    )
+    errors.extend(
+        _validate_checker(
+            FOUNDATION_MEDIA_PATH,
+            "Foundation media checker",
+            "def main() -> int:",
+        )
+    )
+    errors.extend(
+        _validate_checker(
+            AUDIO_ANALYSIS_PATH,
+            "Brass audio-analysis checker",
+            "def main() -> int:",
+        )
+    )
+    errors.extend(
+        _validate_checker(
+            CORE_PATH,
+            "toolchain core",
+            "def main() -> int:",
+        )
+    )
     return errors
 
 
