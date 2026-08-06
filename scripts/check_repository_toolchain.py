@@ -19,6 +19,7 @@ EXPECTED_WORKFLOWS = {
     "evavo-native-godot-validation.yml",
     "linux-sandbox-smoke.yml",
     "reusable-godot-linux-sandbox.yml",
+    "visual-animation-admission.yml",
 }
 FORBIDDEN_STAGING_PATHS = (
     ".evavo/bootstrap",
