@@ -30,7 +30,6 @@ godot-lab-media-qa = "godot_game_test_lab.media_cli:main"
 godot-lab-mcp = "godot_game_test_lab.mcp_server:main"
 godot-lab-engine = "godot_game_test_lab.engine_cli:main"
 godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
-godot-lab-pixel-font = "godot_game_test_lab.pixel_font_admission:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
@@ -52,5 +51,3 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 "src/godot_game_test_lab/visual_animation_admission.py" = ["E501"]
 "tests/test_visual_animation_admission.py" = ["E501"]
-"src/godot_game_test_lab/pixel_font_admission.py" = ["E501"]
-"tests/test_pixel_font_admission.py" = ["E501"]
