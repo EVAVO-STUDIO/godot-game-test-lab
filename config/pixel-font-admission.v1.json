@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "contract": "evavo.godot-pixel-font-admission.v1",
+  "requiredRoles": [
+    "title",
+    "body",
+    "dialogue",
+    "button",
+    "ledger",
+    "numeric_hud",
+    "map_label",
+    "symbols"
+  ],
+  "nativeRequiredRoles": [
+    "title",
+    "body",
+    "ledger",
+    "map_label",
+    "symbols"
+  ],
+  "minimumVisiblePixels": 64,
+  "minimumLuminanceRange": 16,
+  "godot": {
+    "minimumVersion": "4.6.2",
+    "targetVersion": "4.6.2",
+    "textureFilter": "nearest",
+    "mipmaps": false,
+    "subpixelPositioning": false,
+    "integerScaleOnly": true,
+    "pixelSnap": true
+  },
+  "authority": {
+    "creativeApproval": false,
+    "historicalApproval": false,
+    "nativeCompositionApproval": false,
+    "provenanceApproval": false,
+    "candidatePromotion": false,
+    "sourceMutation": false,
+    "targetRepositoryMutation": false,
+    "gitCommit": false,
+    "gitPush": false,
+    "publication": false,
+    "forcePush": false
+  }
+}
