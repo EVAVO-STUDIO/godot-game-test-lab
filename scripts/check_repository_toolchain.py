@@ -20,7 +20,6 @@ EXPECTED_WORKFLOWS = {
     "evavo-native-godot-validation.yml",
     "linux-sandbox-smoke.yml",
     "reusable-godot-linux-sandbox.yml",
-    "sentinel-automation.yml",
     "visual-animation-admission.yml",
 }
 FORBIDDEN_STAGING_PATHS = (
