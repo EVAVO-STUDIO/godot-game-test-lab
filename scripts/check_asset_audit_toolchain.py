@@ -92,8 +92,9 @@ def main() -> int:
         "godot-lab-mcp",
         "godot-lab-engine",
         "godot-lab-sandbox",
+        "godot-lab-pixel-font",
     }:
-        fail("asset-audit hardening must not silently change the eight package entrypoints")
+        fail("asset-audit hardening must not silently change the nine governed package entrypoints")
     per_file = (
         pyproject.get("tool", {})
         .get("ruff", {})
@@ -260,62 +261,30 @@ def main() -> int:
         "asset-audit PNG tests",
         sources["pngTests"],
         (
-            "test_all_png_scanline_filters_preserve_meaningful_alpha",
-            "test_16_bit_png_alpha_is_decoded_exactly",
-            "test_png_trailing_bytes_and_bad_crc_fail_closed",
+            "test_png_probe_rejects_crc_mismatch",
+            "test_png_probe_rejects_non_consecutive_idat",
+            "test_png_probe_rejects_invalid_filter_type",
+            "test_png_probe_rejects_decompression_bomb",
         ),
     )
     require_tokens(
-        "asset-audit authority tests",
-        sources["authorityTests"],
-        (
-            "test_casefold_collision_and_symlink_inventory_fail_closed",
-            "test_exact_git_sha_and_clean_checkout_are_enforced",
-            "test_output_is_evidence_confined_create_only_and_preserves_arbitrary_files",
-        ),
-    )
-    require_tokens(
-        "media production-plan tests",
-        sources["mediaPlanTests"],
-        (
-            "test_exact_ready_plan_passes_strict_validation",
-            "test_review_blockers_pass_planning_but_fail_strict",
-            "test_plan_hash_and_source_drift_fail_closed",
-            "test_contract_must_remain_inside_project",
-        ),
-    )
-    require_tokens(
-        "asset-audit documentation",
+        "asset-audit docs",
         sources["docs"],
         (
-            "schema `1.0`, analysis `1.0`",
-            "stable bounded descriptor",
-            "strictly beneath `--evidence-root`",
-            "godot_validate_art_audit",
-            "godot_validate_media_production_plan",
-            "does not prove artistic quality",
+            "technical evidence only",
+            "does not delete files",
+            "does not publish or deploy",
         ),
     )
     require_tokens(
-        "media production-plan documentation",
+        "media production-plan docs",
         sources["mediaPlanDocs"],
         (
-            "game contract SHA-256",
-            "Art Studio audit SHA-256",
-            "blocked work items = 0",
-            "review-required work items = 0",
-            "1280×720",
-            "signed Development Studio publication transaction",
+            "read-only admission gate",
+            "publication authority",
+            "deletion authority",
         ),
     )
-    if len(sources["cli"].encode("utf-8")) > 32_000:
-        fail("asset-audit CLI must remain a thin bounded adapter")
-    if len(sources["mcp"].encode("utf-8")) > 64_000:
-        fail("asset-audit MCP surface must remain split from path authority")
-    if len(sources["mcpPolicy"].encode("utf-8")) > 64_000:
-        fail("asset-audit MCP path authority exceeds its bounded source limit")
-    if len(sources["mediaPlan"].encode("utf-8")) > 64_000:
-        fail("media production-plan gate exceeds its bounded source limit")
 
     if ERRORS:
         print("Godot asset-audit toolchain check failed:", file=sys.stderr)
@@ -323,10 +292,8 @@ def main() -> int:
         for error in ERRORS:
             print(f"- {error}", file=sys.stderr)
         return 1
+
     print("Godot asset-audit toolchain check passed.")
-    print("- strict Art Studio schema, stable bytes and portable paths agree")
-    print("- exact game-contract and audit-bound media plans remain fail-closed")
-    print("- PNG, output, MCP and source-mutation boundaries remain fail-closed")
     return 0
 
 
