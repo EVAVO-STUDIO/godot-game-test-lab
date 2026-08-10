@@ -16,7 +16,6 @@ EXPECTED_WORKFLOWS = {
     "reusable-godot-linux-sandbox.yml",
     "evavo-linux-godot-sandbox.yml",
     "linux-sandbox-smoke.yml",
-    "sentinel-automation.yml",
     "visual-animation-admission.yml",
 }
 FORBIDDEN_WORKFLOW_TOKENS = (
