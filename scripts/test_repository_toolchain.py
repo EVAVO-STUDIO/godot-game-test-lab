@@ -20,7 +20,6 @@ FILES = [
     ".github/workflows/reusable-godot-linux-sandbox.yml",
     ".github/workflows/evavo-linux-godot-sandbox.yml",
     ".github/workflows/linux-sandbox-smoke.yml",
-    ".github/workflows/sentinel-automation.yml",
     ".python-version",
     "containers/linux-sandbox/Dockerfile",
     "docs/ART_STUDIO_ASSET_AUDIT.md",
