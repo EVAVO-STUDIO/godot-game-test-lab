@@ -1,0 +1,42 @@
+{
+  "schema": "evavo.godot-game-asset-delivery-admission-contract.v1",
+  "contract": "evavo.godot-game-asset-delivery-admission.v1",
+  "minimumGodotVersion": {
+    "major": 4,
+    "minor": 6,
+    "patch": 2
+  },
+  "minimumScreenshotWidth": 320,
+  "minimumScreenshotHeight": 180,
+  "requiredNativeRoles": [
+    "animation",
+    "atlas",
+    "body",
+    "pixel-font",
+    "title"
+  ],
+  "requirements": {
+    "exactGameHeadRequired": true,
+    "exactInstalledBytesRequired": true,
+    "immutableStorageVersionRequired": true,
+    "pngCrcAndDimensionsRequired": true,
+    "bmfontPixelPolicyRequired": true,
+    "godotResourceReferencesRequired": true,
+    "nativeEvidenceSeparateFromSourceAdmission": true,
+    "nativeEvidenceDoesNotCreateApproval": true,
+    "createOnlyReportRequired": true
+  },
+  "authority": {
+    "automaticApproval": false,
+    "candidatePromotion": false,
+    "creativeApproval": false,
+    "historicalApproval": false,
+    "nativeCompositionApproval": false,
+    "provenanceApproval": false,
+    "gameRepositoryMutation": false,
+    "gitCommit": false,
+    "gitPush": false,
+    "publication": false,
+    "forcePush": false
+  }
+}

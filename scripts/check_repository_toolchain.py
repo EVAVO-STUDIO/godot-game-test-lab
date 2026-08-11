@@ -13,11 +13,13 @@ FOUNDATION_MEDIA_PATH = ROOT / "scripts" / "check_foundation_media_toolchain.py"
 AUDIO_ANALYSIS_PATH = ROOT / "scripts" / "check_audio_analysis_toolchain.py"
 CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 VISUAL_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "visual_animation_admission.py"
+GAME_ASSET_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "game_asset_delivery_admission.py"
 EXPECTED_WORKFLOWS = {
     "ci.yml",
     "evavo-linux-godot-sandbox.yml",
     "evavo-mainline-confirmation.yml",
     "evavo-native-godot-validation.yml",
+    "game-asset-delivery-admission.yml",
     "linux-sandbox-smoke.yml",
     "reusable-godot-linux-sandbox.yml",
     "visual-animation-admission.yml",
@@ -60,15 +62,15 @@ def _preflight_errors() -> list[str]:
         observed = {
             path.name
             for path in workflow_root.iterdir()
-            if path.is_file()
-            and not path.is_symlink()
-            and path.suffix in {".yml", ".yaml"}
+            if path.is_file() and not path.is_symlink() and path.suffix in {".yml", ".yaml"}
         }
     except OSError as error:
         return [f"workflow inventory could not be read: {error}"]
     expected = set(EXPECTED_WORKFLOWS)
     if not VISUAL_ADMISSION_PATH.exists() and not VISUAL_ADMISSION_PATH.is_symlink():
         expected.remove("visual-animation-admission.yml")
+    if not GAME_ASSET_ADMISSION_PATH.exists() and not GAME_ASSET_ADMISSION_PATH.is_symlink():
+        expected.remove("game-asset-delivery-admission.yml")
     if observed != expected:
         errors.append(
             "workflow inventory changed; "
@@ -81,34 +83,10 @@ def _preflight_errors() -> list[str]:
         if path.exists() or path.is_symlink():
             errors.append(f"one-time publication residue remains: {relative}")
 
-    errors.extend(
-        _validate_checker(
-            ASSET_AUDIT_PATH,
-            "asset-audit checker",
-            "def main() -> int:",
-        )
-    )
-    errors.extend(
-        _validate_checker(
-            FOUNDATION_MEDIA_PATH,
-            "Foundation media checker",
-            "def main() -> int:",
-        )
-    )
-    errors.extend(
-        _validate_checker(
-            AUDIO_ANALYSIS_PATH,
-            "Brass audio-analysis checker",
-            "def main() -> int:",
-        )
-    )
-    errors.extend(
-        _validate_checker(
-            CORE_PATH,
-            "toolchain core",
-            "def main() -> int:",
-        )
-    )
+    errors.extend(_validate_checker(ASSET_AUDIT_PATH, "asset-audit checker", "def main() -> int:"))
+    errors.extend(_validate_checker(FOUNDATION_MEDIA_PATH, "Foundation media checker", "def main() -> int:"))
+    errors.extend(_validate_checker(AUDIO_ANALYSIS_PATH, "Brass audio-analysis checker", "def main() -> int:"))
+    errors.extend(_validate_checker(CORE_PATH, "toolchain core", "def main() -> int:"))
     return errors
 
 
