@@ -23,6 +23,7 @@ from .classic_adventure_vga_contract import (
 )
 from .classic_adventure_vga_png import decode_png_rgba, pixel_metrics
 
+
 def validate_classic_adventure_vga(
     project: Path,
     contract_path: Path,
