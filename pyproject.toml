@@ -30,7 +30,6 @@ godot-lab-media-qa = "godot_game_test_lab.media_cli:main"
 godot-lab-mcp = "godot_game_test_lab.mcp_server:main"
 godot-lab-engine = "godot_game_test_lab.engine_cli:main"
 godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
-godot-lab-classic-vga = "godot_game_test_lab.classic_adventure_vga:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]

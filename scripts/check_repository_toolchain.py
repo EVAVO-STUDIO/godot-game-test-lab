@@ -11,6 +11,7 @@ ROOT = Path.cwd().resolve(strict=True)
 ASSET_AUDIT_PATH = ROOT / "scripts" / "check_asset_audit_toolchain.py"
 FOUNDATION_MEDIA_PATH = ROOT / "scripts" / "check_foundation_media_toolchain.py"
 AUDIO_ANALYSIS_PATH = ROOT / "scripts" / "check_audio_analysis_toolchain.py"
+CLASSIC_VGA_PATH = ROOT / "scripts" / "check_classic_adventure_vga_toolchain.py"
 CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 VISUAL_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "visual_animation_admission.py"
 GAME_ASSET_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "game_asset_delivery_admission.py"
@@ -86,6 +87,7 @@ def _preflight_errors() -> list[str]:
     errors.extend(_validate_checker(ASSET_AUDIT_PATH, "asset-audit checker", "def main() -> int:"))
     errors.extend(_validate_checker(FOUNDATION_MEDIA_PATH, "Foundation media checker", "def main() -> int:"))
     errors.extend(_validate_checker(AUDIO_ANALYSIS_PATH, "Brass audio-analysis checker", "def main() -> int:"))
+    errors.extend(_validate_checker(CLASSIC_VGA_PATH, "classic-adventure VGA checker", "def main() -> int:"))
     errors.extend(_validate_checker(CORE_PATH, "toolchain core", "def main() -> int:"))
     return errors
 
@@ -119,6 +121,9 @@ def main() -> int:
     audio_result = _run_checker(AUDIO_ANALYSIS_PATH, "Brass-audio-analysis-checker")
     if audio_result != 0:
         return audio_result
+    classic_result = _run_checker(CLASSIC_VGA_PATH, "classic-adventure-VGA-checker")
+    if classic_result != 0:
+        return classic_result
     return _run_checker(CORE_PATH, "toolchain-core")
 
 
