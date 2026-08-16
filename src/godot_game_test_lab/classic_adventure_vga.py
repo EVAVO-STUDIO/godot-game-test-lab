@@ -10,8 +10,8 @@ from typing import Any
 
 from .asset_audit_png import probe_image_bytes
 from .classic_adventure_vga_contract import (
-    MAX_ASSETS,
     MAX_ASSET_BYTES,
+    MAX_ASSETS,
     REPORT_SCHEMA_VERSION,
     ClassicAdventureVgaError,
     bounded_float,
