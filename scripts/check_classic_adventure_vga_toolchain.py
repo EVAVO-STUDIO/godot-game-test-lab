@@ -111,7 +111,7 @@ def main() -> int:
             "Linux sandbox integration",
             "Quality boundary",
             "commercial game assets",
-            "binary alpha",
+            "alpha: binary",
         ),
     )
     require_tokens(
