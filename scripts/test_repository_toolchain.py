@@ -27,14 +27,17 @@ FILES = [
     "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
     "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
     "docs/BRASS_BRINE_AUDIO_ANALYSIS.md",
+    "docs/CLASSIC_ADVENTURE_VGA_QA.md",
     "evavo.reliability.json",
     "pyproject.toml",
     "schemas/repository-owned-reliability-profile.schema.json",
     "scripts/check_asset_audit_toolchain.py",
     "scripts/check_foundation_media_toolchain.py",
     "scripts/check_audio_analysis_toolchain.py",
+    "scripts/check_classic_adventure_vga_toolchain.py",
     "scripts/check_repository_toolchain.py",
     "scripts/check_repository_toolchain_core.py",
+    "scripts/classic_adventure_vga_qa.py",
     "src/godot_game_test_lab/__init__.py",
     "src/godot_game_test_lab/asset_audit.py",
     "src/godot_game_test_lab/asset_audit_checks.py",
@@ -53,6 +56,9 @@ FILES = [
     "src/godot_game_test_lab/audio_analysis_mcp.py",
     "src/godot_game_test_lab/audio_analysis_media.py",
     "src/godot_game_test_lab/audio_analysis_types.py",
+    "src/godot_game_test_lab/classic_adventure_vga.py",
+    "src/godot_game_test_lab/classic_adventure_vga_contract.py",
+    "src/godot_game_test_lab/classic_adventure_vga_png.py",
     "src/godot_game_test_lab/foundation_media_mcp.py",
     "src/godot_game_test_lab/foundation_media_plan.py",
     "src/godot_game_test_lab/foundation_media_release_report.py",
@@ -73,6 +79,7 @@ FILES = [
     "tests/test_asset_audit_png.py",
     "tests/test_asset_audit_release_contract.py",
     "tests/test_audio_analysis.py",
+    "tests/test_classic_adventure_vga.py",
     "tests/test_audio_analysis_mcp.py",
     "tests/test_foundation_media_mcp.py",
     "tests/test_foundation_media_plan.py",
@@ -420,11 +427,23 @@ def main() -> int:
         lambda root: (root / "scripts/check_audio_analysis_toolchain.py").unlink(),
         "Brass audio-analysis checker removal",
     )
+    exercise(
+        lambda root: (root / "scripts/check_classic_adventure_vga_toolchain.py").unlink(),
+        "classic-adventure VGA checker removal",
+    )
+    exercise(
+        lambda root: mutate_text(
+            root,
+            "docs/CLASSIC_ADVENTURE_VGA_QA.md",
+            lambda value: value.replace("alpha: binary", "alpha: soft"),
+        ),
+        "classic-adventure VGA alpha-authority drift",
+    )
 
     print("Godot lab repository toolchain adversarial tests passed.")
     print(
         "- Python, lockfile, workflow, sandbox, asset-audit, media-plan, "
-        "current-source, exact-head CLI/MCP release, Brass audio-analysis and "
+        "current-source, exact-head CLI/MCP release, Brass audio-analysis, classic VGA and "
         "truth-boundary drift fail closed"
     )
     return 0
