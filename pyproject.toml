@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "godot-game-test-lab"
-version = "0.7.0"
+version = "0.8.0"
 description = "Automated Godot build, interaction, visual evidence and QA orchestration."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,6 +30,7 @@ godot-lab-media-qa = "godot_game_test_lab.media_cli:main"
 godot-lab-mcp = "godot_game_test_lab.mcp_server:main"
 godot-lab-engine = "godot_game_test_lab.engine_cli:main"
 godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
+godot-lab-classic-vga = "godot_game_test_lab.classic_adventure_vga:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
