@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "evavo-godot-rig-motion-admission-v4.1",
+  "families": [
+    "humanoid",
+    "quadruped",
+    "rodent",
+    "arachnid",
+    "wheeled-vehicle",
+    "tracked-vehicle",
+    "helicopter"
+  ],
+  "minimumMotionSamplesPerAnimation": 4,
+  "minimumTransformDelta": 0.00001,
+  "requiredSequence": [
+    "producer-audit",
+    "khronos-validation",
+    "rig-manifest-audit",
+    "blender-review",
+    "isolated-godot-import",
+    "motion-sampling",
+    "human-target-game-review"
+  ],
+  "maximumStatus": "godot-rig-motion-accepted-for-human-review",
+  "authority": {
+    "runtimeAdmission": false,
+    "targetRepositoryMutation": false,
+    "gitMutation": false,
+    "deployment": false,
+    "publication": false,
+    "namedHumanReviewRequired": true
+  }
+}
