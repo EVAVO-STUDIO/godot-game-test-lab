@@ -1,0 +1,237 @@
+name: Verified Blender and Godot toolchain transport
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verified-toolchain-transport.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verified-toolchain-transport-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provision:
+    name: Verify and split official Blender and Godot archives
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      BLENDER_URL: https://download.blender.org/release/Blender4.5/blender-4.5.0-linux-x64.tar.xz
+      BLENDER_NAME: blender-4.5.0-linux-x64.tar.xz
+      BLENDER_BYTES: "376170648"
+      BLENDER_SHA256: 1188b95cc12321c770b631939f7c25a096910b6f884a990bf9c0f62d52b38aec
+      GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.6.3-stable/Godot_v4.6.3-stable_linux.x86_64.zip
+      GODOT_NAME: Godot_v4.6.3-stable_linux.x86_64.zip
+      GODOT_BYTES: "71806687"
+      GODOT_SHA256: d0bc2113065e481c9c2c2b2c37daa4e8be3fe9e27f0ab9ab0b6096e9a37907f3
+      TRANSPORT_ROOT: /tmp/evavo-verified-toolchain
+    steps:
+      - name: Check out exact transport source
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+
+      - name: Download official archives with bounded retries
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${TRANSPORT_ROOT}"
+          mkdir -p "${TRANSPORT_ROOT}/chunks"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --fail --location --retry 4 --retry-all-errors \
+            --connect-timeout 30 --max-time 1800 \
+            --output "${TRANSPORT_ROOT}/${BLENDER_NAME}" \
+            "${BLENDER_URL}"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --fail --location --retry 4 --retry-all-errors \
+            --connect-timeout 30 --max-time 900 \
+            --output "${TRANSPORT_ROOT}/${GODOT_NAME}" \
+            "${GODOT_URL}"
+
+      - name: Verify exact byte sizes and SHA-256 identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(stat -c '%s' "${TRANSPORT_ROOT}/${BLENDER_NAME}")" = "${BLENDER_BYTES}"
+          test "$(sha256sum "${TRANSPORT_ROOT}/${BLENDER_NAME}" | awk '{print $1}')" = "${BLENDER_SHA256}"
+          test "$(stat -c '%s' "${TRANSPORT_ROOT}/${GODOT_NAME}")" = "${GODOT_BYTES}"
+          test "$(sha256sum "${TRANSPORT_ROOT}/${GODOT_NAME}" | awk '{print $1}')" = "${GODOT_SHA256}"
+
+      - name: Split archives into bounded immutable chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          split --bytes=67108864 --numeric-suffixes=0 --suffix-length=2 \
+            "${TRANSPORT_ROOT}/${BLENDER_NAME}" \
+            "${TRANSPORT_ROOT}/chunks/blender.part-"
+          split --bytes=33554432 --numeric-suffixes=0 --suffix-length=2 \
+            "${TRANSPORT_ROOT}/${GODOT_NAME}" \
+            "${TRANSPORT_ROOT}/chunks/godot.part-"
+          test "$(find "${TRANSPORT_ROOT}/chunks" -maxdepth 1 -type f -name 'blender.part-*' | wc -l)" = 6
+          test "$(find "${TRANSPORT_ROOT}/chunks" -maxdepth 1 -type f -name 'godot.part-*' | wc -l)" = 3
+
+      - name: Compile machine-readable transport manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          root = Path(os.environ["TRANSPORT_ROOT"])
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def chunks(prefix: str) -> list[dict[str, object]]:
+              return [
+                  {
+                      "name": path.name,
+                      "bytes": path.stat().st_size,
+                      "sha256": sha256(path),
+                  }
+                  for path in sorted((root / "chunks").glob(f"{prefix}.part-*"))
+              ]
+
+          payload = {
+              "schemaVersion": "1.0",
+              "contract": "evavo_verified_toolchain_transport_v1",
+              "status": "verified",
+              "createdAt": datetime.now(UTC).isoformat(),
+              "sourceRepository": os.environ["GITHUB_REPOSITORY"],
+              "sourceSha": os.environ["GITHUB_SHA"],
+              "archives": [
+                  {
+                      "id": "blender-4.5.0-linux-x64",
+                      "name": os.environ["BLENDER_NAME"],
+                      "url": os.environ["BLENDER_URL"],
+                      "bytes": int(os.environ["BLENDER_BYTES"]),
+                      "sha256": os.environ["BLENDER_SHA256"],
+                      "chunks": chunks("blender"),
+                  },
+                  {
+                      "id": "godot-4.6.3-linux-x86_64",
+                      "name": os.environ["GODOT_NAME"],
+                      "url": os.environ["GODOT_URL"],
+                      "bytes": int(os.environ["GODOT_BYTES"]),
+                      "sha256": os.environ["GODOT_SHA256"],
+                      "chunks": chunks("godot"),
+                  },
+              ],
+              "authority": {
+                  "sourceMutation": False,
+                  "targetSourceIncluded": False,
+                  "credentialsRetained": False,
+                  "deployment": False,
+                  "publication": False,
+                  "runtimeAdmission": False,
+              },
+          }
+          (root / "transport-manifest.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          python3 -m json.tool "${TRANSPORT_ROOT}/transport-manifest.json" >/dev/null
+
+      - name: Upload transport manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verified-toolchain-manifest-${{ github.sha }}
+          path: /tmp/evavo-verified-toolchain/transport-manifest.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload Blender part 00
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-blender-4.5.0-part-00
+          path: /tmp/evavo-verified-toolchain/chunks/blender.part-00
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Blender part 01
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-blender-4.5.0-part-01
+          path: /tmp/evavo-verified-toolchain/chunks/blender.part-01
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Blender part 02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-blender-4.5.0-part-02
+          path: /tmp/evavo-verified-toolchain/chunks/blender.part-02
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Blender part 03
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-blender-4.5.0-part-03
+          path: /tmp/evavo-verified-toolchain/chunks/blender.part-03
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Blender part 04
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-blender-4.5.0-part-04
+          path: /tmp/evavo-verified-toolchain/chunks/blender.part-04
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Blender part 05
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-blender-4.5.0-part-05
+          path: /tmp/evavo-verified-toolchain/chunks/blender.part-05
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload Godot part 00
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-godot-4.6.3-part-00
+          path: /tmp/evavo-verified-toolchain/chunks/godot.part-00
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Godot part 01
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-godot-4.6.3-part-01
+          path: /tmp/evavo-verified-toolchain/chunks/godot.part-01
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Godot part 02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-godot-4.6.3-part-02
+          path: /tmp/evavo-verified-toolchain/chunks/godot.part-02
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Confirm source remained unchanged
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
