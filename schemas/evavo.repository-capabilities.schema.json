@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.evavo.local/evavo.repository-capabilities.schema.json",
+  "title": "EVAVO Repository Capability Manifest",
+  "description": "A bounded, machine-readable declaration of a repository's current capabilities and Brain consultation contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "capabilities", "brain"],
+  "properties": {
+    "$schema": {"type": "string", "minLength": 1, "maxLength": 500},
+    "contractVersion": {"const": "evavo_repository_capabilities_v1"},
+    "repository": {"type": "string", "pattern": "^(?:[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+$", "maxLength": 200},
+    "authority": {"type": "string", "minLength": 1, "maxLength": 160},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 1200},
+    "capabilities": {"type": "array", "minItems": 1, "maxItems": 200, "items": {"$ref": "#/$defs/capability"}},
+    "brain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consult", "sanityCheck", "topics"],
+      "properties": {
+        "consult": {"type": "boolean"},
+        "sanityCheck": {"type": "boolean"},
+        "topics": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}}
+      }
+    },
+    "reviewedAt": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "interfaces", "effects", "entrypoints", "tags", "requires"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{1,127}$"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 160},
+        "description": {"type": "string", "minLength": 1, "maxLength": 1200},
+        "interfaces": {"type": "array", "maxItems": 50, "uniqueItems": true, "items": {"enum": ["api", "automation", "cli", "desktop", "game", "library", "mcp", "mobile", "openapi", "testing", "ui", "web-app"]}},
+        "effects": {"type": "array", "maxItems": 50, "uniqueItems": true, "items": {"enum": ["read", "compute", "network", "write", "execute", "publish", "financial"]}},
+        "entrypoints": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+        "tags": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 80}},
+        "requires": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}}
+      }
+    }
+  }
+}
