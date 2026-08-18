@@ -1,0 +1,115 @@
+{
+  "$schema": "./schemas/evavo.repository-capabilities.schema.json",
+  "contractVersion": "evavo_repository_capabilities_v1",
+  "repository": "EVAVO-STUDIO/godot-game-test-lab",
+  "authority": "independent-godot-validation-and-admission",
+  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified managed engines; runs native authored, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and external/create-only evidence but does not repair, edit, publish or grant deployment authority over target repositories.",
+  "capabilities": [
+    {
+      "id": "testlab.engine.provision",
+      "title": "Provision governed Godot engines",
+      "description": "Select, download or reuse official stable Godot editor and export-template archives under governed version/flavor policy, verify checksum identity and retain managed installation receipts outside target repositories.",
+      "interfaces": ["automation", "cli", "library", "mcp"],
+      "effects": ["read", "compute", "network", "write", "execute"],
+      "entrypoints": ["godot-lab-engine", "godot-lab engine", "godot_ensure_engine", "src/godot_game_test_lab/engine_manager.py"],
+      "tags": ["godot", "engine", "provisioning", "checksum", "managed-cache"],
+      "requires": ["Governed Godot engine lock", "Official godotengine/godot-builds source or approved offline source", "Managed engine root distinct from target repository"]
+    },
+    {
+      "id": "testlab.project.inspect-audit",
+      "title": "Inspect and audit Godot projects",
+      "description": "Inspect one allowed external project and run bounded scene, resource, path, Git materialization, export and asset integrity checks without executing or modifying the target project.",
+      "interfaces": ["cli", "library", "mcp", "testing"],
+      "effects": ["read", "compute"],
+      "entrypoints": ["godot-lab inspect", "godot-lab audit", "godot_inspect", "godot_audit", "src/godot_game_test_lab/integrity.py"],
+      "tags": ["godot", "inspection", "audit", "integrity", "read-only"],
+      "requires": ["Allowed external project root", "Bounded audit limits"]
+    },
+    {
+      "id": "testlab.project.validate-runtime",
+      "title": "Run authoritative Godot validation",
+      "description": "Run exact-source integrity, optional .NET build, authoritative Godot import, recovery diagnosis, bounded headless/native runs, deterministic recording and optional export while retaining reports and artifacts. Target repair and publication are outside this authority.",
+      "interfaces": ["automation", "cli", "library", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab validate", "godot-lab run", "godot-lab record", "godot-lab export", "godot_validate", "src/godot_game_test_lab/pipeline.py"],
+      "tags": ["godot", "validation", "runtime", "import", "recording", "export-evidence"],
+      "requires": ["Exact external project source", "Compatible Godot editor", "Bounded artifact/output paths", "Downstream authority for target repair or publication"]
+    },
+    {
+      "id": "testlab.qa.native-authored",
+      "title": "Run exact-SHA native authored QA",
+      "description": "Run target-authored native Windows Godot journeys against exact lab and target SHAs, retaining bounded screenshots, movies, logs, telemetry and synchronized audio evidence outside both repositories. Non-interactive runs are contract tests, not native evidence.",
+      "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-native-qa", "godot_run_native_qa", "src/godot_game_test_lab/native_qa.py", "scripts/Invoke-GodotLabNativeAgentQA.ps1"],
+      "tags": ["godot", "native", "qa", "journeys", "visual", "audio"],
+      "requires": ["Exact lab SHA and target SHA", "Reviewed QA profile", "Allowed external artifact root", "Interactive Windows session for authoritative native visual evidence"]
+    },
+    {
+      "id": "testlab.qa.bot",
+      "title": "Run deterministic bot QA",
+      "description": "Execute bounded deterministic fresh-process bot playtesting across mouse, keyboard, actions and gamepad-event paths, retaining replay/state/media evidence while explicitly not claiming complete state coverage or physical-controller proof.",
+      "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-bot-qa", "godot_run_bot_qa", "src/godot_game_test_lab/bot_qa.py", "scripts/Invoke-GodotLabBotQA.ps1"],
+      "tags": ["godot", "bot", "playtest", "deterministic", "input", "state-graph"],
+      "requires": ["Exact target source", "Reviewed bot QA profile", "Bounded artifact root", "Human/native review for game-feel conclusions"]
+    },
+    {
+      "id": "testlab.sandbox.linux",
+      "title": "Run isolated Linux Godot QA",
+      "description": "Prepare an ephemeral bounded copy and run Linux Godot validation/capture under the governed sandbox surface with retained logs and artifacts. Linux software-rendering evidence is not native Windows GPU performance evidence and the target repository remains outside repair/publication authority.",
+      "interfaces": ["automation", "cli", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-sandbox", "godot-lab linux-sandbox", "godot_run_linux_sandbox", "src/godot_game_test_lab/linux_sandbox.py", "scripts/Invoke-GodotLabLinuxSandbox.ps1"],
+      "tags": ["godot", "linux", "sandbox", "isolated", "no-network", "evidence"],
+      "requires": ["Allowed target source", "Sandbox working root distinct from target", "Bounded resources and artifact root"]
+    },
+    {
+      "id": "testlab.media.analyze",
+      "title": "Analyse retained gameplay media",
+      "description": "Extract and analyse synchronized audio and retained gameplay movies with governed FFmpeg/FFprobe media policy, writing analysis artifacts while keeping human mix and visual-quality judgment separate.",
+      "interfaces": ["automation", "cli", "library", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-media-qa", "src/godot_game_test_lab/media_cli.py"],
+      "tags": ["godot", "media", "audio", "video", "ffmpeg", "evidence"],
+      "requires": ["Retained gameplay media", "Bounded artifact path", "FFmpeg/FFprobe for media analysis"]
+    },
+    {
+      "id": "testlab.asset-delivery.admit",
+      "title": "Admit exact installed game-asset deliveries",
+      "description": "Independently bind an exact game head, delivery bundle, storage admission, installed bytes and optional native evidence into create-only game-asset delivery admission evidence. Native composition approval and publication remain false.",
+      "interfaces": ["automation", "cli", "library", "testing"],
+      "effects": ["read", "compute", "write"],
+      "entrypoints": ["src/godot_game_test_lab/game_asset_delivery_admission.py", "scripts/check_game_asset_delivery_admission.py"],
+      "tags": ["godot", "assets", "delivery", "admission", "exact-bytes"],
+      "requires": ["Exact game head", "Exact delivery and storage admission", "Installed target bytes", "Optional native evidence for full pass"]
+    },
+    {
+      "id": "testlab.visual-animation.admit",
+      "title": "Admit Brass visual-animation evidence",
+      "description": "Independently verify exact static candidate/frame bytes, SpriteFrames references, Art Studio evaluations and Godot engine evidence into the Brass visual-animation Test Lab report while retaining creative, historical and publication approvals as false.",
+      "interfaces": ["automation", "cli", "library", "testing"],
+      "effects": ["read", "compute", "write"],
+      "entrypoints": ["src/godot_game_test_lab/visual_animation_admission.py", "config/visual-animation-admission.v1.json"],
+      "tags": ["godot", "brass-brine", "visual", "animation", "spriteframes", "admission"],
+      "requires": ["Exact game head", "Passed Art Studio static or animation evaluation", "Exact candidate/frame roots", "Passed Godot engine import/render evidence"]
+    },
+    {
+      "id": "testlab.rig-motion.accept-v4.1",
+      "title": "Run exact-byte rig-motion acceptance v4.1",
+      "description": "Run an isolated hash-bound headless Godot rig-motion probe for supported 3D asset families, require measurable motion and write create-only acceptance evidence for named human review. Runtime admission, target mutation, Git mutation, deployment and publication remain false.",
+      "interfaces": ["automation", "cli", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["tools/rig_motion_acceptance_v4_1.py", "tools/rig_motion_probe_v4_1.gd", "docs/RIG_MOTION_ACCEPTANCE_V4_1.md"],
+      "tags": ["godot", "3d", "rig", "motion", "acceptance", "exact-bytes"],
+      "requires": ["Exact SHA-256 for Godot executable, asset, rig manifest and probe", "Supported rig family", "Create-only output path", "Named human review after technical acceptance"]
+    }
+  ],
+  "brain": {
+    "consult": true,
+    "sanityCheck": true,
+    "topics": ["Godot engine provisioning", "Godot project inspection and integrity", "native and headless validation", "authored journey QA", "deterministic bot playtesting", "Linux sandbox QA", "gameplay media and audio evidence", "game-asset delivery admission", "Brass visual-animation admission", "3D rig-motion acceptance", "target-repository mutation and publication boundaries"]
+  },
+  "reviewedAt": "2026-08-18T10:58:00Z"
+}
