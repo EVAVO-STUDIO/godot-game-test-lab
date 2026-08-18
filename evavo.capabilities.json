@@ -3,7 +3,7 @@
   "contractVersion": "evavo_repository_capabilities_v1",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "authority": "independent-godot-validation-and-admission",
-  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified managed engines; runs native authored, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and external/create-only evidence but does not repair, edit, publish or grant deployment authority over target repositories.",
+  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified managed engines; runs native authored, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and governed evidence outside target repositories, with create-only semantics where each admission contract requires them, but does not repair, edit, publish or grant deployment authority over target repositories.",
   "capabilities": [
     {
       "id": "testlab.engine.provision",
@@ -53,7 +53,7 @@
       "effects": ["read", "compute", "write", "execute"],
       "entrypoints": ["godot-lab-bot-qa", "godot_run_bot_qa", "src/godot_game_test_lab/bot_qa.py", "scripts/Invoke-GodotLabBotQA.ps1"],
       "tags": ["godot", "bot", "playtest", "deterministic", "input", "state-graph"],
-      "requires": ["Exact target source", "Reviewed bot QA profile", "Bounded artifact root", "Human/native review for game-feel conclusions"]
+      "requires": ["Exact lab SHA and target SHA", "Reviewed bot QA profile", "Bounded artifact root", "Human/native review for game-feel conclusions"]
     },
     {
       "id": "testlab.sandbox.linux",
@@ -111,5 +111,5 @@
     "sanityCheck": true,
     "topics": ["Godot engine provisioning", "Godot project inspection and integrity", "native and headless validation", "authored journey QA", "deterministic bot playtesting", "Linux sandbox QA", "gameplay media and audio evidence", "game-asset delivery admission", "Brass visual-animation admission", "3D rig-motion acceptance", "target-repository mutation and publication boundaries"]
   },
-  "reviewedAt": "2026-08-18T10:58:00Z"
+  "reviewedAt": "2026-08-18T11:12:00Z"
 }
