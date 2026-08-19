@@ -65,6 +65,7 @@ def build_probe(
             "movieEvidence": ready,
             "linuxSandbox": True,
             "nativeAuthoredQa": ready,
+            "multiplayerQa": ready,
             "nativeBotQa": ready,
             "mediaQa": True,
             "mcpBridge": True,
@@ -79,6 +80,10 @@ def build_probe(
             "networkProvisioningPerformed": False,
             "rawExecutablePathsRetained": False,
             "projectPathsRetained": False,
+            "multiplayerTargetSelected": False,
+            "multiplayerRolesExecuted": False,
+            "physicalControllerCertified": False,
+            "networkConditionCertified": False,
             "humanGameFeelApprovalClaimed": False,
         },
     }
