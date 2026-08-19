@@ -1,31 +1,65 @@
 #!/usr/bin/env python3
 """Validate the Godot Game Test Lab capability declaration against live source."""
+
 from __future__ import annotations
 
-from datetime import datetime
 import json
-from pathlib import Path
 import re
 import sys
 import tomllib
+from datetime import datetime
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "evavo.capabilities.json"
 SCHEMA_PATH = ROOT / "schemas/evavo.repository-capabilities.schema.json"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 
-TOP_LEVEL = {"$schema", "contractVersion", "repository", "authority", "summary", "capabilities", "brain", "reviewedAt"}
-CAPABILITY_FIELDS = {"id", "title", "description", "interfaces", "effects", "entrypoints", "tags", "requires"}
+TOP_LEVEL = {
+    "$schema",
+    "contractVersion",
+    "repository",
+    "authority",
+    "summary",
+    "capabilities",
+    "brain",
+    "reviewedAt",
+}
+CAPABILITY_FIELDS = {
+    "id",
+    "title",
+    "description",
+    "interfaces",
+    "effects",
+    "entrypoints",
+    "tags",
+    "requires",
+}
 BRAIN_FIELDS = {"consult", "sanityCheck", "topics"}
-INTERFACES = {"api", "automation", "cli", "desktop", "game", "library", "mcp", "mobile", "openapi", "testing", "ui", "web-app"}
+INTERFACES = {
+    "api",
+    "automation",
+    "cli",
+    "desktop",
+    "game",
+    "library",
+    "mcp",
+    "mobile",
+    "openapi",
+    "testing",
+    "ui",
+    "web-app",
+}
 EFFECTS = {"read", "compute", "network", "write", "execute", "publish", "financial"}
 ID = re.compile(r"^[a-z0-9][a-z0-9._:-]{1,127}$")
 
 EXPECTED_EFFECTS = {
+    "testlab.readiness.automated-testing": ["read", "compute"],
     "testlab.engine.provision": ["read", "compute", "network", "write", "execute"],
     "testlab.project.inspect-audit": ["read", "compute"],
     "testlab.project.validate-runtime": ["read", "compute", "write", "execute"],
     "testlab.qa.native-authored": ["read", "compute", "write", "execute"],
+    "testlab.qa.multiplayer": ["read", "compute", "write", "execute"],
     "testlab.qa.bot": ["read", "compute", "write", "execute"],
     "testlab.sandbox.linux": ["read", "compute", "write", "execute"],
     "testlab.media.analyze": ["read", "compute", "write", "execute"],
@@ -37,12 +71,14 @@ EXPECTED_IDS = tuple(EXPECTED_EFFECTS)
 EXPECTED_SCRIPTS = {
     "godot-lab": "godot_game_test_lab.cli:main",
     "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
+    "godot-lab-multiplayer-qa": "godot_game_test_lab.multiplayer_qa:main",
     "godot-lab-bot-qa": "godot_game_test_lab.bot_qa:main",
     "godot-lab-init-qa": "godot_game_test_lab.profile_bootstrap:main",
     "godot-lab-media-qa": "godot_game_test_lab.media_cli:main",
     "godot-lab-mcp": "godot_game_test_lab.mcp_server:main",
     "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
     "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
+    "godot-lab-rally-falcon-preview": "godot_game_test_lab.rally_falcon_preview:main",
 }
 FAILURES: list[str] = []
 
@@ -104,7 +140,8 @@ def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
 
     check(isinstance(schema, dict), "shared schema is not an object")
     check(
-        schema.get("$id") == "https://schemas.evavo.local/evavo.repository-capabilities.schema.json",
+        schema.get("$id")
+        == "https://schemas.evavo.local/evavo.repository-capabilities.schema.json",
         "shared schema identity drifted",
     )
     check(
@@ -156,7 +193,8 @@ def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
         check(brain.get("sanityCheck") is True, "Brain sanity checking must be enabled")
         topics = string_array(brain.get("topics"), 100, 160)
         check(
-            isinstance(brain.get("topics"), list) and len(topics) == len(brain.get("topics", [])),
+            isinstance(brain.get("topics"), list)
+            and len(topics) == len(brain.get("topics", [])),
             "Brain topics are invalid",
         )
 
@@ -174,24 +212,57 @@ def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
         if not isinstance(capability, dict):
             continue
         capability_id = str(capability.get("id", "unknown"))
-        check(set(capability).issubset(CAPABILITY_FIELDS), f"{capability_id} has unknown fields")
+        check(
+            set(capability).issubset(CAPABILITY_FIELDS),
+            f"{capability_id} has unknown fields",
+        )
         check(CAPABILITY_FIELDS.issubset(capability), f"{capability_id} is incomplete")
-        check(bool(ID.fullmatch(str(capability.get("id", "")))), f"{capability_id} has an invalid ID")
-        check(bounded(capability.get("title"), 160), f"{capability_id} title is invalid")
-        check(bounded(capability.get("description"), 1200), f"{capability_id} description is invalid")
+        check(
+            bool(ID.fullmatch(str(capability.get("id", "")))),
+            f"{capability_id} has an invalid ID",
+        )
+        check(
+            bounded(capability.get("title"), 160),
+            f"{capability_id} title is invalid",
+        )
+        check(
+            bounded(capability.get("description"), 1200),
+            f"{capability_id} description is invalid",
+        )
 
         interfaces = string_array(capability.get("interfaces"), 50, 40)
         effects = string_array(capability.get("effects"), 50, 40)
         entrypoints = string_array(capability.get("entrypoints"), 100, 500)
         tags = string_array(capability.get("tags"), 100, 80)
         requires = string_array(capability.get("requires"), 100, 160)
-        check(len(interfaces) == len(capability.get("interfaces", [])), f"{capability_id} interfaces are invalid")
-        check(len(effects) == len(capability.get("effects", [])), f"{capability_id} effects are invalid")
-        check(len(entrypoints) == len(capability.get("entrypoints", [])), f"{capability_id} entrypoints are invalid")
-        check(len(tags) == len(capability.get("tags", [])), f"{capability_id} tags are invalid")
-        check(len(requires) == len(capability.get("requires", [])), f"{capability_id} prerequisites are invalid")
-        check(all(item in INTERFACES for item in interfaces), f"{capability_id} has unknown interfaces")
-        check(all(item in EFFECTS for item in effects), f"{capability_id} has unknown effects")
+        check(
+            len(interfaces) == len(capability.get("interfaces", [])),
+            f"{capability_id} interfaces are invalid",
+        )
+        check(
+            len(effects) == len(capability.get("effects", [])),
+            f"{capability_id} effects are invalid",
+        )
+        check(
+            len(entrypoints) == len(capability.get("entrypoints", [])),
+            f"{capability_id} entrypoints are invalid",
+        )
+        check(
+            len(tags) == len(capability.get("tags", [])),
+            f"{capability_id} tags are invalid",
+        )
+        check(
+            len(requires) == len(capability.get("requires", [])),
+            f"{capability_id} prerequisites are invalid",
+        )
+        check(
+            all(item in INTERFACES for item in interfaces),
+            f"{capability_id} has unknown interfaces",
+        )
+        check(
+            all(item in EFFECTS for item in effects),
+            f"{capability_id} has unknown effects",
+        )
 
         for entrypoint in entrypoints:
             looks_like_path = (
@@ -212,7 +283,7 @@ def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
     by_id = {entry.get("id"): entry for entry in capabilities if isinstance(entry, dict)}
     check(
         sorted(str(value) for value in by_id) == sorted(EXPECTED_IDS),
-        "manifest must contain exactly the ten live Test Lab capabilities",
+        "manifest must contain exactly the twelve live Test Lab capabilities",
     )
     for capability_id, expected in EXPECTED_EFFECTS.items():
         check(
@@ -220,11 +291,19 @@ def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
             f"{capability_id} effect authority drifted",
         )
     check(
-        all("publish" not in entry.get("effects", []) for entry in capabilities if isinstance(entry, dict)),
+        all(
+            "publish" not in entry.get("effects", [])
+            for entry in capabilities
+            if isinstance(entry, dict)
+        ),
         "Test Lab must not claim publish authority",
     )
     check(
-        all("financial" not in entry.get("effects", []) for entry in capabilities if isinstance(entry, dict)),
+        all(
+            "financial" not in entry.get("effects", [])
+            for entry in capabilities
+            if isinstance(entry, dict)
+        ),
         "Test Lab must not claim financial authority",
     )
 
@@ -232,10 +311,27 @@ def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
     check(isinstance(scripts, dict), "pyproject project.scripts is missing")
     for name, target in EXPECTED_SCRIPTS.items():
         check(scripts.get(name) == target, f"pyproject script binding drifted: {name}")
+    check(
+        set(scripts) == set(EXPECTED_SCRIPTS),
+        "pyproject must expose exactly the reviewed Test Lab scripts",
+    )
     return manifest, by_id
 
 
 def validate_live_sources(manifest: dict, by_id: dict[str, dict]) -> None:
+    readiness = read("src/godot_game_test_lab/automated_testing_probe.py")
+    includes_all(
+        readiness,
+        (
+            'PROBE_SCHEMA = "evavo_godot_game_test_lab_probe_v1"',
+            '"multiplayerQa": ready',
+            '"multiplayerTargetSelected": False',
+            '"multiplayerRolesExecuted": False',
+            '"networkConditionCertified": False',
+        ),
+        "Automated Testing readiness probe",
+    )
+
     engine = read("src/godot_game_test_lab/engine_manager.py")
     includes_all(
         engine,
@@ -291,6 +387,31 @@ def validate_live_sources(manifest: dict, by_id: dict[str, dict]) -> None:
             "It does not certify physical controllers",
         ),
         "native QA runner",
+    )
+
+    multiplayer_profile = read("src/godot_game_test_lab/multiplayer_profile.py")
+    multiplayer_runner = read("src/godot_game_test_lab/multiplayer_qa.py")
+    includes_all(
+        multiplayer_profile,
+        (
+            "multiplayer QA profile must contain 2 to",
+            "multiplayer role id is duplicated",
+            "journey.id must match the multiplayer role id",
+            "does not prove human judgement, game feel or complete multiplayer correctness",
+        ),
+        "multiplayer QA profile",
+    )
+    includes_all(
+        multiplayer_runner,
+        (
+            "ThreadPoolExecutor",
+            '_validate_exact_checkout(lab_root, expected_lab_sha, "test lab")',
+            '_validate_exact_checkout(target_git_root, expected_target_sha, "target repository")',
+            "multiplayer QA changed the target repository checkout",
+            '"concurrentRoleCount": len(roles)',
+            "retained multiplayer evidence exceeded artifact budget",
+        ),
+        "multiplayer QA runner",
     )
 
     bot_wrapper = read("src/godot_game_test_lab/bot_qa.py")
@@ -424,7 +545,10 @@ def validate_live_sources(manifest: dict, by_id: dict[str, dict]) -> None:
 
     serialized = json.dumps(manifest, sort_keys=True).lower()
     for boundary in ("does not repair", "publication", "human", "target"):
-        check(boundary in serialized, f"manifest must preserve authority/truth boundary: {boundary}")
+        check(
+            boundary in serialized,
+            f"manifest must preserve authority/truth boundary: {boundary}",
+        )
 
     for capability_id in (
         "testlab.asset-delivery.admit",
@@ -446,7 +570,7 @@ def main() -> int:
         print(f"{len(FAILURES)} Godot Test Lab capability checks failed.", file=sys.stderr)
         return 1
     print(
-        "PASS 10 Godot Test Lab capabilities match the live engine, QA, sandbox, "
+        "PASS 12 Godot Test Lab capabilities match the live engine, QA, sandbox, "
         "media and admission source while retaining no target publication or financial authority."
     )
     return 0
