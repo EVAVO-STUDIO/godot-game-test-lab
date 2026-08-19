@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "godot-game-test-lab"
-version = "0.7.0"
+version = "0.7.1"
 description = "Automated Godot build, interaction, visual evidence and QA orchestration."
 readme = "README.md"
 requires-python = ">=3.11"
