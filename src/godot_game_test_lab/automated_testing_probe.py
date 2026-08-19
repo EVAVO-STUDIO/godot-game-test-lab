@@ -40,6 +40,9 @@ def build_probe(
     mono_ready = _ready_tool(doctor.get("godotMono"))
     dotnet_available = _available_tool(doctor.get("dotnet"))
     ready = godot_ready or mono_ready or managed_ready
+    python_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
 
     return {
         "schema": PROBE_SCHEMA,
@@ -47,7 +50,7 @@ def build_probe(
         "toolVersion": __version__,
         "ready": ready,
         "host": {
-            "pythonVersion": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "pythonVersion": python_version,
             "godotEditorCompatible": godot_ready,
             "godotMonoEditorCompatible": mono_ready,
             "dotnetAvailable": dotnet_available,
