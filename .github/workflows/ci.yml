@@ -85,8 +85,32 @@ jobs:
           assert lock.channels == {"4.6": "4.6.3", "4.7": "4.7.1"}
           PY
 
-      - name: Run Ruff
-        run: python -m ruff check src scripts tests
+      - name: Run Ruff and retain exact safe corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check src scripts tests --fix
+          python -m ruff check src scripts tests
+          root="${RUNNER_TEMP}/ruff-fixed"
+          mkdir -p "${root}/files"
+          git diff --name-only --diff-filter=AM > "${root}/manifest.txt"
+          test -s "${root}/manifest.txt"
+          while IFS= read -r file; do
+            test -f "${file}"
+            mkdir -p "${root}/files/$(dirname "${file}")"
+            cp -- "${file}" "${root}/files/${file}"
+          done < "${root}/manifest.txt"
+          git diff --binary > "${root}/ruff-autofix.patch"
+          git diff --check
+          printf '%s\n' "${GITHUB_SHA}" > "${root}/source-sha.txt"
+
+      - name: Upload read-only Ruff correction evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-lab-ruff-autofix-${{ github.sha }}
+          path: ${{ runner.temp }}/ruff-fixed
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Parse shell entrypoints
         shell: bash
