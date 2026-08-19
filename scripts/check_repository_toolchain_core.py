@@ -184,10 +184,10 @@ def main() -> int:
     if pyproject.get("build-system", {}).get("requires") != ["hatchling==1.25.0"]:
         fail("pyproject.toml must pin hatchling==1.25.0")
     project = pyproject.get("project", {})
-    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.7.1":
+    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.8.0":
         fail("pyproject.toml project identity changed")
     package_source = read_text("src/godot_game_test_lab/__init__.py", 64_000)
-    if '__version__ = "0.7.1"' not in package_source:
+    if '__version__ = "0.8.0"' not in package_source:
         fail("package runtime version changed")
 
     engine_lock = canonical_json("src/godot_game_test_lab/godot-engine-lock.json")
@@ -225,6 +225,7 @@ def main() -> int:
         "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
         "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
         "godot-lab-rally-falcon-preview": "godot_game_test_lab.rally_falcon_preview:main",
+        "godot-lab-localization-plural": "godot_game_test_lab.localization_plural_cli:main",
     }
     if scripts != expected_scripts:
         fail("Godot Lab command entrypoints changed")
@@ -247,7 +248,7 @@ def main() -> int:
     profile = canonical_json("evavo.reliability.json")
     if (
         profile.get("schemaVersion") != "1.2"
-        or profile.get("toolVersion") != "0.7.1"
+        or profile.get("toolVersion") != "0.8.0"
         or profile.get("repository") != "EVAVO-STUDIO/godot-game-test-lab"
         or profile.get("defaultBranch") != "main"
         or profile.get("authority") != "canonical-native-and-sandboxed-godot-worker"
@@ -364,7 +365,7 @@ def main() -> int:
         schema.get("properties", {})
         .get("toolVersion", {})
         .get("const")
-        != "0.7.1"
+        != "0.8.0"
     ):
         fail("repository-owned reliability tool version changed")
 
