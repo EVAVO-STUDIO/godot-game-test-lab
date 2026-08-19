@@ -24,6 +24,7 @@ agent = [
 [project.scripts]
 godot-lab = "godot_game_test_lab.cli:main"
 godot-lab-native-qa = "godot_game_test_lab.native_qa:main"
+godot-lab-multiplayer-qa = "godot_game_test_lab.multiplayer_qa:main"
 godot-lab-bot-qa = "godot_game_test_lab.bot_qa:main"
 godot-lab-init-qa = "godot_game_test_lab.profile_bootstrap:main"
 godot-lab-media-qa = "godot_game_test_lab.media_cli:main"
@@ -63,3 +64,6 @@ select = ["E", "F", "I", "UP", "B"]
 "tests/test_workflow_inventory.py" = ["E501"]
 "src/godot_game_test_lab/rally_falcon_preview.py" = ["E501"]
 "tests/test_rally_falcon_preview.py" = ["E501"]
+"src/godot_game_test_lab/multiplayer_profile.py" = ["E501"]
+"src/godot_game_test_lab/multiplayer_qa.py" = ["E501"]
+"tests/test_multiplayer_profile.py" = ["E501"]
