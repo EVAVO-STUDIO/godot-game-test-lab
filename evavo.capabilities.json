@@ -3,8 +3,18 @@
   "contractVersion": "evavo_repository_capabilities_v1",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "authority": "independent-godot-validation-and-admission",
-  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified managed engines; runs native authored, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and governed evidence outside target repositories, with create-only semantics where each admission contract requires them, but does not repair, edit, publish or grant deployment authority over target repositories.",
+  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; exposes a privacy-safe read-only readiness contract to Automated Testing; provisions checksum-verified managed engines; runs native authored, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and governed evidence outside target repositories, with create-only semantics where each admission contract requires them, but does not repair, edit, publish or grant deployment authority over target repositories.",
   "capabilities": [
+    {
+      "id": "testlab.readiness.automated-testing",
+      "title": "Expose privacy-safe Automated Testing readiness",
+      "description": "Report whether a compatible native or previously validated managed Godot editor is already available, plus bounded specialist capability booleans, without selecting, executing, mutating or provisioning a target project and without exposing executable or project paths.",
+      "interfaces": ["automation", "testing"],
+      "effects": ["read", "compute"],
+      "entrypoints": ["scripts/automated_testing_probe.py", "src/godot_game_test_lab/automated_testing_probe.py"],
+      "tags": ["godot", "readiness", "automated-testing", "probe", "read-only"],
+      "requires": ["Python 3.11+", "Godot Game Test Lab source checkout"]
+    },
     {
       "id": "testlab.engine.provision",
       "title": "Provision governed Godot engines",
@@ -109,7 +119,7 @@
   "brain": {
     "consult": true,
     "sanityCheck": true,
-    "topics": ["Godot engine provisioning", "Godot project inspection and integrity", "native and headless validation", "authored journey QA", "deterministic bot playtesting", "Linux sandbox QA", "gameplay media and audio evidence", "game-asset delivery admission", "Brass visual-animation admission", "3D rig-motion acceptance", "target-repository mutation and publication boundaries"]
+    "topics": ["Godot readiness routing", "Godot engine provisioning", "Godot project inspection and integrity", "native and headless validation", "authored journey QA", "deterministic bot playtesting", "Linux sandbox QA", "gameplay media and audio evidence", "game-asset delivery admission", "Brass visual-animation admission", "3D rig-motion acceptance", "target-repository mutation and publication boundaries"]
   },
-  "reviewedAt": "2026-08-18T11:12:00Z"
+  "reviewedAt": "2026-08-19T03:55:00Z"
 }
