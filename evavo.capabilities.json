@@ -3,7 +3,7 @@
   "contractVersion": "evavo_repository_capabilities_v1",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "authority": "independent-godot-validation-and-admission",
-  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; exposes a privacy-safe read-only readiness contract to Automated Testing; provisions checksum-verified managed engines; runs native authored, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and governed evidence outside target repositories, with create-only semantics where each admission contract requires them, but does not repair, edit, publish or grant deployment authority over target repositories.",
+  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; exposes a privacy-safe read-only readiness contract to Automated Testing; provisions checksum-verified managed engines; runs native authored, concurrent multiplayer, deterministic bot and no-network sandbox QA; analyses retained media; and compiles exact game-asset, visual-animation and rig-motion admission evidence. It may write managed caches and governed evidence outside target repositories, with create-only semantics where each admission contract requires them, but does not repair, edit, publish or grant deployment authority over target repositories.",
   "capabilities": [
     {
       "id": "testlab.readiness.automated-testing",
@@ -54,6 +54,16 @@
       "entrypoints": ["godot-lab-native-qa", "godot_run_native_qa", "src/godot_game_test_lab/native_qa.py", "scripts/Invoke-GodotLabNativeAgentQA.ps1"],
       "tags": ["godot", "native", "qa", "journeys", "visual", "audio"],
       "requires": ["Exact lab SHA and target SHA", "Reviewed QA profile", "Allowed external artifact root", "Interactive Windows session for authoritative native visual evidence"]
+    },
+    {
+      "id": "testlab.qa.multiplayer",
+      "title": "Run exact-SHA concurrent multiplayer QA",
+      "description": "Run two to eight reviewed multiplayer role journeys concurrently against one exact target SHA under a single guarded native desktop lease, with isolated per-role runtime homes, bounded evidence, exact Lab/target/profile identity and final source-mutation verification. Synthetic role input proves configured multiplayer journeys and interaction paths only; it does not certify physical controllers, network conditions or human game feel.",
+      "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-multiplayer-qa", "src/godot_game_test_lab/multiplayer_qa.py", "scripts/Invoke-GodotLabMultiplayerAgentQA.ps1"],
+      "tags": ["godot", "multiplayer", "concurrent", "qa", "playtest", "roles", "exact-sha"],
+      "requires": ["Exact lab SHA and target SHA", "Tracked reviewed multiplayer QA profile with 2 to 8 roles", "Allowed external artifact root", "Interactive Windows session for authoritative native desktop evidence", "Human/native review for game-feel conclusions"]
     },
     {
       "id": "testlab.qa.bot",
@@ -119,7 +129,7 @@
   "brain": {
     "consult": true,
     "sanityCheck": true,
-    "topics": ["Godot readiness routing", "Godot engine provisioning", "Godot project inspection and integrity", "native and headless validation", "authored journey QA", "deterministic bot playtesting", "Linux sandbox QA", "gameplay media and audio evidence", "game-asset delivery admission", "Brass visual-animation admission", "3D rig-motion acceptance", "target-repository mutation and publication boundaries"]
+    "topics": ["Godot readiness routing", "Godot engine provisioning", "Godot project inspection and integrity", "native and headless validation", "authored journey QA", "concurrent multiplayer role QA", "deterministic bot playtesting", "Linux sandbox QA", "gameplay media and audio evidence", "game-asset delivery admission", "Brass visual-animation admission", "3D rig-motion acceptance", "target-repository mutation and publication boundaries"]
   },
-  "reviewedAt": "2026-08-19T03:55:00Z"
+  "reviewedAt": "2026-08-19T04:45:00Z"
 }
