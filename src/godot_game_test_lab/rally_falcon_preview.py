@@ -12,9 +12,10 @@ import json
 import os
 import re
 import sys
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping
+from typing import Any
 
 PLAN_KIND = "evavo-godot-rally-falcon-preview-plan-v1"
 RECEIPT_KIND = "evavo-godot-rally-falcon-preview-receipt-v1"
