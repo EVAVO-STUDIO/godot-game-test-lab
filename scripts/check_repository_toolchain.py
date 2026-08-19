@@ -16,6 +16,7 @@ CORE_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
 VISUAL_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "visual_animation_admission.py"
 GAME_ASSET_ADMISSION_PATH = ROOT / "src" / "godot_game_test_lab" / "game_asset_delivery_admission.py"
 EXPECTED_WORKFLOWS = {
+    "capability-manifest.yml",
     "ci.yml",
     "evavo-linux-godot-sandbox.yml",
     "evavo-mainline-confirmation.yml",
@@ -23,6 +24,7 @@ EXPECTED_WORKFLOWS = {
     "game-asset-delivery-admission.yml",
     "linux-sandbox-smoke.yml",
     "reusable-godot-linux-sandbox.yml",
+    "verified-toolchain-transport.yml",
     "visual-animation-admission.yml",
 }
 FORBIDDEN_STAGING_PATHS = (
