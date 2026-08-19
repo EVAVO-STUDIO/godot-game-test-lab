@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/godot-test-lab/localization-godot-plural-testlab-request.v1.schema.json",
+  "title": "EVAVO Godot Plural Localization Test Lab Request v1",
+  "type": "object",
+  "required": [
+    "version", "repository", "exactHead", "csvPath", "csvSha256", "csvBytes",
+    "runtimeProbes", "downstream", "authority", "sha256"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "version": { "const": "localization-godot-plural-testlab-request-v1" },
+    "repository": { "type": "string", "pattern": "^EVAVO-STUDIO/[A-Za-z0-9._-]{1,100}$" },
+    "exactHead": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "csvPath": { "type": "string", "minLength": 5 },
+    "csvSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "csvBytes": { "type": "integer", "minimum": 1 },
+    "runtimeProbes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "required": [
+          "messageId", "locale", "godotLocale", "singularKey", "pluralKey",
+          "context", "n", "expectedFormKey", "expectedText"
+        ],
+        "properties": {
+          "messageId": { "type": "string" },
+          "locale": { "type": "string" },
+          "godotLocale": { "type": "string" },
+          "singularKey": { "type": "string" },
+          "pluralKey": { "type": "string" },
+          "context": { "type": "string" },
+          "n": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+          "expectedFormKey": { "type": "string" },
+          "expectedText": { "type": "string" }
+        }
+      }
+    },
+    "downstream": {
+      "type": "object",
+      "required": ["authorityRepository", "requiredCapability"],
+      "properties": {
+        "authorityRepository": { "const": "EVAVO-STUDIO/godot-game-test-lab" },
+        "requiredCapability": { "const": "testlab.project.validate-runtime" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "requestExecutesGodot", "requestWritesTarget", "requestPublishesTarget",
+        "nativeGodotImportVerified", "runtimePluralLookupVerified", "testLabExecutionRequired"
+      ],
+      "properties": {
+        "requestExecutesGodot": { "const": false },
+        "requestWritesTarget": { "const": false },
+        "requestPublishesTarget": { "const": false },
+        "nativeGodotImportVerified": { "const": false },
+        "runtimePluralLookupVerified": { "const": false },
+        "testLabExecutionRequired": { "const": true }
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}
