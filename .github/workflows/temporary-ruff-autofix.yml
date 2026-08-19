@@ -1,4 +1,5 @@
 name: Temporary Ruff autofix evidence
+# Branch-only read-only correction generator.
 
 on:
   push:
