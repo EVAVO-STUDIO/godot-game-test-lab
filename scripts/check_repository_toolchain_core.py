@@ -27,12 +27,14 @@ ERRORS: list[str] = []
 SAFE_RELATIVE_PATH = re.compile(r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$))[A-Za-z0-9._/-]{1,240}$")
 
 WORKFLOWS = (
+    ".github/workflows/capability-manifest.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/evavo-mainline-confirmation.yml",
     ".github/workflows/evavo-native-godot-validation.yml",
     ".github/workflows/reusable-godot-linux-sandbox.yml",
     ".github/workflows/evavo-linux-godot-sandbox.yml",
     ".github/workflows/linux-sandbox-smoke.yml",
+    ".github/workflows/verified-toolchain-transport.yml",
 )
 
 
@@ -182,10 +184,10 @@ def main() -> int:
     if pyproject.get("build-system", {}).get("requires") != ["hatchling==1.25.0"]:
         fail("pyproject.toml must pin hatchling==1.25.0")
     project = pyproject.get("project", {})
-    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.7.0":
+    if project.get("name") != "godot-game-test-lab" or project.get("version") != "0.7.1":
         fail("pyproject.toml project identity changed")
     package_source = read_text("src/godot_game_test_lab/__init__.py", 64_000)
-    if '__version__ = "0.7.0"' not in package_source:
+    if '__version__ = "0.7.1"' not in package_source:
         fail("package runtime version changed")
 
     engine_lock = canonical_json("src/godot_game_test_lab/godot-engine-lock.json")
@@ -215,12 +217,14 @@ def main() -> int:
     expected_scripts = {
         "godot-lab": "godot_game_test_lab.cli:main",
         "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
+        "godot-lab-multiplayer-qa": "godot_game_test_lab.multiplayer_qa:main",
         "godot-lab-bot-qa": "godot_game_test_lab.bot_qa:main",
         "godot-lab-init-qa": "godot_game_test_lab.profile_bootstrap:main",
         "godot-lab-media-qa": "godot_game_test_lab.media_cli:main",
         "godot-lab-mcp": "godot_game_test_lab.mcp_server:main",
         "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
         "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
+        "godot-lab-rally-falcon-preview": "godot_game_test_lab.rally_falcon_preview:main",
     }
     if scripts != expected_scripts:
         fail("Godot Lab command entrypoints changed")
@@ -243,7 +247,7 @@ def main() -> int:
     profile = canonical_json("evavo.reliability.json")
     if (
         profile.get("schemaVersion") != "1.2"
-        or profile.get("toolVersion") != "0.7.0"
+        or profile.get("toolVersion") != "0.7.1"
         or profile.get("repository") != "EVAVO-STUDIO/godot-game-test-lab"
         or profile.get("defaultBranch") != "main"
         or profile.get("authority") != "canonical-native-and-sandboxed-godot-worker"
@@ -360,7 +364,7 @@ def main() -> int:
         schema.get("properties", {})
         .get("toolVersion", {})
         .get("const")
-        != "0.7.0"
+        != "0.7.1"
     ):
         fail("repository-owned reliability tool version changed")
 
