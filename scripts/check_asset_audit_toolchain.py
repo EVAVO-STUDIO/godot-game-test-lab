@@ -86,14 +86,16 @@ def main() -> int:
     if set(scripts) != {
         "godot-lab",
         "godot-lab-native-qa",
+        "godot-lab-multiplayer-qa",
         "godot-lab-bot-qa",
         "godot-lab-init-qa",
         "godot-lab-media-qa",
         "godot-lab-mcp",
         "godot-lab-engine",
         "godot-lab-sandbox",
+        "godot-lab-rally-falcon-preview",
     }:
-        fail("asset-audit hardening must not silently change the eight package entrypoints")
+        fail("asset-audit hardening must not silently change the ten package entrypoints")
     per_file = (
         pyproject.get("tool", {})
         .get("ruff", {})
