@@ -1,0 +1,7 @@
+extend = "pyproject.toml"
+
+[lint.extend-per-file-ignores]
+"src/godot_game_test_lab/localization_plural_safe.py" = ["E501"]
+"src/godot_game_test_lab/localization_plural_cli_safe.py" = ["E501"]
+"src/godot_game_test_lab/localization_plural_runtime_cli.py" = ["E501"]
+"tests/test_localization_plural_guarded.py" = ["E501"]
