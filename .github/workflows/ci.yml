@@ -85,32 +85,70 @@ jobs:
           assert lock.channels == {"4.6": "4.6.3", "4.7": "4.7.1"}
           PY
 
-      - name: Run Ruff and retain exact safe corrections
+      - name: Evaluate Ruff and retain correction evidence
+        id: ruff
         shell: bash
         run: |
           set -euo pipefail
-          python -m ruff check src scripts tests --fix
-          python -m ruff check src scripts tests
-          root="${RUNNER_TEMP}/ruff-fixed"
+          root="${RUNNER_TEMP}/ruff-evidence"
           mkdir -p "${root}/files"
-          git diff --name-only --diff-filter=AM > "${root}/manifest.txt"
-          test -s "${root}/manifest.txt"
-          while IFS= read -r file; do
-            test -f "${file}"
-            mkdir -p "${root}/files/$(dirname "${file}")"
-            cp -- "${file}" "${root}/files/${file}"
-          done < "${root}/manifest.txt"
-          git diff --binary > "${root}/ruff-autofix.patch"
-          git diff --check
+
+          set +e
+          python -m ruff check src scripts tests --fix
+          fix_exit=$?
+          python -m ruff check src scripts tests
+          lint_exit=$?
+          set -e
+
+          changed=false
+          if ! git diff --quiet; then
+            changed=true
+            git diff --name-only --diff-filter=AM > "${root}/manifest.txt"
+            while IFS= read -r file; do
+              test -f "${file}"
+              mkdir -p "${root}/files/$(dirname "${file}")"
+              cp -- "${file}" "${root}/files/${file}"
+            done < "${root}/manifest.txt"
+            git diff --binary > "${root}/ruff-autofix.patch"
+            git diff --check
+          else
+            : > "${root}/manifest.txt"
+            : > "${root}/ruff-autofix.patch"
+          fi
+
+          evidence=false
+          if [[ "${changed}" == "true" || "${lint_exit}" -ne 0 ]]; then
+            evidence=true
+          fi
           printf '%s\n' "${GITHUB_SHA}" > "${root}/source-sha.txt"
+          printf '%s\n' "${fix_exit}" > "${root}/fix-exit-code.txt"
+          printf '%s\n' "${lint_exit}" > "${root}/lint-exit-code.txt"
+          printf '%s\n' "${changed}" > "${root}/changed.txt"
+
+          echo "changed=${changed}" >> "${GITHUB_OUTPUT}"
+          echo "lint_exit=${lint_exit}" >> "${GITHUB_OUTPUT}"
+          echo "evidence=${evidence}" >> "${GITHUB_OUTPUT}"
+
+          git restore --worktree -- .
+          rm -rf .ruff_cache
 
       - name: Upload read-only Ruff correction evidence
+        if: steps.ruff.outputs.evidence == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: test-lab-ruff-autofix-${{ github.sha }}
-          path: ${{ runner.temp }}/ruff-fixed
+          name: test-lab-ruff-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/ruff-evidence
           if-no-files-found: error
           retention-days: 1
+
+      - name: Enforce committed Ruff-clean source
+        if: >-
+          steps.ruff.outputs.changed == 'true' ||
+          steps.ruff.outputs.lint_exit != '0'
+        shell: bash
+        run: |
+          echo "Ruff found uncommitted corrections or remaining findings." >&2
+          exit 1
 
       - name: Parse shell entrypoints
         shell: bash

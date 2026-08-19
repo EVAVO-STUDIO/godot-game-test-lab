@@ -149,6 +149,17 @@
         }
       }
     },
+    "toolSelection": {
+      "type": "object",
+      "properties": {
+        "pluralLocalizationValidation": {
+          "const": "godot-lab-localization-plural-exact-head-guarded-runtime-probes"
+        }
+      },
+      "required": [
+        "pluralLocalizationValidation"
+      ]
+    },
     "nativeAcceptance": {
       "type": "object"
     },

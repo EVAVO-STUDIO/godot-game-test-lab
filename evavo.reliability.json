@@ -105,6 +105,7 @@
     "managedEngineProvisioning": "official-godot-builds-sha512-self-contained",
     "managedEngineRoot": "EVAVO_GODOT_HOME-or-user-cache",
     "localLinuxSandbox": "godot-lab-sandbox-checksum-verified-no-network-runtime",
+    "pluralLocalizationValidation": "godot-lab-localization-plural-exact-head-guarded-runtime-probes",
     "sandboxWrappers": [
       "scripts/Invoke-GodotLabLinuxSandbox.ps1",
       "scripts/run-godot-lab-linux-sandbox.sh"
@@ -119,7 +120,9 @@
       "repository reliability profile",
       "Python 3.11 executable identity",
       "Godot executable identity",
-      ".NET SDK identity when C# is detected"
+      ".NET SDK identity when C# is detected",
+      "fingerprinted Localization Manager plural Test Lab request when plural localization is validated",
+      "exact project-relative CSV bytes already admitted by the target repository"
     ],
     "requiredStages": [
       "repository toolchain source check",
@@ -132,6 +135,8 @@
       "Godot headless import",
       "bounded main-scene boot",
       "repository-specific probes",
+      "exact-head plural-localization CSV import and reviewed runtime lookup probes",
+      "final target Git and localization CSV identity recheck",
       "declared export when required",
       "native movie or screenshot evidence when required",
       "physical-controller or human review when required",
@@ -259,7 +264,8 @@
     "Managed engine provisioning downloads official archives at runtime; Git does not carry platform binaries.",
     "The engine lock governs stable branches, but a repository-owned profile may require an explicit compatible version.",
     "A managed editor receipt and payload digest prove the provisioned files, not GPU or gameplay correctness.",
-    "A local sandbox image build may use network access to fetch checksum-verified official assets; the resulting game execution uses --network none."
+    "A local sandbox image build may use network access to fetch checksum-verified official assets; the resulting game execution uses --network none.",
+    "Plural-localization validation proves only the exact requested CSV import and reviewed integer lookup probes at the exact target Git head; it does not grant linguistic approval, source repair, target mutation, release publication or broad locale correctness."
   ],
   "autoRepair": {
     "allowed": true,
@@ -273,7 +279,8 @@
       "store-deployment",
       "credential-change",
       "physical-controller-pass-claim-from-synthetic-input",
-      "human-ux-approval-claim-from-geometry-telemetry"
+      "human-ux-approval-claim-from-geometry-telemetry",
+      "plural-localization-release-claim-without-exact-head-runtime-evidence"
     ]
   },
   "notes": [
@@ -281,6 +288,7 @@
     "Direct build and development dependencies are pinned, but their transitive graph is review-first until requirements.lock is separately generated and validated.",
     "No source-only validation result authorises target mutation, deployment, store publication, credential change or a physical-controller or human-UX pass claim.",
     "The optional agent extra pins mcp==1.28.1; the core Godot validation and media runtime remains dependency-free.",
-    "Docker is optional for native Windows testing but required for local no-network Linux sandbox runs."
+    "Docker is optional for native Windows testing but required for local no-network Linux sandbox runs.",
+    "The canonical plural-localization command is godot-lab-localization-plural, routed to the guarded localization_plural_runtime_cli facade; older direct modules are compatibility surfaces and not publication authority."
   ]
 }
