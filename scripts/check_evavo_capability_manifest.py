@@ -79,6 +79,7 @@ EXPECTED_SCRIPTS = {
     "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
     "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
     "godot-lab-rally-falcon-preview": "godot_game_test_lab.rally_falcon_preview:main",
+    "godot-lab-localization-plural": "godot_game_test_lab.localization_plural_cli:main",
 }
 FAILURES: list[str] = []
 
