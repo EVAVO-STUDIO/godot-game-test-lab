@@ -1,578 +1,211 @@
 #!/usr/bin/env python3
-"""Validate the Godot Game Test Lab capability declaration against live source."""
+"""Validate all Test Lab capabilities, extending the retained v0.7 checker."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
-import re
 import sys
-import tomllib
-from datetime import datetime
 from pathlib import Path
+from types import ModuleType
 
-ROOT = Path(__file__).resolve().parents[1]
-MANIFEST_PATH = ROOT / "evavo.capabilities.json"
-SCHEMA_PATH = ROOT / "schemas/evavo.repository-capabilities.schema.json"
-PYPROJECT_PATH = ROOT / "pyproject.toml"
-
-TOP_LEVEL = {
-    "$schema",
-    "contractVersion",
-    "repository",
-    "authority",
-    "summary",
-    "capabilities",
-    "brain",
-    "reviewedAt",
+PLURAL_ID = "testlab.localization.plural-runtime"
+PLURAL_EFFECTS = ["read", "compute", "write", "execute"]
+PLURAL_INTERFACES = ["automation", "cli", "testing"]
+PLURAL_ENTRYPOINTS = {
+    "godot-lab-localization-plural",
+    "python -m godot_game_test_lab.localization_plural_runtime_cli",
+    "src/godot_game_test_lab/localization_plural_runtime.py",
+    "src/godot_game_test_lab/localization_plural_safe.py",
+    "scripts/Invoke-GodotPluralLocalizationValidation.ps1",
+    "docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md",
 }
-CAPABILITY_FIELDS = {
-    "id",
-    "title",
-    "description",
-    "interfaces",
-    "effects",
-    "entrypoints",
-    "tags",
-    "requires",
+PLURAL_REQUIRES = {
+    "Fingerprint-valid localization-godot-plural-testlab-request-v1",
+    "Exact clean target Git head with supported github.com origin",
+    "Exact project-relative CSV bytes already admitted by the target repository",
+    "Compatible Godot editor and .NET SDK when the target uses C#",
+    "External evidence root outside Lab and target repositories",
+    "Human-reviewed locale probe mapping supplied by Localization Manager",
 }
-BRAIN_FIELDS = {"consult", "sanityCheck", "topics"}
-INTERFACES = {
-    "api",
-    "automation",
-    "cli",
-    "desktop",
-    "game",
-    "library",
-    "mcp",
-    "mobile",
-    "openapi",
-    "testing",
-    "ui",
-    "web-app",
-}
-EFFECTS = {"read", "compute", "network", "write", "execute", "publish", "financial"}
-ID = re.compile(r"^[a-z0-9][a-z0-9._:-]{1,127}$")
-
-EXPECTED_EFFECTS = {
-    "testlab.readiness.automated-testing": ["read", "compute"],
-    "testlab.engine.provision": ["read", "compute", "network", "write", "execute"],
-    "testlab.project.inspect-audit": ["read", "compute"],
-    "testlab.project.validate-runtime": ["read", "compute", "write", "execute"],
-    "testlab.qa.native-authored": ["read", "compute", "write", "execute"],
-    "testlab.qa.multiplayer": ["read", "compute", "write", "execute"],
-    "testlab.qa.bot": ["read", "compute", "write", "execute"],
-    "testlab.sandbox.linux": ["read", "compute", "write", "execute"],
-    "testlab.media.analyze": ["read", "compute", "write", "execute"],
-    "testlab.asset-delivery.admit": ["read", "compute", "write"],
-    "testlab.visual-animation.admit": ["read", "compute", "write"],
-    "testlab.rig-motion.accept-v4.1": ["read", "compute", "write", "execute"],
-}
-EXPECTED_IDS = tuple(EXPECTED_EFFECTS)
-EXPECTED_SCRIPTS = {
-    "godot-lab": "godot_game_test_lab.cli:main",
-    "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
-    "godot-lab-multiplayer-qa": "godot_game_test_lab.multiplayer_qa:main",
-    "godot-lab-bot-qa": "godot_game_test_lab.bot_qa:main",
-    "godot-lab-init-qa": "godot_game_test_lab.profile_bootstrap:main",
-    "godot-lab-media-qa": "godot_game_test_lab.media_cli:main",
-    "godot-lab-mcp": "godot_game_test_lab.mcp_server:main",
-    "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
-    "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
-    "godot-lab-rally-falcon-preview": "godot_game_test_lab.rally_falcon_preview:main",
-    "godot-lab-localization-plural": "godot_game_test_lab.localization_plural_cli:main",
-}
-FAILURES: list[str] = []
 
 
-def check(condition: bool, message: str) -> None:
-    if not condition:
-        FAILURES.append(message)
+def load_legacy() -> ModuleType:
+    path = Path(__file__).with_name("check_evavo_capability_manifest_legacy.py")
+    spec = importlib.util.spec_from_file_location("godot_lab_capability_legacy", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not load the retained capability checker.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-def bounded(value: object, maximum: int) -> bool:
-    return isinstance(value, str) and 0 < len(value) <= maximum
+def patch_expected_contract(legacy: ModuleType) -> None:
+    effects = dict(legacy.EXPECTED_EFFECTS)
+    effects[PLURAL_ID] = PLURAL_EFFECTS
+    legacy.EXPECTED_EFFECTS = effects
+    legacy.EXPECTED_IDS = tuple(effects)
+
+    scripts = dict(legacy.EXPECTED_SCRIPTS)
+    scripts["godot-lab-localization-plural"] = (
+        "godot_game_test_lab.localization_plural_runtime_cli:main"
+    )
+    legacy.EXPECTED_SCRIPTS = scripts
 
 
-def string_array(value: object, maximum_items: int, maximum_length: int) -> list[str]:
-    if not isinstance(value, list) or len(value) > maximum_items:
-        return []
-    if any(not bounded(item, maximum_length) for item in value):
-        return []
-    if len(set(value)) != len(value):
-        return []
-    return list(value)
-
-
-def read(relative: str, maximum_bytes: int = 1_000_000) -> str:
-    path = ROOT / relative
-    check(path.is_file() and not path.is_symlink(), f"missing regular source file: {relative}")
-    if not path.is_file() or path.is_symlink():
-        return ""
+def json_object(legacy: ModuleType, relative: str) -> dict:
     try:
-        size = path.stat().st_size
-        check(0 < size <= maximum_bytes, f"invalid source size: {relative}")
-        if size <= 0 or size > maximum_bytes:
-            return ""
-        source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        FAILURES.append(f"cannot read {relative}: {error}")
-        return ""
-    check(not source.startswith("\ufeff"), f"source contains UTF-8 BOM: {relative}")
-    check(
-        not any(marker in source for marker in ("<<<<<<<", "=======", ">>>>>>>")),
-        f"source contains conflict marker: {relative}",
+        value = json.loads(legacy.read(relative, 2_000_000))
+    except json.JSONDecodeError as error:
+        legacy.FAILURES.append(f"invalid JSON {relative}: {error}")
+        return {}
+    if not isinstance(value, dict):
+        legacy.FAILURES.append(f"{relative} must be an object")
+        return {}
+    return value
+
+
+def validate_plural_capability(legacy: ModuleType, by_id: dict[str, dict]) -> None:
+    capability = by_id.get(PLURAL_ID, {})
+    legacy.check(
+        capability.get("interfaces") == PLURAL_INTERFACES,
+        "plural-localization interfaces drifted",
     )
-    return source
-
-
-def includes_all(source: str, markers: tuple[str, ...], label: str) -> None:
-    for marker in markers:
-        check(marker in source, f"{label} is missing source marker: {marker}")
-
-
-def validate_manifest_shape() -> tuple[dict, dict[str, dict]]:
-    try:
-        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-        pyproject = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError, tomllib.TOMLDecodeError) as error:
-        FAILURES.append(f"manifest/schema/pyproject read failed: {error}")
-        return {}, {}
-
-    check(isinstance(schema, dict), "shared schema is not an object")
-    check(
-        schema.get("$id")
-        == "https://schemas.evavo.local/evavo.repository-capabilities.schema.json",
-        "shared schema identity drifted",
+    legacy.check(
+        capability.get("effects") == PLURAL_EFFECTS,
+        "plural-localization effect authority drifted",
     )
-    check(
-        schema.get("properties", {}).get("contractVersion", {}).get("const")
-        == "evavo_repository_capabilities_v1",
-        "shared schema contract version drifted",
+    legacy.check(
+        set(capability.get("entrypoints", [])) == PLURAL_ENTRYPOINTS,
+        "plural-localization guarded entrypoints drifted",
+    )
+    legacy.check(
+        set(capability.get("requires", [])) == PLURAL_REQUIRES,
+        "plural-localization prerequisites drifted",
+    )
+    tags = set(capability.get("tags", []))
+    legacy.check(
+        {"exact-head", "runtime-probe", "admission", "evidence"}.issubset(tags),
+        "plural-localization evidence tags are incomplete",
+    )
+    legacy.check(
+        "network" not in capability.get("effects", [])
+        and "publish" not in capability.get("effects", []),
+        "plural-localization capability exceeds Test Lab authority",
     )
 
-    check(isinstance(manifest, dict), "manifest is not an object")
-    if not isinstance(manifest, dict):
-        return {}, {}
-    check(set(manifest).issubset(TOP_LEVEL), "manifest has unknown top-level fields")
-    check(
-        {"contractVersion", "capabilities", "brain"}.issubset(manifest),
-        "manifest is missing required top-level fields",
-    )
-    check(
-        manifest.get("$schema") == "./schemas/evavo.repository-capabilities.schema.json",
-        "manifest schema path is invalid",
-    )
-    check(
-        manifest.get("contractVersion") == "evavo_repository_capabilities_v1",
-        "manifest contract version is invalid",
-    )
-    check(
-        manifest.get("repository") == "EVAVO-STUDIO/godot-game-test-lab",
-        "repository identity is invalid",
-    )
-    check(
-        manifest.get("authority") == "independent-godot-validation-and-admission",
-        "repository authority drifted",
-    )
-    check(bounded(manifest.get("summary"), 1200), "manifest summary is invalid")
-
-    reviewed_at = manifest.get("reviewedAt")
-    try:
-        datetime.fromisoformat(str(reviewed_at).replace("Z", "+00:00"))
-        reviewed_valid = True
-    except ValueError:
-        reviewed_valid = False
-    check(reviewed_valid, "reviewedAt is not an ISO date-time")
-
-    brain = manifest.get("brain")
-    check(isinstance(brain, dict), "Brain contract is not an object")
-    if isinstance(brain, dict):
-        check(set(brain).issubset(BRAIN_FIELDS), "Brain contract has unknown fields")
-        check(BRAIN_FIELDS.issubset(brain), "Brain contract is incomplete")
-        check(brain.get("consult") is True, "Brain consultation must be enabled")
-        check(brain.get("sanityCheck") is True, "Brain sanity checking must be enabled")
-        topics = string_array(brain.get("topics"), 100, 160)
-        check(
-            isinstance(brain.get("topics"), list)
-            and len(topics) == len(brain.get("topics", [])),
-            "Brain topics are invalid",
-        )
-
-    capabilities = manifest.get("capabilities")
-    check(
-        isinstance(capabilities, list) and 1 <= len(capabilities) <= 200,
-        "capability list is invalid",
-    )
-    capabilities = capabilities if isinstance(capabilities, list) else []
-    ids = [entry.get("id") for entry in capabilities if isinstance(entry, dict)]
-    check(len(ids) == len(capabilities), "all capabilities must be objects")
-    check(len(set(ids)) == len(ids), "capability IDs are not unique")
-
-    for capability in capabilities:
-        if not isinstance(capability, dict):
-            continue
-        capability_id = str(capability.get("id", "unknown"))
-        check(
-            set(capability).issubset(CAPABILITY_FIELDS),
-            f"{capability_id} has unknown fields",
-        )
-        check(CAPABILITY_FIELDS.issubset(capability), f"{capability_id} is incomplete")
-        check(
-            bool(ID.fullmatch(str(capability.get("id", "")))),
-            f"{capability_id} has an invalid ID",
-        )
-        check(
-            bounded(capability.get("title"), 160),
-            f"{capability_id} title is invalid",
-        )
-        check(
-            bounded(capability.get("description"), 1200),
-            f"{capability_id} description is invalid",
-        )
-
-        interfaces = string_array(capability.get("interfaces"), 50, 40)
-        effects = string_array(capability.get("effects"), 50, 40)
-        entrypoints = string_array(capability.get("entrypoints"), 100, 500)
-        tags = string_array(capability.get("tags"), 100, 80)
-        requires = string_array(capability.get("requires"), 100, 160)
-        check(
-            len(interfaces) == len(capability.get("interfaces", [])),
-            f"{capability_id} interfaces are invalid",
-        )
-        check(
-            len(effects) == len(capability.get("effects", [])),
-            f"{capability_id} effects are invalid",
-        )
-        check(
-            len(entrypoints) == len(capability.get("entrypoints", [])),
-            f"{capability_id} entrypoints are invalid",
-        )
-        check(
-            len(tags) == len(capability.get("tags", [])),
-            f"{capability_id} tags are invalid",
-        )
-        check(
-            len(requires) == len(capability.get("requires", [])),
-            f"{capability_id} prerequisites are invalid",
-        )
-        check(
-            all(item in INTERFACES for item in interfaces),
-            f"{capability_id} has unknown interfaces",
-        )
-        check(
-            all(item in EFFECTS for item in effects),
-            f"{capability_id} has unknown effects",
-        )
-
-        for entrypoint in entrypoints:
-            looks_like_path = (
-                "/" in entrypoint
-                and not entrypoint.startswith(("http://", "https://"))
-                and (
-                    entrypoint.endswith((".py", ".gd", ".json", ".ps1", ".yml", ".md"))
-                    or entrypoint.startswith(".")
-                )
-            )
-            if looks_like_path:
-                path = ROOT / entrypoint
-                check(
-                    path.is_file() and not path.is_symlink(),
-                    f"{capability_id} references missing source entrypoint {entrypoint}",
-                )
-
-    by_id = {entry.get("id"): entry for entry in capabilities if isinstance(entry, dict)}
-    check(
-        sorted(str(value) for value in by_id) == sorted(EXPECTED_IDS),
-        "manifest must contain exactly the twelve live Test Lab capabilities",
-    )
-    for capability_id, expected in EXPECTED_EFFECTS.items():
-        check(
-            by_id.get(capability_id, {}).get("effects") == expected,
-            f"{capability_id} effect authority drifted",
-        )
-    check(
-        all(
-            "publish" not in entry.get("effects", [])
-            for entry in capabilities
-            if isinstance(entry, dict)
+    markers = {
+        "src/godot_game_test_lab/localization_plural.py": (
+            "localization-godot-plural-testlab-request-v1",
+            "validate_plural_testlab_request",
+            '"requestWritesTarget": False',
         ),
-        "Test Lab must not claim publish authority",
-    )
-    check(
-        all(
-            "financial" not in entry.get("effects", [])
-            for entry in capabilities
-            if isinstance(entry, dict)
-        ),
-        "Test Lab must not claim financial authority",
-    )
-
-    scripts = pyproject.get("project", {}).get("scripts", {})
-    check(isinstance(scripts, dict), "pyproject project.scripts is missing")
-    for name, target in EXPECTED_SCRIPTS.items():
-        check(scripts.get(name) == target, f"pyproject script binding drifted: {name}")
-    check(
-        set(scripts) == set(EXPECTED_SCRIPTS),
-        "pyproject must expose exactly the reviewed Test Lab scripts",
-    )
-    return manifest, by_id
-
-
-def validate_live_sources(manifest: dict, by_id: dict[str, dict]) -> None:
-    readiness = read("src/godot_game_test_lab/automated_testing_probe.py")
-    includes_all(
-        readiness,
-        (
-            'PROBE_SCHEMA = "evavo_godot_game_test_lab_probe_v1"',
-            '"multiplayerQa": ready',
-            '"multiplayerTargetSelected": False',
-            '"multiplayerRolesExecuted": False',
-            '"networkConditionCertified": False',
-        ),
-        "Automated Testing readiness probe",
-    )
-
-    engine = read("src/godot_game_test_lab/engine_manager.py")
-    includes_all(
-        engine,
-        (
-            '_ALLOWED_RELEASE_REPOSITORY = "godotengine/godot-builds"',
-            "Managed engines must use the official godotengine/godot-builds repository",
-            "Engine lock exceeds the bounded size limit",
-            "Managed Godot channels must stay within the governed major version",
-            "urllib.request",
-        ),
-        "managed engine provisioner",
-    )
-
-    mcp = read("src/godot_game_test_lab/mcp_server.py")
-    includes_all(
-        mcp,
-        (
-            "The server never edits or publishes a target game.",
-            '@mcp.tool(name="godot_ensure_engine"',
-            '@mcp.tool(name="godot_inspect"',
-            '@mcp.tool(name="godot_audit"',
-            '@mcp.tool(name="godot_validate"',
-            '@mcp.tool(name="godot_run_bot_qa"',
-            '@mcp.tool(name="godot_run_native_qa"',
-            '@mcp.tool(name="godot_run_linux_sandbox"',
-            "exact-SHA no-network Linux software-rendered Godot QA",
-        ),
-        "MCP bridge",
-    )
-
-    native_wrapper = read("src/godot_game_test_lab/native_qa.py")
-    native_runner = read("src/godot_game_test_lab/native_qa_runner.py")
-    includes_all(
-        native_wrapper,
-        (
-            "--expected-lab-sha",
-            "--expected-target-sha",
-            "--allow-noninteractive",
-            '"nativeDesktopEvidence": False',
-            "no pass claim is made",
-        ),
-        "native QA wrapper",
-    )
-    includes_all(
-        native_runner,
-        (
-            '_validate_exact_checkout(lab_root, expected_lab_sha, "test lab")',
-            '_validate_exact_checkout(target_git_root, expected_target_sha, "target repository")',
-            '_require_clean_checkout(target_git_root, "target repository")',
-            '"targetMutationDetected": mutation',
-            "native QA changed the target repository checkout",
-            '"physicalControllerCertified": False',
-            "It does not certify physical controllers",
-        ),
-        "native QA runner",
-    )
-
-    multiplayer_profile = read("src/godot_game_test_lab/multiplayer_profile.py")
-    multiplayer_runner = read("src/godot_game_test_lab/multiplayer_qa.py")
-    includes_all(
-        multiplayer_profile,
-        (
-            "multiplayer QA profile must contain 2 to",
-            "multiplayer role id is duplicated",
-            "journey.id must match the multiplayer role id",
-            "does not prove human judgement, game feel or complete multiplayer correctness",
-        ),
-        "multiplayer QA profile",
-    )
-    includes_all(
-        multiplayer_runner,
-        (
-            "ThreadPoolExecutor",
-            '_validate_exact_checkout(lab_root, expected_lab_sha, "test lab")',
-            '_validate_exact_checkout(target_git_root, expected_target_sha, "target repository")',
-            "multiplayer QA changed the target repository checkout",
-            '"concurrentRoleCount": len(roles)',
-            "retained multiplayer evidence exceeded artifact budget",
-        ),
-        "multiplayer QA runner",
-    )
-
-    bot_wrapper = read("src/godot_game_test_lab/bot_qa.py")
-    bot_runner = read("src/godot_game_test_lab/bot_runner.py")
-    includes_all(
-        bot_wrapper,
-        (
-            "--expected-lab-sha",
-            "--expected-target-sha",
-            "required bot campaign did not prove a changed runtime state",
-            "required bot campaign did not retain a passing non-baseline replay",
-        ),
-        "bot QA wrapper",
-    )
-    includes_all(
-        bot_runner,
-        (
-            '_validate_exact_checkout(lab_root, expected_lab_sha, "test lab")',
-            '_validate_exact_checkout(target_git_root, expected_target_sha, "target repository")',
-            '"targetMutationDetected": mutation',
-            "bot QA changed the target repository checkout",
-            "bounded deterministic graph",
-            "It does not prove complete gameplay",
-        ),
-        "bot QA runner",
-    )
-
-    sandbox = read("src/godot_game_test_lab/local_sandbox.py")
-    includes_all(
-        sandbox,
-        (
-            '"--network",\n        "none"',
-            '"--read-only"',
-            '"--cap-drop",\n        "ALL"',
-            '"no-new-privileges"',
-            "target=/workspace/source,readonly",
-            "Lab and target repositories must be separate checkouts",
-            "Target repository is outside the configured allowed roots",
-            "Sandbox artifacts must remain outside Lab and target checkouts",
-            "_require_clean_exact_checkout",
-        ),
-        "local Docker sandbox",
-    )
-
-    media_cli = read("src/godot_game_test_lab/media_cli.py")
-    media = read("src/godot_game_test_lab/media_evidence.py")
-    includes_all(
-        media_cli,
-        (
-            "analyze_media_file",
-            "normalize_media_policy",
-            "scan_run_media",
-            "--ffmpeg",
-            "--ffprobe",
-            "Extract and analyse synchronized audio from retained Godot gameplay movies.",
-        ),
-        "media QA CLI",
-    )
-    includes_all(
-        media,
-        (
-            "_MAX_MEDIA_FILES = 128",
-            "_MAX_MEDIA_BYTES = 64 * 1024 * 1024 * 1024",
-            "media source may not be a symbolic link",
-            "ffmpeg",
-            "ffprobe",
-            "maximumAvSyncDriftSeconds",
-            "failOnClipping",
-            "failOnSilence",
-        ),
-        "media evidence engine",
-    )
-
-    asset = read("src/godot_game_test_lab/game_asset_delivery_admission.py")
-    includes_all(
-        asset,
-        (
-            'REPORT_SCHEMA_ID = "evavo.godot-game-asset-delivery-admission.v1"',
-            "game checkout head differs from expected gameHead",
-            '"allInstalledBytesVerified": True',
-            '"allStorageVersionsVerified": True',
-            '"nativeCompositionApproval": False',
-            '"publicationAuthority": False',
-            "report output already exists",
-            "os.link(temporary, destination)",
-        ),
-        "game-asset delivery admission",
-    )
-
-    visual = read("src/godot_game_test_lab/visual_animation_admission.py")
-    includes_all(
-        visual,
-        (
-            'REPORT_SCHEMA = "evavo.brass-visual-animation-test-lab-report.v1"',
-            "static Art Studio evaluation did not pass",
-            "animation Art Studio evaluation did not pass",
-            "engine evidence game head differs",
-            "engine evidence lacks SpriteFrames render proof",
-            '"creativeApproval": False',
-            '"historicalApproval": False',
+        "src/godot_game_test_lab/localization_plural_safe.py": (
+            "run_plural_localization_validation_safe",
+            "Plural localization CSV bytes changed during validation.",
+            '"targetRepositoryMutationAuthority": False',
             '"publicationAuthority": False',
         ),
-        "visual-animation admission",
-    )
-
-    rig = read("tools/rig_motion_acceptance_v4_1.py")
-    includes_all(
-        rig,
-        (
-            '"evavo-godot-rig-motion-acceptance-v4.1"',
-            '"--headless"',
-            "shell=False",
-            "no measurable motion",
-            '"runtimeAdmission": False',
-            '"targetRepositoryMutation": False',
-            '"gitMutation": False',
-            '"deployment": False',
-            '"publication": False',
-            '"namedHumanReviewRequired": True',
-            'destination.open("x"',
+        "src/godot_game_test_lab/localization_plural_runtime.py": (
+            "run_plural_localization_runtime_validation",
+            "run_plural_localization_validation_safe",
+            ".godot may not be a symbolic link",
         ),
-        "rig-motion acceptance",
+        "src/godot_game_test_lab/localization_plural_runtime_cli.py": (
+            "Canonical guarded validator",
+            "run_plural_localization_runtime_validation",
+            '"repairAuthority": False',
+            '"publicationAuthority": False',
+        ),
+        "scripts/Invoke-GodotPluralLocalizationValidation.ps1": (
+            "godot_game_test_lab.localization_plural_runtime_cli",
+            '"--request", $Request',
+            '"--artifacts", $Artifacts',
+        ),
+        "docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md": (
+            "python -m godot_game_test_lab.localization_plural_runtime_cli",
+            "global subprocess guard",
+            "publicationAuthority",
+            "not be treated as the final guarded entrypoint",
+        ),
+    }
+    for relative, required in markers.items():
+        legacy.includes_all(legacy.read(relative), required, relative)
+
+    request = json_object(
+        legacy,
+        "schemas/localization-godot-plural-testlab-request.v1.schema.json",
     )
-
-    pipeline = read("src/godot_game_test_lab/pipeline.py")
-    includes_all(
-        pipeline,
-        ("minimum_godot_version", "artifacts", "discover_godot_binary"),
-        "runtime validation pipeline",
+    request_properties = request.get("properties", {})
+    legacy.check(
+        request_properties.get("version", {}).get("const")
+        == "localization-godot-plural-testlab-request-v1",
+        "plural-localization request schema version drifted",
     )
-
-    serialized = json.dumps(manifest, sort_keys=True).lower()
-    for boundary in ("does not repair", "publication", "human", "target"):
-        check(
-            boundary in serialized,
-            f"manifest must preserve authority/truth boundary: {boundary}",
-        )
-
-    for capability_id in (
-        "testlab.asset-delivery.admit",
-        "testlab.visual-animation.admit",
-        "testlab.rig-motion.accept-v4.1",
+    request_authority = request_properties.get("authority", {}).get("properties", {})
+    for field in (
+        "requestExecutesGodot",
+        "requestWritesTarget",
+        "requestPublishesTarget",
+        "nativeGodotImportVerified",
+        "runtimePluralLookupVerified",
     ):
-        effects = by_id.get(capability_id, {}).get("effects", [])
-        check("network" not in effects, f"{capability_id} must not claim network authority")
-        check("publish" not in effects, f"{capability_id} must not claim publish authority")
+        legacy.check(
+            request_authority.get(field, {}).get("const") is False,
+            f"plural-localization request authority drifted: {field}",
+        )
+    legacy.check(
+        request_authority.get("testLabExecutionRequired", {}).get("const") is True,
+        "plural-localization request no longer requires Test Lab execution",
+    )
+
+    report = json_object(
+        legacy,
+        "schemas/evavo-godot-plural-localization-test-lab-report.v1.schema.json",
+    )
+    report_properties = report.get("properties", {})
+    legacy.check(
+        report_properties.get("version", {}).get("const")
+        == "evavo_godot_plural_localization_test_lab_report_v1",
+        "plural-localization report schema version drifted",
+    )
+    report_authority = report_properties.get("authority", {}).get("properties", {})
+    for field in (
+        "targetRepositoryMutationAuthority",
+        "repairAuthority",
+        "publicationAuthority",
+    ):
+        legacy.check(
+            report_authority.get(field, {}).get("const") is False,
+            f"plural-localization report authority drifted: {field}",
+        )
 
 
 def main() -> int:
-    manifest, by_id = validate_manifest_shape()
-    if manifest and by_id:
-        validate_live_sources(manifest, by_id)
-    if FAILURES:
-        for failure in FAILURES:
-            print(f"FAIL {failure}", file=sys.stderr)
-        print(f"{len(FAILURES)} Godot Test Lab capability checks failed.", file=sys.stderr)
+    try:
+        legacy = load_legacy()
+        patch_expected_contract(legacy)
+        legacy.FAILURES.clear()
+        manifest, by_id = legacy.validate_manifest_shape()
+        if manifest and by_id:
+            legacy.validate_live_sources(manifest, by_id)
+            validate_plural_capability(legacy, by_id)
+    except (OSError, RuntimeError) as error:
+        print(f"FAIL capability checker could not run: {error}", file=sys.stderr)
         return 1
+
+    if legacy.FAILURES:
+        for failure in legacy.FAILURES:
+            print(f"FAIL {failure}", file=sys.stderr)
+        print(
+            f"{len(legacy.FAILURES)} Godot Test Lab capability checks failed.",
+            file=sys.stderr,
+        )
+        return 1
+
     print(
-        "PASS 12 Godot Test Lab capabilities match the live engine, QA, sandbox, "
-        "media and admission source while retaining no target publication or financial authority."
+        "PASS 13 Godot Test Lab capabilities match live guarded source while "
+        "retaining no target publication or financial authority."
     )
     return 0
 

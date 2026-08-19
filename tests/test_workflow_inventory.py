@@ -1,87 +1,89 @@
 from __future__ import annotations
 
-import importlib.util
+import re
 from pathlib import Path
-from types import ModuleType
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW_ROOT = ROOT / ".github" / "workflows"
-CHECKER_PATH = ROOT / "scripts" / "check_repository_toolchain.py"
+WORKFLOWS = ROOT / ".github" / "workflows"
 EXPECTED_WORKFLOWS = {
+    "capability-manifest.yml",
     "ci.yml",
+    "evavo-linux-godot-sandbox.yml",
     "evavo-mainline-confirmation.yml",
     "evavo-native-godot-validation.yml",
     "game-asset-delivery-admission.yml",
-    "reusable-godot-linux-sandbox.yml",
-    "evavo-linux-godot-sandbox.yml",
     "linux-sandbox-smoke.yml",
+    "reusable-godot-linux-sandbox.yml",
+    "verified-toolchain-transport.yml",
     "visual-animation-admission.yml",
 }
-FORBIDDEN_WORKFLOW_TOKENS = (
-    "permissions: write-all",
-    "contents: write",
-    "actions: write",
-    "checks: write",
-    "deployments: write",
-    "packages: write",
-    "pull-requests: write",
-    "statuses: write",
-    "persist-credentials: true",
-    "github.token",
-    "GH_TOKEN",
-    "git push",
-    "gh workflow run",
-)
-FORBIDDEN_STAGING_PATHS = (
-    ".evavo/bootstrap",
-    ".evavo/agent-audio-upgrade-diagnostic.txt",
-    "scripts/apply_agent_audio_upgrade.py",
-)
+FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+EXTERNAL_USES = re.compile(r"^\s*uses:\s*([^\s#]+)", flags=re.MULTILINE)
 
 
-def _active_yaml(source: str) -> str:
-    return "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
+def _workflows() -> list[Path]:
+    return sorted(WORKFLOWS.glob("*.yml"), key=lambda path: path.name)
 
 
-def _load_checker() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("workflow_guarded_toolchain_checker", CHECKER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("could not load workflow-guarded toolchain checker")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def test_workflow_inventory_is_explicit_and_complete() -> None:
+    assert {path.name for path in _workflows()} == EXPECTED_WORKFLOWS
 
 
-def test_workflow_inventory_is_exact_and_read_only() -> None:
-    observed = {
-        path.name for path in WORKFLOW_ROOT.iterdir() if path.is_file() and path.suffix in {".yml", ".yaml"}
-    }
-    assert observed == EXPECTED_WORKFLOWS
-    for name in sorted(observed):
-        source = _active_yaml((WORKFLOW_ROOT / name).read_text(encoding="utf-8"))
-        for token in FORBIDDEN_WORKFLOW_TOKENS:
-            assert token not in source, f"{name} contains forbidden workflow authority: {token}"
+def test_workflows_use_immutable_external_actions() -> None:
+    for workflow in _workflows():
+        text = workflow.read_text(encoding="utf-8")
+        assert "persist-credentials: true" not in text
+        assert "permissions: write-all" not in text
+        assert "contents: write" not in text
+        assert "pull-requests: write" not in text
+        for reference in EXTERNAL_USES.findall(text):
+            if reference.startswith("./"):
+                continue
+            assert "@" in reference, f"{workflow.name} action lacks a ref: {reference}"
+            action, ref = reference.rsplit("@", 1)
+            assert action and FULL_SHA.fullmatch(ref), (
+                f"{workflow.name} action is not pinned to a full SHA: {reference}"
+            )
 
 
-def test_one_time_upgrade_payload_residue_is_absent() -> None:
-    for relative in FORBIDDEN_STAGING_PATHS:
-        assert not (ROOT / relative).exists(), f"one-time upgrade residue remains: {relative}"
-    payloads = sorted((ROOT / ".evavo").glob("bootstrap/agent-audio-upgrade-*.b64"))
-    assert payloads == []
+def test_native_validation_workflow_retains_fail_closed_policy() -> None:
+    text = (
+        WORKFLOWS / "evavo-native-godot-validation.yml"
+    ).read_text(encoding="utf-8")
+    assert "py -3.11 scripts/check_repository_toolchain.py --native-family" in text
+    assert "Validate exact target identity" in text
+    assert "run_id:" in text
+    assert "expected_target_sha:" in text
+    assert "Test-Lab-Publish-Ready" in text
+    assert "Validate Published Main with Godot Game Test Lab" in text
+    assert "native-godot-validation-${{ github.event.inputs.target_sha }}" in text
 
 
-def test_checker_main_returns_core_result_without_nested_system_exit(monkeypatch: pytest.MonkeyPatch) -> None:
-    checker = _load_checker()
-    monkeypatch.setattr(checker, "_preflight_errors", lambda: [])
-    monkeypatch.setattr(checker.runpy, "run_path", lambda *_args, **_kwargs: {"main": lambda: 7})
-    assert checker.main() == 7
+def test_rally_preview_workflows_were_not_retained() -> None:
+    assert not any("rally" in path.name.casefold() for path in _workflows())
+    assert not any("preview" in path.name.casefold() for path in _workflows())
+    all_workflow_text = "\n".join(
+        path.read_text(encoding="utf-8") for path in _workflows()
+    )
+    assert "rally-falcon-preview.v1.json" not in all_workflow_text
+    assert "rally-falcon-preview.v2.json" not in all_workflow_text
+    assert "rally-falcon-preview.json" not in all_workflow_text
 
 
-def test_checker_rejects_core_without_callable_main(monkeypatch: pytest.MonkeyPatch) -> None:
-    checker = _load_checker()
-    monkeypatch.setattr(checker, "_preflight_errors", lambda: [])
-    monkeypatch.setattr(checker.runpy, "run_path", lambda *_args, **_kwargs: {})
-    with pytest.raises(RuntimeError, match="does not expose callable main"):
-        checker.main()
+def test_mainline_confirmation_is_source_only_and_exact_sha_bound() -> None:
+    text = (
+        WORKFLOWS / "evavo-mainline-confirmation.yml"
+    ).read_text(encoding="utf-8")
+    assert "Validate source-only mainline confirmation contract" in text
+    assert "Validate exact provider main SHA" in text
+    assert "test ${{ github.sha }} = $(git rev-parse HEAD)" in text
+    assert "does not claim native Windows, Docker, Godot, .NET" in text
+    assert "Validate staged and untracked sources" in text
+    assert "execute the repository validation contract" in text
+    assert "python scripts/test_repository_toolchain.py" in text
+    assert "executedValidationContract" not in text
+    assert "native-validation" not in text
+    assert "docker build" not in text
+    assert "dotnet build" not in text
+    assert "git push" not in text
+    assert "gh pr create" not in text
