@@ -1,0 +1,4 @@
+extend = "../.ruff.toml"
+
+[lint.extend-per-file-ignores]
+"test_localization_plural_command_guard.py" = ["E501"]
