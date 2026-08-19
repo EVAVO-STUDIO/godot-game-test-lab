@@ -22,8 +22,14 @@ def test_probe_reports_ready_from_compatible_editor_without_exposing_paths():
     assert value["ready"] is True
     assert value["host"]["godotEditorCompatible"] is True
     assert value["host"]["dotnetAvailable"] is True
+    assert value["capabilities"]["nativeAuthoredQa"] is True
+    assert value["capabilities"]["multiplayerQa"] is True
     assert value["truth"]["targetProjectExecuted"] is False
     assert value["truth"]["engineProvisioningPerformed"] is False
+    assert value["truth"]["multiplayerTargetSelected"] is False
+    assert value["truth"]["multiplayerRolesExecuted"] is False
+    assert value["truth"]["physicalControllerCertified"] is False
+    assert value["truth"]["networkConditionCertified"] is False
     assert "C:/secret" not in json.dumps(value)
 
 
@@ -38,6 +44,7 @@ def test_probe_can_be_ready_from_validated_managed_engine_without_provisioning_i
     assert value["ready"] is True
     assert value["host"]["managedEngineReady"] is True
     assert value["host"]["managedEngineCount"] == 1
+    assert value["capabilities"]["multiplayerQa"] is True
     assert value["truth"]["networkProvisioningPerformed"] is False
     assert "C:/private" not in json.dumps(value)
 
@@ -49,6 +56,8 @@ def test_probe_stays_blocked_when_no_compatible_editor_is_available():
     )
     assert value["ready"] is False
     assert value["capabilities"]["nativeValidation"] is False
+    assert value["capabilities"]["nativeAuthoredQa"] is False
+    assert value["capabilities"]["multiplayerQa"] is False
     assert value["capabilities"]["nativeBotQa"] is False
     assert value["capabilities"]["staticAudit"] is True
     assert value["capabilities"]["linuxSandbox"] is True
