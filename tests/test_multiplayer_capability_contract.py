@@ -8,7 +8,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_multiplayer_capability_is_discoverable_and_bounded() -> None:
     manifest = json.loads((ROOT / "evavo.capabilities.json").read_text(encoding="utf-8"))
-    capability = next(item for item in manifest["capabilities"] if item["id"] == "testlab.qa.multiplayer")
+    capability = next(
+        item
+        for item in manifest["capabilities"]
+        if item["id"] == "testlab.qa.multiplayer"
+    )
     assert capability["effects"] == ["read", "compute", "write", "execute"]
     assert "godot-lab-multiplayer-qa" in capability["entrypoints"]
     assert "src/godot_game_test_lab/multiplayer_qa.py" in capability["entrypoints"]
@@ -21,7 +25,9 @@ def test_multiplayer_capability_is_discoverable_and_bounded() -> None:
 
 
 def test_multiplayer_wrapper_is_fixed_exact_sha_and_budget_bounded() -> None:
-    text = (ROOT / "scripts" / "Invoke-GodotLabMultiplayerAgentQA.ps1").read_text(encoding="utf-8")
+    text = (ROOT / "scripts" / "Invoke-GodotLabMultiplayerAgentQA.ps1").read_text(
+        encoding="utf-8"
+    )
     for marker in (
         '"-m", "godot_game_test_lab.multiplayer_qa"',
         '"--expected-lab-sha", $ExpectedLabSha',
