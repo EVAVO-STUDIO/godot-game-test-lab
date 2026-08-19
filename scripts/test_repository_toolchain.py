@@ -159,8 +159,8 @@ def main() -> int:
             root,
             "src/godot_game_test_lab/__init__.py",
             lambda value: value.replace(
-                '__version__ = "0.7.1"',
-                '__version__ = "0.7.2"',
+                '__version__ = "0.8.0"',
+                '__version__ = "0.8.1"',
             ),
         ),
         "package version drift",
