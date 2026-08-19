@@ -1,4 +1,5 @@
 name: Temporary Ruff autofix evidence
+# Read-only generator; removed after artifact admission.
 
 on:
   push:
