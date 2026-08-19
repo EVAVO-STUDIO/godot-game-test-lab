@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "1.0",
+  "roles": [
+    {
+      "id": "host",
+      "personaId": "experienced-host",
+      "required": true,
+      "startDelayMs": 0,
+      "journey": {
+        "device": "keyboard_mouse",
+        "maxFrames": 900,
+        "fps": 30,
+        "width": 1280,
+        "height": 720,
+        "renderingMethod": "forward_plus",
+        "renderingDriver": "vulkan",
+        "gpuIndex": 0,
+        "userArguments": [
+          "--multiplayer-role=host"
+        ],
+        "steps": [
+          {
+            "type": "wait",
+            "frames": 90
+          },
+          {
+            "type": "checkpoint",
+            "id": "host-ready"
+          }
+        ],
+        "assertions": [
+          {
+            "type": "scene_loaded"
+          }
+        ],
+        "ux": {
+          "captureControlTree": true,
+          "failOnBlackFrame": true,
+          "blackDurationSeconds": 3.0,
+          "failOnFrozenVideo": false,
+          "freezeDurationSeconds": 8.0
+        }
+      }
+    },
+    {
+      "id": "guest",
+      "personaId": "first-time-guest",
+      "required": true,
+      "startDelayMs": 1000,
+      "journey": {
+        "device": "keyboard_mouse",
+        "maxFrames": 900,
+        "fps": 30,
+        "width": 1280,
+        "height": 720,
+        "renderingMethod": "forward_plus",
+        "renderingDriver": "vulkan",
+        "gpuIndex": 0,
+        "userArguments": [
+          "--multiplayer-role=client"
+        ],
+        "steps": [
+          {
+            "type": "wait",
+            "frames": 90
+          },
+          {
+            "type": "checkpoint",
+            "id": "guest-ready"
+          }
+        ],
+        "assertions": [
+          {
+            "type": "scene_loaded"
+          }
+        ],
+        "ux": {
+          "captureControlTree": true,
+          "failOnBlackFrame": true,
+          "blackDurationSeconds": 3.0,
+          "failOnFrozenVideo": false,
+          "freezeDurationSeconds": 8.0
+        }
+      }
+    }
+  ]
+}
