@@ -30,6 +30,7 @@ godot-lab-media-qa = "godot_game_test_lab.media_cli:main"
 godot-lab-mcp = "godot_game_test_lab.mcp_server:main"
 godot-lab-engine = "godot_game_test_lab.engine_cli:main"
 godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
+godot-lab-rally-falcon-preview = "godot_game_test_lab.rally_falcon_preview:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
@@ -60,3 +61,5 @@ select = ["E", "F", "I", "UP", "B"]
 "src/godot_game_test_lab/game_asset_delivery_native.py" = ["E501"]
 "tests/test_game_asset_delivery_admission.py" = ["E501", "F401", "UP012"]
 "tests/test_workflow_inventory.py" = ["E501"]
+"src/godot_game_test_lab/rally_falcon_preview.py" = ["E501"]
+"tests/test_rally_falcon_preview.py" = ["E501"]

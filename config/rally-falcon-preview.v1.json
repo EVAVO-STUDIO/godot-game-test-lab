@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "evavo-godot-rally-falcon-preview-policy-v1",
+  "assetId": "falcon-rally-production-v1",
+  "programId": "rally-vertical-slice-v1",
+  "source": {
+    "repository": "EVAVO-STUDIO/godot-462-isometric-rally",
+    "intakeContract": "evavo_rally_falcon_worker_intake_v1",
+    "protocolVersion": "2026-08-18.1",
+    "requiredStatus": "verified-worker-evidence",
+    "modelPath": "model.glb"
+  },
+  "target": {
+    "repository": "EVAVO-STUDIO/godot-462-isometric-rally",
+    "minimumGodotVersion": "4.6.2",
+    "exactTargetHeadRequired": true,
+    "cleanTargetBeforeAndAfterRequired": true,
+    "targetMutationAllowed": false
+  },
+  "testLab": {
+    "repository": "EVAVO-STUDIO/godot-game-test-lab",
+    "exactLabHeadRequired": true,
+    "nativeValidationEntrypoint": "scripts/Invoke-GodotLabNativeValidation.ps1"
+  },
+  "preview": {
+    "isolatedExternalWorkspaceRequired": true,
+    "createOnlyArtifactRootRequired": true,
+    "candidateModelHashRequired": true,
+    "realGodotProcessRequired": true,
+    "realGodotImportRequired": true,
+    "resourceLoadRequired": true,
+    "renderedFramesRequired": true,
+    "minimumRenderedFrames": 4,
+    "renderedFrameHashesRequired": true,
+    "processExitCodeRequired": 0,
+    "targetUnchangedRequired": true,
+    "canonicalImport": false,
+    "runtimeAdmission": false
+  },
+  "forbiddenEvidence": [
+    "synthetic-render-placeholder",
+    "fixture-only-render",
+    "source-validation-only",
+    "queued-job",
+    "worker-heartbeat",
+    "generated-plan-without-godot-process"
+  ],
+  "authority": {
+    "creativeApproval": false,
+    "runtimeAdmission": false,
+    "canonicalImport": false,
+    "sceneMutation": false,
+    "physicsAuthority": false,
+    "collisionAuthority": false,
+    "gameplayAuthority": false,
+    "targetRepositoryWrite": false,
+    "gitMutation": false,
+    "commit": false,
+    "push": false,
+    "publication": false,
+    "deployment": false,
+    "clientRelease": false
+  }
+}
