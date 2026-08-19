@@ -94,8 +94,9 @@ def main() -> int:
         "godot-lab-engine",
         "godot-lab-sandbox",
         "godot-lab-rally-falcon-preview",
+        "godot-lab-localization-plural",
     }:
-        fail("asset-audit hardening must not silently change the ten package entrypoints")
+        fail("asset-audit hardening must not silently change the eleven package entrypoints")
     per_file = (
         pyproject.get("tool", {})
         .get("ruff", {})
