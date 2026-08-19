@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "godot-game-test-lab"
-version = "0.7.1"
+version = "0.8.0"
 description = "Automated Godot build, interaction, visual evidence and QA orchestration."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,6 +32,7 @@ godot-lab-mcp = "godot_game_test_lab.mcp_server:main"
 godot-lab-engine = "godot_game_test_lab.engine_cli:main"
 godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
 godot-lab-rally-falcon-preview = "godot_game_test_lab.rally_falcon_preview:main"
+godot-lab-localization-plural = "godot_game_test_lab.localization_plural_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
@@ -67,3 +68,6 @@ select = ["E", "F", "I", "UP", "B"]
 "src/godot_game_test_lab/multiplayer_profile.py" = ["E501"]
 "src/godot_game_test_lab/multiplayer_qa.py" = ["E501"]
 "tests/test_multiplayer_profile.py" = ["E501"]
+"src/godot_game_test_lab/localization_plural.py" = ["E501"]
+"src/godot_game_test_lab/localization_plural_cli.py" = ["E501"]
+"tests/test_localization_plural.py" = ["E501"]
