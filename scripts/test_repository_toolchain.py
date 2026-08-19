@@ -14,12 +14,14 @@ from typing import Any
 
 SOURCE_ROOT = Path.cwd().resolve(strict=True)
 FILES = [
+    ".github/workflows/capability-manifest.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/evavo-mainline-confirmation.yml",
     ".github/workflows/evavo-native-godot-validation.yml",
     ".github/workflows/reusable-godot-linux-sandbox.yml",
     ".github/workflows/evavo-linux-godot-sandbox.yml",
     ".github/workflows/linux-sandbox-smoke.yml",
+    ".github/workflows/verified-toolchain-transport.yml",
     ".python-version",
     "containers/linux-sandbox/Dockerfile",
     "docs/ART_STUDIO_ASSET_AUDIT.md",
@@ -157,8 +159,8 @@ def main() -> int:
             root,
             "src/godot_game_test_lab/__init__.py",
             lambda value: value.replace(
-                '__version__ = "0.7.0"',
                 '__version__ = "0.7.1"',
+                '__version__ = "0.7.2"',
             ),
         ),
         "package version drift",
