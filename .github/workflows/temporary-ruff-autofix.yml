@@ -1,0 +1,63 @@
+name: Temporary Ruff autofix evidence
+
+on:
+  push:
+    branches:
+      - agent/test-lab-ruff-autofix
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-test-lab-ruff-autofix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Generate reviewed Ruff corrections
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact branch commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up exact hosted Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11.15"
+
+      - name: Apply only pinned Ruff safe fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input ruff==0.9.0
+          python -m ruff check src scripts tests --fix
+          python -m ruff check src scripts tests
+
+      - name: Retain exact corrected files and patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/ruff-fixed"
+          mkdir -p "${root}/files"
+          git diff --name-only --diff-filter=AM > "${root}/manifest.txt"
+          test -s "${root}/manifest.txt"
+          while IFS= read -r file; do
+            test -f "${file}"
+            mkdir -p "${root}/files/$(dirname "${file}")"
+            cp -- "${file}" "${root}/files/${file}"
+          done < "${root}/manifest.txt"
+          git diff --binary > "${root}/ruff-autofix.patch"
+          git diff --check
+          printf '%s\n' "${GITHUB_SHA}" > "${root}/source-sha.txt"
+
+      - name: Upload read-only correction evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-lab-ruff-autofix-${{ github.sha }}
+          path: ${{ runner.temp }}/ruff-fixed
+          if-no-files-found: error
+          retention-days: 1
