@@ -4,86 +4,234 @@
   "title": "EVAVO Godot Plural Localization Test Lab Report v1",
   "type": "object",
   "required": [
-    "version", "generated_at", "status", "request_sha256", "project_root",
-    "repository", "exact_head", "csv_path", "csv_sha256", "csv_bytes",
-    "git_before", "git_after", "native_validation", "runtime_probes", "findings",
-    "commands", "artifacts", "authority"
+    "version",
+    "generated_at",
+    "status",
+    "request_sha256",
+    "project_root",
+    "repository",
+    "exact_head",
+    "csv_path",
+    "csv_sha256",
+    "csv_bytes",
+    "git_before",
+    "git_after",
+    "native_validation",
+    "runtime_probes",
+    "findings",
+    "commands",
+    "artifacts",
+    "authority"
   ],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": "evavo_godot_plural_localization_test_lab_report_v1" },
-    "generated_at": { "type": "string", "format": "date-time" },
-    "status": { "enum": ["passed", "failed"] },
-    "request_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "project_root": { "type": "string", "minLength": 1 },
-    "repository": { "type": "string", "pattern": "^EVAVO-STUDIO/[A-Za-z0-9._-]{1,100}$" },
-    "exact_head": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-    "csv_path": { "type": "string", "minLength": 5 },
-    "csv_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "csv_bytes": { "type": "integer", "minimum": 1 },
-    "git_before": { "$ref": "#/$defs/gitState" },
-    "git_after": { "oneOf": [{ "$ref": "#/$defs/gitState" }, { "type": "null" }] },
-    "native_validation": { "type": "object" },
+    "version": {
+      "const": "evavo_godot_plural_localization_test_lab_report_v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^EVAVO-STUDIO/[A-Za-z0-9._-]{1,100}$"
+    },
+    "exact_head": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "csv_path": {
+      "type": "string",
+      "minLength": 5
+    },
+    "csv_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "csv_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "git_before": {
+      "$ref": "#/$defs/gitState"
+    },
+    "git_after": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/gitState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "native_validation": {
+      "type": "object"
+    },
     "runtime_probes": {
       "type": "array",
-      "items": { "$ref": "#/$defs/probeResult" }
+      "items": {
+        "$ref": "#/$defs/probeResult"
+      }
     },
-    "findings": { "type": "array", "items": { "type": "string" } },
-    "commands": { "type": "array", "items": { "type": "object" } },
-    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "authority": {
       "type": "object",
       "required": [
-        "requestFingerprintVerified", "exactTargetHeadVerified", "exactCsvBytesVerified",
-        "nativeGodotImportVerified", "runtimePluralLookupVerified", "targetGitStateUnchanged",
-        "transientProbeRemovedBeforeAcceptance", "targetRepositoryMutationAuthority",
-        "repairAuthority", "publicationAuthority"
+        "requestFingerprintVerified",
+        "exactTargetHeadVerified",
+        "exactCsvBytesVerified",
+        "nativeGodotImportVerified",
+        "runtimePluralLookupVerified",
+        "targetGitStateUnchanged",
+        "transientProbeRemovedBeforeAcceptance",
+        "targetRepositoryMutationAuthority",
+        "repairAuthority",
+        "publicationAuthority"
       ],
       "properties": {
-        "requestFingerprintVerified": { "type": "boolean" },
-        "exactTargetHeadVerified": { "type": "boolean" },
-        "exactCsvBytesVerified": { "type": "boolean" },
-        "nativeGodotImportVerified": { "type": "boolean" },
-        "runtimePluralLookupVerified": { "type": "boolean" },
-        "targetGitStateUnchanged": { "type": "boolean" },
-        "transientProbeRemovedBeforeAcceptance": { "type": "boolean" },
-        "targetRepositoryMutationAuthority": { "const": false },
-        "repairAuthority": { "const": false },
-        "publicationAuthority": { "const": false }
+        "requestFingerprintVerified": {
+          "type": "boolean"
+        },
+        "exactTargetHeadVerified": {
+          "type": "boolean"
+        },
+        "exactCsvBytesVerified": {
+          "type": "boolean"
+        },
+        "nativeGodotImportVerified": {
+          "type": "boolean"
+        },
+        "runtimePluralLookupVerified": {
+          "type": "boolean"
+        },
+        "targetGitStateUnchanged": {
+          "type": "boolean"
+        },
+        "transientProbeRemovedBeforeAcceptance": {
+          "type": "boolean"
+        },
+        "targetRepositoryMutationAuthority": {
+          "const": false
+        },
+        "repairAuthority": {
+          "const": false
+        },
+        "publicationAuthority": {
+          "const": false
+        }
       }
     }
   },
   "$defs": {
     "gitState": {
       "type": "object",
-      "required": ["root", "head", "origin", "status_porcelain"],
+      "required": [
+        "root",
+        "head",
+        "origin",
+        "status_porcelain"
+      ],
       "additionalProperties": false,
       "properties": {
-        "root": { "type": "string" },
-        "head": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-        "origin": { "type": "string" },
-        "status_porcelain": { "type": "string" }
+        "root": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "status_porcelain": {
+          "type": "string"
+        }
       }
     },
     "probeResult": {
       "type": "object",
       "required": [
-        "message_id", "locale", "godot_locale", "singular_key", "plural_key",
-        "context", "n", "expected_form_key", "expected_text", "actual_text", "matched"
+        "message_id",
+        "locale",
+        "godot_locale",
+        "singular_key",
+        "plural_key",
+        "context",
+        "n",
+        "expected_form_key",
+        "expected_text",
+        "actual_text",
+        "matched"
       ],
       "additionalProperties": false,
       "properties": {
-        "message_id": { "type": "string" },
-        "locale": { "type": "string" },
-        "godot_locale": { "type": "string" },
-        "singular_key": { "type": "string" },
-        "plural_key": { "type": "string" },
-        "context": { "type": "string" },
-        "n": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
-        "expected_form_key": { "type": "string" },
-        "expected_text": { "type": "string" },
-        "actual_text": { "type": "string" },
-        "matched": { "type": "boolean" }
+        "message_id": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "godot_locale": {
+          "type": "string"
+        },
+        "singular_key": {
+          "type": "string"
+        },
+        "plural_key": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "expected_form_key": {
+          "type": "string"
+        },
+        "expected_text": {
+          "type": "string"
+        },
+        "actual_text": {
+          "type": "string"
+        },
+        "matched": {
+          "type": "boolean"
+        }
       }
     }
   }

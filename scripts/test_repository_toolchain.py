@@ -134,8 +134,8 @@ def main() -> int:
             root,
             "src/godot_game_test_lab/__init__.py",
             lambda value: value.replace(
-                '__version__ = "0.8.0"',
-                '__version__ = "0.8.1"',
+                '__version__ = "0.9.0"',
+                '__version__ = "0.9.1"',
             ),
         ),
         "package runtime version drift",
@@ -145,8 +145,8 @@ def main() -> int:
             root,
             "pyproject.toml",
             lambda value: value.replace(
-                'version = "0.8.0"',
-                'version = "0.8.1"',
+                'version = "0.9.0"',
+                'version = "0.9.1"',
             ),
         ),
         "package metadata version drift",

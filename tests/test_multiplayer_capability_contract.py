@@ -19,9 +19,14 @@ def test_multiplayer_capability_is_discoverable_and_bounded() -> None:
     assert "scripts/Invoke-GodotLabMultiplayerAgentQA.ps1" in capability["entrypoints"]
     description = capability["description"].lower()
     assert "two to eight" in description
-    assert "exact lab/target/profile identity" in description
-    assert "physical controllers" in description
-    assert "human game feel" in description
+    assert "guarded desktop lease" in description
+    assert "isolated runtime homes" in description
+    assert "bounded evidence" in description
+    assert "final mutation verification" in description
+    assert "Exact Lab and target SHAs" in capability["requires"]
+    assert "Reviewed multiplayer profile with 2 to 8 roles" in capability["requires"]
+    assert "Interactive Windows session" in capability["requires"]
+    assert "Human review for game-feel conclusions" in capability["requires"]
 
 
 def test_multiplayer_wrapper_is_fixed_exact_sha_and_budget_bounded() -> None:
