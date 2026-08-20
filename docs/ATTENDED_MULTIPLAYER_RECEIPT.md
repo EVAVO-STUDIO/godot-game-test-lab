@@ -1,6 +1,6 @@
 # Attended multiplayer receipt
 
-`godot-lab-attended-multiplayer` turns one completed exact-SHA multiplayer Test Lab run into a separately verifiable attendance receipt. It does not rerun the game, edit the target repository, approve the experience, publish a build or deploy a release.
+`python -m godot_game_test_lab.attended_multiplayer` turns one completed exact-SHA multiplayer Test Lab run into a separately verifiable attendance receipt. It does not rerun the game, edit the target repository, approve the experience, publish a build or deploy a release.
 
 ## Why this is separate
 
@@ -31,10 +31,10 @@ The attestation must be created within 30 minutes of the run timestamp and is va
 
 ## Commands
 
-First create a unique output path outside the retained multiplayer artifact directory:
+The canonical dependency-free source-checkout entrypoint is the Python module. First create a unique output path outside the retained multiplayer artifact directory:
 
 ```powershell
-godot-lab-attended-multiplayer attest `
+python -m godot_game_test_lab.attended_multiplayer attest `
   --summary C:\GodotLabEvidence\run-001\multiplayer-agent-summary.json `
   --artifacts C:\GodotLabEvidence\run-001 `
   --campaign-id game-multiplayer-campaign-001 `
@@ -44,7 +44,7 @@ godot-lab-attended-multiplayer attest `
 Then compile a create-only receipt:
 
 ```powershell
-godot-lab-attended-multiplayer compile `
+python -m godot_game_test_lab.attended_multiplayer compile `
   --summary C:\GodotLabEvidence\run-001\multiplayer-agent-summary.json `
   --artifacts C:\GodotLabEvidence\run-001 `
   --attestation C:\GodotLabEvidence\attestations\run-001.json `
@@ -54,12 +54,14 @@ godot-lab-attended-multiplayer compile `
 Reverify the receipt against the original exact bytes:
 
 ```powershell
-godot-lab-attended-multiplayer verify `
+python -m godot_game_test_lab.attended_multiplayer verify `
   --summary C:\GodotLabEvidence\run-001\multiplayer-agent-summary.json `
   --artifacts C:\GodotLabEvidence\run-001 `
   --attestation C:\GodotLabEvidence\attestations\run-001.json `
   --receipt C:\GodotLabEvidence\receipts\run-001.json
 ```
+
+Installed console aliases may be introduced only through the repository-owned package and toolchain authorities. Callers must not assume an alias that is absent from the exact installed package.
 
 ## Fail-closed boundaries
 

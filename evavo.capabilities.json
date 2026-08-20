@@ -3,7 +3,7 @@
   "contractVersion": "evavo_repository_capabilities_v1",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "authority": "independent-godot-validation-and-admission",
-  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified engines; runs exact-head plural localization, stable-ID application-bundle admission, native authored, multiplayer, bot and no-network QA; analyses retained media; and compiles exact asset and animation evidence. It may write managed caches, transient ignored probe material and governed evidence outside target source authority, but does not repair, edit, publish or grant deployment authority over target repositories.",
+  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified engines; runs exact-head plural localization, stable-ID application-bundle admission, native authored, concurrent multiplayer, attended multiplayer, bot and no-network QA; analyses retained media; and compiles exact asset and animation evidence. It may write managed caches, transient ignored probe material and governed evidence outside target source authority, but does not repair, edit, publish or grant deployment authority over target repositories.",
   "capabilities": [
     {
       "id": "testlab.readiness.automated-testing",
@@ -77,13 +77,13 @@
     },
     {
       "id": "testlab.qa.multiplayer",
-      "title": "Run exact-SHA concurrent multiplayer QA",
-      "description": "Run two to eight reviewed multiplayer roles concurrently under one guarded desktop lease with isolated runtime homes, bounded evidence and final mutation verification.",
+      "title": "Run and independently attest exact-SHA concurrent multiplayer QA",
+      "description": "Run two to eight reviewed multiplayer roles concurrently under one guarded desktop lease with isolated runtime homes, bounded evidence and final mutation verification, then optionally rehash that completed run into a same-session operator-attended receipt without converting attendance into human approval.",
       "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
       "effects": ["read", "compute", "write", "execute"],
-      "entrypoints": ["godot-lab-multiplayer-qa", "src/godot_game_test_lab/multiplayer_qa.py", "scripts/Invoke-GodotLabMultiplayerAgentQA.ps1"],
-      "tags": ["godot", "multiplayer", "concurrent", "qa", "playtest", "roles", "exact-sha"],
-      "requires": ["Exact Lab and target SHAs", "Reviewed multiplayer profile with 2 to 8 roles", "Allowed external artifact root", "Interactive Windows session", "Human review for game-feel conclusions"]
+      "entrypoints": ["godot-lab-multiplayer-qa", "python -m godot_game_test_lab.attended_multiplayer", "src/godot_game_test_lab/multiplayer_qa.py", "src/godot_game_test_lab/attended_multiplayer.py", "scripts/Invoke-GodotLabMultiplayerAgentQA.ps1", "docs/ATTENDED_MULTIPLAYER_RECEIPT.md"],
+      "tags": ["godot", "multiplayer", "concurrent", "qa", "playtest", "roles", "exact-sha", "attended", "receipt"],
+      "requires": ["Exact Lab and target SHAs", "Reviewed multiplayer profile with 2 to 8 roles", "Allowed external artifact root", "Interactive Windows session", "Completed passed multiplayer run for attended receipt", "Same-session operator attestation for attended receipt", "Human review for game-feel conclusions"]
     },
     {
       "id": "testlab.qa.bot",
@@ -156,12 +156,13 @@
       "native and headless validation",
       "plural localization runtime admission",
       "stable-ID application-bundle admission and non-mutation",
-      "authored, multiplayer and bot QA",
+      "authored, multiplayer, attended multiplayer and bot QA",
+      "operator attendance versus human approval",
       "Linux sandbox QA",
       "media and audio evidence",
       "asset and animation admission",
       "target-repository mutation and publication boundaries"
     ]
   },
-  "reviewedAt": "2026-08-20T08:00:00Z"
+  "reviewedAt": "2026-08-21T00:00:00Z"
 }
