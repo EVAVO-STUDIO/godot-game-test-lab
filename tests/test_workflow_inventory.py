@@ -50,13 +50,23 @@ def test_native_validation_workflow_retains_fail_closed_policy() -> None:
     text = (
         WORKFLOWS / "evavo-native-godot-validation.yml"
     ).read_text(encoding="utf-8")
-    assert "py -3.11 scripts/check_repository_toolchain.py --native-family" in text
-    assert "Validate exact target identity" in text
-    assert "run_id:" in text
+    assert "Validate dispatch inputs" in text
+    assert "expected_sha:" in text
     assert "expected_target_sha:" in text
-    assert "Test-Lab-Publish-Ready" in text
-    assert "Validate Published Main with Godot Game Test Lab" in text
-    assert "native-godot-validation-${{ github.event.inputs.target_sha }}" in text
+    assert "request_source:" in text
+    assert "runs-on: [self-hosted, Windows, X64, evavo-godot-lab]" in text
+    assert "cancel-in-progress: false" in text
+    assert "Check out exact test-lab mainline commit" in text
+    assert "git merge-base --is-ancestor $env:EXPECTED_SHA origin/main" in text
+    assert "py -3.11 scripts/check_repository_toolchain.py --native-family" in text
+    assert "Invoke-GodotLabNativeValidation.ps1" in text
+    assert (
+        "native-godot-validation-${{ inputs.expected_sha }}-"
+        "${{ inputs.expected_target_sha }}"
+    ) in text
+    assert "permissions:\n  contents: read" in text
+    assert "contents: write" not in text
+    assert "git push" not in text
 
 
 def test_rally_preview_workflows_were_not_retained() -> None:
@@ -74,14 +84,17 @@ def test_mainline_confirmation_is_source_only_and_exact_sha_bound() -> None:
     text = (
         WORKFLOWS / "evavo-mainline-confirmation.yml"
     ).read_text(encoding="utf-8")
-    assert "Validate source-only mainline confirmation contract" in text
-    assert "Validate exact provider main SHA" in text
-    assert "test ${{ github.sha }} = $(git rev-parse HEAD)" in text
-    assert "does not claim native Windows, Docker, Godot, .NET" in text
-    assert "Validate staged and untracked sources" in text
-    assert "execute the repository validation contract" in text
+    assert "Validate dispatch input" in text
+    assert "Check out exact mainline commit" in text
+    assert "Verify checked-out commit" in text
+    assert 'ACTUAL_SHA="$(git rev-parse HEAD)"' in text
+    assert 'git merge-base --is-ancestor "$EXPECTED_SHA" origin/main' in text
+    assert "Run adversarial toolchain fixtures" in text
     assert "python scripts/test_repository_toolchain.py" in text
-    assert "executedValidationContract" not in text
+    assert "Record source-only truth boundary" in text
+    assert "Target project import, boot, export or movie: not performed" in text
+    assert "Windows runner probe: not performed" in text
+    assert "permissions:\n  contents: read" in text
     assert "native-validation" not in text
     assert "docker build" not in text
     assert "dotnet build" not in text
