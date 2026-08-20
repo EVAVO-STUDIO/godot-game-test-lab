@@ -4,7 +4,6 @@ import json
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -21,20 +20,22 @@ def test_plural_localization_runtime_contract_surface_is_present() -> None:
         assert (ROOT / relative).is_file(), relative
 
 
-def test_test_lab_package_version_is_consistently_0_8_0() -> None:
+def test_test_lab_package_version_is_consistently_0_9_0() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     init = (ROOT / "src" / "godot_game_test_lab" / "__init__.py").read_text(
         encoding="utf-8"
     )
-    assert re.search(r'(?m)^version = "0\.8\.0"$', pyproject)
-    assert '__version__ = "0.8.0"' in init
+    assert re.search(r'(?m)^version = "0\.9\.0"$', pyproject)
+    assert '__version__ = "0.9.0"' in init
 
 
 def test_plural_localization_json_schemas_parse_and_pin_contract_versions() -> None:
     request_schema = json.loads(
-        (ROOT / "schemas" / "localization-godot-plural-testlab-request.v1.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            ROOT
+            / "schemas"
+            / "localization-godot-plural-testlab-request.v1.schema.json"
+        ).read_text(encoding="utf-8")
     )
     report_schema = json.loads(
         (
