@@ -17,7 +17,6 @@ from godot_game_test_lab.rally_falcon_preview import (
     _hash_object,
 )
 
-
 INTAKE_AUTHORITY = {
     "validateWorkerEvidence": True,
     "compileReviewIntake": True,
@@ -46,6 +45,7 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _write_intake(root: Path) -> tuple[Path, bytes]:
+    root.mkdir(parents=True, exist_ok=True)
     model = b"glTF-fixture-falcon-model"
     (root / "model.glb").write_bytes(model)
     source_receipt = {
