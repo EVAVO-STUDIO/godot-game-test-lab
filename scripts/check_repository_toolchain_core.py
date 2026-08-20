@@ -13,7 +13,7 @@ from importlib import metadata
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-TOOL_VERSION = "0.8.0"
+TOOL_VERSION = "0.9.0"
 HOSTED_PYTHON = "3.11.15"
 NATIVE_PYTHON_FAMILY = (3, 11)
 CHECKOUT_V4_SHA = "08eba0b27e820071cde6df949e0beb9ba4906955"
@@ -56,6 +56,9 @@ EXPECTED_SCRIPTS = {
     ),
     "godot-lab-localization-plural": (
         "godot_game_test_lab.localization_plural_runtime_cli:main"
+    ),
+    "godot-lab-localization-stable-id-bundle": (
+        "godot_game_test_lab.localization_stable_id_bundle_cli:main"
     ),
 }
 
