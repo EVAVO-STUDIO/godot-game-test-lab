@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/godot-test-lab/localization-godot-stable-id-application-bundle.v1.schema.json",
+  "title": "EVAVO Localization Godot Stable-ID Application Bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "generatedAt",
+    "repository",
+    "exactHead",
+    "planSha256",
+    "catalogSha256",
+    "decisionSha256",
+    "sourceLocale",
+    "status",
+    "files",
+    "sourceCatalog",
+    "totalRetainedBytes",
+    "requiredApplicationSequence",
+    "authority",
+    "sha256"
+  ],
+  "properties": {
+    "version": { "const": "localization-godot-stable-id-application-bundle-v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "repository": { "type": "string", "pattern": "^EVAVO-STUDIO/[A-Za-z0-9._-]{1,100}$" },
+    "exactHead": { "$ref": "#/$defs/sha40" },
+    "planSha256": { "$ref": "#/$defs/sha64" },
+    "catalogSha256": { "$ref": "#/$defs/sha64" },
+    "decisionSha256": { "$ref": "#/$defs/sha64" },
+    "sourceLocale": { "type": "string", "minLength": 2, "maxLength": 128 },
+    "status": { "const": "bundled-not-applied" },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/replacementFile" }
+    },
+    "sourceCatalog": { "$ref": "#/$defs/sourceCatalog" },
+    "totalRetainedBytes": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+    "requiredApplicationSequence": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appliesChanges",
+        "createsFiles",
+        "sourceMutationAuthority",
+        "runtimeRegistrationAuthority",
+        "commitAuthority",
+        "pushAuthority",
+        "releaseAuthority",
+        "publicationAuthority"
+      ],
+      "properties": {
+        "appliesChanges": { "const": false },
+        "createsFiles": { "const": false },
+        "sourceMutationAuthority": { "const": false },
+        "runtimeRegistrationAuthority": { "const": false },
+        "commitAuthority": { "const": false },
+        "pushAuthority": { "const": false },
+        "releaseAuthority": { "const": false },
+        "publicationAuthority": { "const": false }
+      }
+    },
+    "sha256": { "$ref": "#/$defs/sha64" }
+  },
+  "$defs": {
+    "sha40": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sha64": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "stableId": { "type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//).+$"
+    },
+    "replacementFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "operation",
+        "beforeBytes",
+        "beforeSha256",
+        "beforeGitBlobSha1",
+        "afterBytes",
+        "afterSha256",
+        "afterGitBlobSha1",
+        "editCount",
+        "stableIds",
+        "afterContentBase64"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/safePath" },
+        "operation": { "const": "replace" },
+        "beforeBytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "beforeSha256": { "$ref": "#/$defs/sha64" },
+        "beforeGitBlobSha1": { "$ref": "#/$defs/sha40" },
+        "afterBytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "afterSha256": { "$ref": "#/$defs/sha64" },
+        "afterGitBlobSha1": { "$ref": "#/$defs/sha40" },
+        "editCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "stableIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stableId" }
+        },
+        "afterContentBase64": { "type": "string", "minLength": 1, "contentEncoding": "base64" }
+      }
+    },
+    "sourceMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stableId",
+        "text",
+        "sourcePath",
+        "nodePath",
+        "property",
+        "sourceTextSha256"
+      ],
+      "properties": {
+        "stableId": { "$ref": "#/$defs/stableId" },
+        "text": { "type": "string", "minLength": 1 },
+        "sourcePath": { "$ref": "#/$defs/safePath" },
+        "nodePath": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "property": { "const": "text" },
+        "sourceTextSha256": { "$ref": "#/$defs/sha64" }
+      }
+    },
+    "sourceCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "operation",
+        "encoding",
+        "bom",
+        "sourceLocale",
+        "godotLocale",
+        "messageCount",
+        "bytes",
+        "sha256",
+        "gitBlobSha1",
+        "contentBase64",
+        "messages"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/safePath" },
+        "operation": { "const": "create" },
+        "encoding": { "const": "UTF-8" },
+        "bom": { "const": false },
+        "sourceLocale": { "type": "string", "minLength": 2, "maxLength": 128 },
+        "godotLocale": { "type": "string", "minLength": 2, "maxLength": 128 },
+        "messageCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "bytes": { "type": "integer", "minimum": 1, "maximum": 67108864 },
+        "sha256": { "$ref": "#/$defs/sha64" },
+        "gitBlobSha1": { "$ref": "#/$defs/sha40" },
+        "contentBase64": { "type": "string", "minLength": 1, "contentEncoding": "base64" },
+        "messages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/sourceMessage" }
+        }
+      }
+    }
+  }
+}

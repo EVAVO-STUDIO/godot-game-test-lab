@@ -33,6 +33,7 @@ godot-lab-engine = "godot_game_test_lab.engine_cli:main"
 godot-lab-sandbox = "godot_game_test_lab.local_sandbox:main"
 godot-lab-rally-falcon-preview = "godot_game_test_lab.rally_falcon_preview:main"
 godot-lab-localization-plural = "godot_game_test_lab.localization_plural_runtime_cli:main"
+godot-lab-localization-stable-id-bundle = "godot_game_test_lab.localization_stable_id_bundle_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
@@ -76,3 +77,7 @@ select = ["E", "F", "I", "UP", "B"]
 "src/godot_game_test_lab/localization_plural_safe.py" = ["E501"]
 "tests/test_localization_plural.py" = ["E501"]
 "tests/test_localization_plural_guarded.py" = ["E501"]
+"src/godot_game_test_lab/localization_stable_id_bundle.py" = ["E501"]
+"src/godot_game_test_lab/localization_stable_id_bundle_cli.py" = ["E501"]
+"tests/test_localization_stable_id_bundle.py" = ["E501"]
+"tests/test_localization_stable_id_bundle_contract_surface.py" = ["E501"]
