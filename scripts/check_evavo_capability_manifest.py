@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate all Test Lab capabilities, extending the retained v0.7 checker."""
+"""Validate all Test Lab capabilities, extending the retained broad checker."""
 
 from __future__ import annotations
 
@@ -23,10 +23,27 @@ PLURAL_ENTRYPOINTS = {
 PLURAL_REQUIRES = {
     "Fingerprint-valid localization-godot-plural-testlab-request-v1",
     "Exact clean target Git head with supported github.com origin",
-    "Exact project-relative CSV bytes already admitted by the target repository",
-    "Compatible Godot editor and .NET SDK when the target uses C#",
-    "External evidence root outside Lab and target repositories",
-    "Human-reviewed locale probe mapping supplied by Localization Manager",
+    "Exact admitted project-relative CSV bytes",
+    "Compatible Godot editor and .NET SDK when required",
+    "External evidence root",
+    "Human-reviewed locale probe mapping",
+}
+
+STABLE_ID_BUNDLE_ID = "testlab.localization.stable-id-bundle-admit"
+STABLE_ID_BUNDLE_EFFECTS = ["read", "compute"]
+STABLE_ID_BUNDLE_INTERFACES = ["automation", "cli", "library", "testing"]
+STABLE_ID_BUNDLE_ENTRYPOINTS = {
+    "godot-lab-localization-stable-id-bundle",
+    "python -m godot_game_test_lab.localization_stable_id_bundle_cli",
+    "src/godot_game_test_lab/localization_stable_id_bundle.py",
+    "src/godot_game_test_lab/localization_stable_id_bundle_cli.py",
+    "docs/LOCALIZATION_STABLE_ID_BUNDLE_ADMISSION.md",
+}
+STABLE_ID_BUNDLE_REQUIRES = {
+    "Fingerprint-valid localization-godot-stable-id-application-bundle-v1",
+    "Exact clean target Git head with supported github.com origin",
+    "Exact current, proposed and source-catalog byte identities",
+    "Separate product-owned authority for later application or commit",
 }
 
 
@@ -43,6 +60,7 @@ def load_legacy() -> ModuleType:
 def patch_expected_contract(legacy: ModuleType) -> None:
     effects = dict(legacy.EXPECTED_EFFECTS)
     effects[PLURAL_ID] = PLURAL_EFFECTS
+    effects[STABLE_ID_BUNDLE_ID] = STABLE_ID_BUNDLE_EFFECTS
     legacy.EXPECTED_EFFECTS = effects
     legacy.EXPECTED_IDS = tuple(effects)
 
@@ -50,12 +68,15 @@ def patch_expected_contract(legacy: ModuleType) -> None:
     scripts["godot-lab-localization-plural"] = (
         "godot_game_test_lab.localization_plural_runtime_cli:main"
     )
+    scripts["godot-lab-localization-stable-id-bundle"] = (
+        "godot_game_test_lab.localization_stable_id_bundle_cli:main"
+    )
     legacy.EXPECTED_SCRIPTS = scripts
 
 
 def json_object(legacy: ModuleType, relative: str) -> dict:
     try:
-        value = json.loads(legacy.read(relative, 2_000_000))
+        value = json.loads(legacy.read(relative, 4_000_000))
     except json.JSONDecodeError as error:
         legacy.FAILURES.append(f"invalid JSON {relative}: {error}")
         return {}
@@ -67,32 +88,13 @@ def json_object(legacy: ModuleType, relative: str) -> dict:
 
 def validate_plural_capability(legacy: ModuleType, by_id: dict[str, dict]) -> None:
     capability = by_id.get(PLURAL_ID, {})
-    legacy.check(
-        capability.get("interfaces") == PLURAL_INTERFACES,
-        "plural-localization interfaces drifted",
-    )
-    legacy.check(
-        capability.get("effects") == PLURAL_EFFECTS,
-        "plural-localization effect authority drifted",
-    )
-    legacy.check(
-        set(capability.get("entrypoints", [])) == PLURAL_ENTRYPOINTS,
-        "plural-localization guarded entrypoints drifted",
-    )
-    legacy.check(
-        set(capability.get("requires", [])) == PLURAL_REQUIRES,
-        "plural-localization prerequisites drifted",
-    )
+    legacy.check(capability.get("interfaces") == PLURAL_INTERFACES, "plural-localization interfaces drifted")
+    legacy.check(capability.get("effects") == PLURAL_EFFECTS, "plural-localization effect authority drifted")
+    legacy.check(set(capability.get("entrypoints", [])) == PLURAL_ENTRYPOINTS, "plural-localization guarded entrypoints drifted")
+    legacy.check(set(capability.get("requires", [])) == PLURAL_REQUIRES, "plural-localization prerequisites drifted")
     tags = set(capability.get("tags", []))
-    legacy.check(
-        {"exact-head", "runtime-probe", "admission", "evidence"}.issubset(tags),
-        "plural-localization evidence tags are incomplete",
-    )
-    legacy.check(
-        "network" not in capability.get("effects", [])
-        and "publish" not in capability.get("effects", []),
-        "plural-localization capability exceeds Test Lab authority",
-    )
+    legacy.check({"exact-head", "runtime-probe", "admission", "evidence"}.issubset(tags), "plural-localization evidence tags are incomplete")
+    legacy.check("network" not in capability.get("effects", []) and "publish" not in capability.get("effects", []), "plural-localization capability exceeds Test Lab authority")
 
     markers = {
         "src/godot_game_test_lab/localization_plural.py": (
@@ -132,16 +134,9 @@ def validate_plural_capability(legacy: ModuleType, by_id: dict[str, dict]) -> No
     for relative, required in markers.items():
         legacy.includes_all(legacy.read(relative), required, relative)
 
-    request = json_object(
-        legacy,
-        "schemas/localization-godot-plural-testlab-request.v1.schema.json",
-    )
+    request = json_object(legacy, "schemas/localization-godot-plural-testlab-request.v1.schema.json")
     request_properties = request.get("properties", {})
-    legacy.check(
-        request_properties.get("version", {}).get("const")
-        == "localization-godot-plural-testlab-request-v1",
-        "plural-localization request schema version drifted",
-    )
+    legacy.check(request_properties.get("version", {}).get("const") == "localization-godot-plural-testlab-request-v1", "plural-localization request schema version drifted")
     request_authority = request_properties.get("authority", {}).get("properties", {})
     for field in (
         "requestExecutesGodot",
@@ -150,35 +145,83 @@ def validate_plural_capability(legacy: ModuleType, by_id: dict[str, dict]) -> No
         "nativeGodotImportVerified",
         "runtimePluralLookupVerified",
     ):
-        legacy.check(
-            request_authority.get(field, {}).get("const") is False,
-            f"plural-localization request authority drifted: {field}",
-        )
-    legacy.check(
-        request_authority.get("testLabExecutionRequired", {}).get("const") is True,
-        "plural-localization request no longer requires Test Lab execution",
-    )
+        legacy.check(request_authority.get(field, {}).get("const") is False, f"plural-localization request authority drifted: {field}")
+    legacy.check(request_authority.get("testLabExecutionRequired", {}).get("const") is True, "plural-localization request no longer requires Test Lab execution")
 
-    report = json_object(
-        legacy,
-        "schemas/evavo-godot-plural-localization-test-lab-report.v1.schema.json",
-    )
+    report = json_object(legacy, "schemas/evavo-godot-plural-localization-test-lab-report.v1.schema.json")
     report_properties = report.get("properties", {})
-    legacy.check(
-        report_properties.get("version", {}).get("const")
-        == "evavo_godot_plural_localization_test_lab_report_v1",
-        "plural-localization report schema version drifted",
-    )
+    legacy.check(report_properties.get("version", {}).get("const") == "evavo_godot_plural_localization_test_lab_report_v1", "plural-localization report schema version drifted")
+    report_authority = report_properties.get("authority", {}).get("properties", {})
+    for field in ("targetRepositoryMutationAuthority", "repairAuthority", "publicationAuthority"):
+        legacy.check(report_authority.get(field, {}).get("const") is False, f"plural-localization report authority drifted: {field}")
+
+
+def validate_stable_id_bundle_capability(legacy: ModuleType, by_id: dict[str, dict]) -> None:
+    capability = by_id.get(STABLE_ID_BUNDLE_ID, {})
+    legacy.check(capability.get("interfaces") == STABLE_ID_BUNDLE_INTERFACES, "stable-ID bundle interfaces drifted")
+    legacy.check(capability.get("effects") == STABLE_ID_BUNDLE_EFFECTS, "stable-ID bundle effect authority drifted")
+    legacy.check(set(capability.get("entrypoints", [])) == STABLE_ID_BUNDLE_ENTRYPOINTS, "stable-ID bundle entrypoints drifted")
+    legacy.check(set(capability.get("requires", [])) == STABLE_ID_BUNDLE_REQUIRES, "stable-ID bundle prerequisites drifted")
+    tags = set(capability.get("tags", []))
+    legacy.check({"exact-head", "exact-bytes", "admission", "read-only"}.issubset(tags), "stable-ID bundle evidence tags are incomplete")
+    legacy.check(capability.get("effects") == ["read", "compute"] and "write" not in capability.get("effects", []) and "execute" not in capability.get("effects", []) and "network" not in capability.get("effects", []) and "publish" not in capability.get("effects", []), "stable-ID bundle capability exceeds read-only admission authority")
+
+    markers = {
+        "src/godot_game_test_lab/localization_stable_id_bundle.py": (
+            '_BUNDLE_VERSION = "localization-godot-stable-id-application-bundle-v1"',
+            "admit_stable_id_application_bundle",
+            "Stable-ID bundle admission changed the target Git state.",
+            '"targetRepositoryMutationAuthority"',
+            '"publicationAuthority"',
+            "shell=False",
+        ),
+        "src/godot_game_test_lab/localization_stable_id_bundle_cli.py": (
+            "load_strict_json_object",
+            "admit_stable_id_application_bundle",
+            '"targetRepositoryMutationAuthority": False',
+            '"publicationAuthority": False',
+        ),
+        "docs/LOCALIZATION_STABLE_ID_BUNDLE_ADMISSION.md": (
+            "godot-lab-localization-stable-id-bundle",
+            "does not execute Godot",
+            "targetRepositoryMutationAuthority",
+            "publicationAuthority",
+            "cannot infer or manufacture that decision",
+        ),
+    }
+    for relative, required in markers.items():
+        legacy.includes_all(legacy.read(relative, 4_000_000), required, relative)
+
+    bundle = json_object(legacy, "schemas/localization-godot-stable-id-application-bundle.v1.schema.json")
+    bundle_properties = bundle.get("properties", {})
+    legacy.check(bundle_properties.get("version", {}).get("const") == "localization-godot-stable-id-application-bundle-v1", "stable-ID bundle schema version drifted")
+    bundle_authority = bundle_properties.get("authority", {}).get("properties", {})
+    for field in (
+        "appliesChanges",
+        "createsFiles",
+        "sourceMutationAuthority",
+        "runtimeRegistrationAuthority",
+        "commitAuthority",
+        "pushAuthority",
+        "releaseAuthority",
+        "publicationAuthority",
+    ):
+        legacy.check(bundle_authority.get(field, {}).get("const") is False, f"stable-ID bundle authority drifted: {field}")
+
+    report = json_object(legacy, "schemas/evavo-godot-stable-id-bundle-admission-report.v1.schema.json")
+    report_properties = report.get("properties", {})
+    legacy.check(report_properties.get("version", {}).get("const") == "evavo_godot_stable_id_bundle_admission_report_v1", "stable-ID bundle report schema version drifted")
     report_authority = report_properties.get("authority", {}).get("properties", {})
     for field in (
         "targetRepositoryMutationAuthority",
-        "repairAuthority",
+        "sourceMutationAuthority",
+        "runtimeRegistrationAuthority",
+        "commitAuthority",
+        "pushAuthority",
+        "releaseAuthority",
         "publicationAuthority",
     ):
-        legacy.check(
-            report_authority.get(field, {}).get("const") is False,
-            f"plural-localization report authority drifted: {field}",
-        )
+        legacy.check(report_authority.get(field, {}).get("const") is False, f"stable-ID bundle report authority drifted: {field}")
 
 
 def main() -> int:
@@ -190,6 +233,7 @@ def main() -> int:
         if manifest and by_id:
             legacy.validate_live_sources(manifest, by_id)
             validate_plural_capability(legacy, by_id)
+            validate_stable_id_bundle_capability(legacy, by_id)
     except (OSError, RuntimeError) as error:
         print(f"FAIL capability checker could not run: {error}", file=sys.stderr)
         return 1
@@ -197,14 +241,11 @@ def main() -> int:
     if legacy.FAILURES:
         for failure in legacy.FAILURES:
             print(f"FAIL {failure}", file=sys.stderr)
-        print(
-            f"{len(legacy.FAILURES)} Godot Test Lab capability checks failed.",
-            file=sys.stderr,
-        )
+        print(f"{len(legacy.FAILURES)} Godot Test Lab capability checks failed.", file=sys.stderr)
         return 1
 
     print(
-        "PASS 13 Godot Test Lab capabilities match live guarded source while "
+        "PASS 14 Godot Test Lab capabilities match live guarded source while "
         "retaining no target publication or financial authority."
     )
     return 0
