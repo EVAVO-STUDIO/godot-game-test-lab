@@ -162,7 +162,7 @@ def verify_multiplayer_summary_sources(
     )
     duration = summary.get("durationSeconds")
     if (
-        not isinstance(duration, (int, float))
+        not isinstance(duration, int | float)
         or isinstance(duration, bool)
         or duration <= 0
         or duration > 14_400
