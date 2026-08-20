@@ -10,6 +10,8 @@ on:
       - schemas/evavo.repository-capabilities.schema.json
       - schemas/localization-godot-plural-testlab-request.v1.schema.json
       - schemas/evavo-godot-plural-localization-test-lab-report.v1.schema.json
+      - schemas/localization-godot-stable-id-application-bundle.v1.schema.json
+      - schemas/evavo-godot-stable-id-bundle-admission-report.v1.schema.json
       - scripts/check_evavo_capability_manifest.py
       - scripts/check_evavo_capability_manifest_legacy.py
       - scripts/Invoke-GodotPluralLocalizationValidation.ps1
@@ -17,10 +19,14 @@ on:
       - src/godot_game_test_lab/localization_plural_safe.py
       - src/godot_game_test_lab/localization_plural_runtime.py
       - src/godot_game_test_lab/localization_plural_runtime_cli.py
+      - src/godot_game_test_lab/localization_stable_id_bundle.py
+      - src/godot_game_test_lab/localization_stable_id_bundle_cli.py
       - docs/CAPABILITY_MANIFEST.md
       - docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md
+      - docs/LOCALIZATION_STABLE_ID_BUNDLE_ADMISSION.md
       - tests/test_capability_manifest_contract.py
       - tests/test_localization_plural*.py
+      - tests/test_localization_stable_id_bundle*.py
       - tests/test_workflow_inventory.py
       - .github/workflows/capability-manifest.yml
   pull_request:
@@ -30,6 +36,8 @@ on:
       - schemas/evavo.repository-capabilities.schema.json
       - schemas/localization-godot-plural-testlab-request.v1.schema.json
       - schemas/evavo-godot-plural-localization-test-lab-report.v1.schema.json
+      - schemas/localization-godot-stable-id-application-bundle.v1.schema.json
+      - schemas/evavo-godot-stable-id-bundle-admission-report.v1.schema.json
       - scripts/check_evavo_capability_manifest.py
       - scripts/check_evavo_capability_manifest_legacy.py
       - scripts/Invoke-GodotPluralLocalizationValidation.ps1
@@ -37,10 +45,14 @@ on:
       - src/godot_game_test_lab/localization_plural_safe.py
       - src/godot_game_test_lab/localization_plural_runtime.py
       - src/godot_game_test_lab/localization_plural_runtime_cli.py
+      - src/godot_game_test_lab/localization_stable_id_bundle.py
+      - src/godot_game_test_lab/localization_stable_id_bundle_cli.py
       - docs/CAPABILITY_MANIFEST.md
       - docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md
+      - docs/LOCALIZATION_STABLE_ID_BUNDLE_ADMISSION.md
       - tests/test_capability_manifest_contract.py
       - tests/test_localization_plural*.py
+      - tests/test_localization_stable_id_bundle*.py
       - tests/test_workflow_inventory.py
       - .github/workflows/capability-manifest.yml
   workflow_dispatch:
@@ -91,7 +103,7 @@ jobs:
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
         run: python -m pip install --disable-pip-version-check ".[dev]"
 
-      - name: Run capability and plural-localization regressions
+      - name: Run capability and localization regressions
         run: |
           python -m pytest -q \
             tests/test_capability_manifest_contract.py \
@@ -101,6 +113,8 @@ jobs:
             tests/test_localization_plural_guarded.py \
             tests/test_localization_plural_runtime_facade.py \
             tests/test_localization_plural_windows_wrapper.py \
+            tests/test_localization_stable_id_bundle.py \
+            tests/test_localization_stable_id_bundle_contract_surface.py \
             tests/test_workflow_inventory.py
 
       - name: Verify source remained clean
