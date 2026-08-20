@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from .core import find_project_root
-from .engine_manager import ensure_project_engine
+from .engine_manager import EngineProvisionError, ensure_project_engine
 from .localization_plural import (
     load_plural_testlab_request,
     run_plural_localization_validation,
@@ -98,7 +98,12 @@ def main(argv: list[str] | None = None) -> int:
             destination.write_text(text, encoding="utf-8")
         print(text, end="")
         return 0 if report.status == "passed" else 2
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (
+        EngineProvisionError,
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as error:
         payload = {
             "version": "evavo_godot_plural_localization_test_lab_error_v1",
             "status": "blocked",
