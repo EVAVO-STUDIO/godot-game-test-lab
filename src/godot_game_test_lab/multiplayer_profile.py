@@ -89,7 +89,7 @@ def normalize_multiplayer_profile(profile: dict[str, Any]) -> dict[str, Any]:
         "roles": normalized_roles,
         "truthBoundary": (
             "Role and persona labels describe test intent. A passing session proves only "
-            "the exact concurrent runtime journeys and retained evidence; it does not prove "
-            "human judgement, game feel or complete multiplayer correctness."
+            "the exact concurrent runtime journeys and retained evidence; "
+            "it does not prove human judgement, game feel or complete multiplayer correctness."
         ),
     }
