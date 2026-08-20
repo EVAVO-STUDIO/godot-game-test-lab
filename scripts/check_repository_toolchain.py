@@ -95,6 +95,7 @@ def _preflight_errors() -> list[str]:
 
 
 def _run_checker(path: Path, label: str) -> int:
+    print(f"[godot-lab] validating {label}", flush=True)
     namespace = runpy.run_path(str(path), run_name=f"godot_{label.replace('-', '_')}")
     checker_main = namespace.get("main")
     if not callable(checker_main):
@@ -102,6 +103,10 @@ def _run_checker(path: Path, label: str) -> int:
     result = checker_main()
     if not isinstance(result, int):
         raise RuntimeError(f"{label} main must return an integer exit code")
+    if result == 0:
+        print(f"[godot-lab] {label} passed", flush=True)
+    else:
+        print(f"[godot-lab] {label} failed with exit code {result}", file=sys.stderr, flush=True)
     return result
 
 
