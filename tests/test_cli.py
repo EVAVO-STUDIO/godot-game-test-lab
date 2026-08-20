@@ -75,7 +75,7 @@ def test_capabilities_command_is_machine_readable(capsys) -> None:
 
     assert exit_code == 0
     assert payload["schemaVersion"] == "1.2"
-    assert payload["toolVersion"] == "0.7.0"
+    assert payload["toolVersion"] == "0.9.0"
     assert "audit" in payload["commands"]
     assert payload["automationEntrypoints"] == {
         "profileBootstrap": "godot-lab-init-qa",
