@@ -23,6 +23,30 @@
         "EVAVO_COMPUTE_ALLOWED_ROOTS": "C:\\GitRepos;%LOCALAPPDATA%\\EVAVO;%USERPROFILE%\\Downloads;C:\\GodotLabEvidence"
       }
     },
+    "evavo-android-device": {
+      "command": "node",
+      "args": ["../evavo-agent-infrastructure/mcp-server/android-device-mcp.mjs"],
+      "env": {
+        "EVAVO_LOCAL_AGENT_MCP_ROLE": "android-device-specialist",
+        "EVAVO_LOCAL_AGENT_MCP_CANONICAL_EXECUTOR": "evavo-agent-mcp"
+      }
+    },
+    "evavo-android-app": {
+      "command": "node",
+      "args": ["../evavo-agent-infrastructure/mcp-server/android-app-mcp.mjs"],
+      "env": {
+        "EVAVO_LOCAL_AGENT_MCP_ROLE": "android-app-runtime",
+        "EVAVO_LOCAL_AGENT_MCP_CANONICAL_EXECUTOR": "evavo-agent-mcp"
+      }
+    },
+    "evavo-godot-android-physical": {
+      "command": "node",
+      "args": ["../evavo-agent-infrastructure/mcp-server/godot-android-physical-mcp.mjs"],
+      "env": {
+        "EVAVO_LOCAL_AGENT_MCP_ROLE": "godot-android-physical-qa",
+        "EVAVO_LOCAL_AGENT_MCP_CANONICAL_EXECUTOR": "evavo-agent-mcp"
+      }
+    },
     "evavo-local-ai": {
       "command": "../evavo-local-compute/.venv/Scripts/evavo-local-ai-mcp.exe",
       "args": [],
