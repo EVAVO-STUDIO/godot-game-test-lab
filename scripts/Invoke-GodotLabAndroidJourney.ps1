@@ -140,21 +140,21 @@ try {
     }
     if ($Godot) { $deployParams.Godot = $Godot }
     if ($AllowDowngrade) { $deployParams.AllowDowngrade = $true }
-    & $deviceScript @deployParams
+    & $deviceScript @deployParams | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Godot Android deployment failed with exit code $LASTEXITCODE." }
 
-    & node $bridgeCli forward --target $Target --local-port ([string]$HostPort) --remote-port ([string]$DevicePort) --confirm CREATE_ANDROID_PORT_MAPPING --json
+    & node $bridgeCli forward --target $Target --local-port ([string]$HostPort) --remote-port ([string]$DevicePort) --confirm CREATE_ANDROID_PORT_MAPPING --json | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "ADB forward creation failed with exit code $LASTEXITCODE." }
     $mappingCreated = $true
 
-    & $Python -m godot_game_test_lab.android_semantic_driver_cli --port ([string]$HostPort) --journey (Resolve-Path -LiteralPath $Journey).Path --output $journeyOutput
+    & $Python -m godot_game_test_lab.android_semantic_driver_cli --port ([string]$HostPort) --journey (Resolve-Path -LiteralPath $Journey).Path --output $journeyOutput | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Android semantic journey failed with exit code $LASTEXITCODE." }
     try { $journeyReceipt = Get-Content -LiteralPath $journeyOutput -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop } catch { throw 'Android semantic journey output was missing or invalid.' }
     if ($journeyReceipt.ok -ne $true -or $journeyReceipt.truth.semanticInput -ne $true -or $journeyReceipt.truth.rawCoordinatesUsed -ne $false -or $journeyReceipt.truth.androidShellExposed -ne $false) {
         throw 'Android semantic journey returned an invalid truth receipt.'
     }
 
-    & node $bridgeCli evidence --target $Target --package $Package --output-dir $postEvidence --lines ([string]$LogLines) --json
+    & node $bridgeCli evidence --target $Target --package $Package --output-dir $postEvidence --lines ([string]$LogLines) --json | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Post-journey Android evidence capture failed with exit code $LASTEXITCODE." }
     $postEvidenceCaptured = $true
 }
@@ -163,7 +163,7 @@ catch {
 }
 finally {
     if ($mappingCreated) {
-        & node $bridgeCli forward-remove --target $Target --local-port ([string]$HostPort) --json
+        & node $bridgeCli forward-remove --target $Target --local-port ([string]$HostPort) --json | Out-Null
         if ($LASTEXITCODE -eq 0) {
             $mappingRemoved = $true
         } else {
@@ -178,7 +178,7 @@ finally {
 $journeySucceeded = -not $failure
 $assertionCount = if ($journeyReceipt) { [int]$journeyReceipt.assertionCount } else { 0 }
 $finalState = if ($journeyReceipt) { $journeyReceipt.finalState } else { $null }
-[ordered]@{
+$summary = [ordered]@{
     schema = 'evavo_godot_lab_android_journey_summary_v1'
     ok = $journeySucceeded
     targetRef = $Target
@@ -213,7 +213,10 @@ $finalState = if ($journeyReceipt) { $journeyReceipt.finalState } else { $null }
     arbitraryNodeInspectionExposed = $false
     failure = if ($failure) { $failure.Exception.Message } else { $null }
     completedAt = (Get-Date).ToUniversalTime().ToString('o')
-} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $summaryOutput -Encoding UTF8
+}
+$encodedSummary = $summary | ConvertTo-Json -Depth 12
+$encodedSummary | Set-Content -LiteralPath $summaryOutput -Encoding UTF8
+Write-Output $encodedSummary
 
 if ($failure) {
     throw $failure
