@@ -211,7 +211,7 @@ func _current_scene_path() -> String:
 func _valid_action_name(value: String) -> bool:
     if value.is_empty() or value.length() > 64:
         return false
-    for index in value.length():
+    for index in range(value.length()):
         var code := value.unicode_at(index)
         var valid := (
             (code >= 48 and code <= 57)
