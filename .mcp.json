@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "evavo-local-agent-executor": {
+      "command": "node",
+      "args": ["../evavo-github-mcp/control-plane/local-agent-executor-mcp.mjs"],
+      "env": {"EVAVO_LOCAL_AGENT_MCP_ROLE": "godot-game-test-lab"}
+    },
+    "evavo-local-execution": {
+      "command": "../evavo-local-compute/.venv/Scripts/python.exe",
+      "args": ["../evavo-local-compute/scripts/local-execution-mcp.py"],
+      "env": {
+        "EVAVO_LOCAL_EXECUTION_PREPARE_ENABLED": "enabled",
+        "EVAVO_LOCAL_EXECUTION_MCP_ENABLED": "enabled",
+        "EVAVO_LOCAL_EXECUTION_ENABLED": "enabled",
+        "EVAVO_LOCAL_NETWORK_ENABLED": "enabled",
+        "EVAVO_LOCAL_SCRIPT_EXECUTION_ENABLED": "enabled",
+        "EVAVO_LOCAL_REPOSITORY_CODE_ENABLED": "enabled",
+        "EVAVO_LOCAL_FILESYSTEM_WRITE_ENABLED": "enabled",
+        "EVAVO_LOCAL_GIT_MUTATION_ENABLED": "disabled",
+        "EVAVO_LOCAL_CONTAINER_ENABLED": "enabled",
+        "EVAVO_LOCAL_ARCHIVE_ENABLED": "enabled",
+        "EVAVO_LOCAL_EXECUTION_ALLOWED_ROOTS": "C:\\GitRepos;%LOCALAPPDATA%\\EVAVO;%USERPROFILE%\\Downloads;C:\\GodotLabEvidence",
+        "EVAVO_COMPUTE_ALLOWED_ROOTS": "C:\\GitRepos;%LOCALAPPDATA%\\EVAVO;%USERPROFILE%\\Downloads;C:\\GodotLabEvidence"
+      }
+    },
+    "evavo-local-ai": {
+      "command": "../evavo-local-compute/.venv/Scripts/evavo-local-ai-mcp.exe",
+      "args": [],
+      "env": {"EVAVO_GIT_WORKSPACE": "C:\\GitRepos"}
+    },
+    "evavo-local-capability-fabric": {
+      "command": "node",
+      "args": ["../evavo-development-studio/scripts/local-capability-fabric-mcp.mjs"],
+      "env": {"EVAVO_CAPABILITY_REPOSITORY": "EVAVO-STUDIO/godot-game-test-lab"}
+    }
+  }
+}
