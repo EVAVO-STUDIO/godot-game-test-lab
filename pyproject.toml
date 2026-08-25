@@ -36,6 +36,7 @@ godot-lab-rally-falcon-preview = "godot_game_test_lab.rally_falcon_preview:main"
 godot-lab-localization-plural = "godot_game_test_lab.localization_plural_runtime_cli:main"
 godot-lab-localization-stable-id-bundle = "godot_game_test_lab.localization_stable_id_bundle_cli:main"
 godot-lab-sprite-animation = "godot_game_test_lab.sprite_animation_runtime_cli:main"
+godot-lab-sprite-animation-probe = "godot_game_test_lab.sprite_animation_probe_runner:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
