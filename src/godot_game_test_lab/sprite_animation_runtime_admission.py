@@ -70,37 +70,46 @@ def _positive_int_list(value: Any, label: str) -> list[int]:
     return [_positive_int(item, f"{label}[{index}]") for index, item in enumerate(value)]
 
 
-def _pivot(value: Any, label: str) -> tuple[float, float]:
+def _pivot(value: Any, label: str) -> dict[str, float]:
     item = _object(value, label)
-    x = item.get("x")
-    y = item.get("y")
-    for axis, coordinate in (("x", x), ("y", y)):
+    result: dict[str, float] = {}
+    for axis in ("x", "y"):
+        coordinate = item.get(axis)
         if isinstance(coordinate, bool) or not isinstance(coordinate, (int, float)):
             raise ValueError(f"{label}.{axis} must be finite")
         number = float(coordinate)
         if number != number or number in {float("inf"), float("-inf")}:
             raise ValueError(f"{label}.{axis} must be finite")
-    return float(x), float(y)
+        result[axis] = number
+    return result
 
 
 def _runtime_frames(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
-        raise ValueError("evidence.frames must be a non-empty array")
+        raise ValueError("frames must be a non-empty array")
     result: list[dict[str, Any]] = []
     for index, raw in enumerate(value):
-        frame = _object(raw, f"evidence.frames[{index}]")
+        frame = _object(raw, f"frames[{index}]")
         result.append(
             {
-                "frameId": _text(frame.get("frameId"), f"evidence.frames[{index}].frameId", 256),
+                "frameId": _text(frame.get("frameId"), f"frames[{index}].frameId", 256),
                 "observedDurationMs": _positive_number(
                     frame.get("observedDurationMs"),
-                    f"evidence.frames[{index}].observedDurationMs",
+                    f"frames[{index}].observedDurationMs",
                 ),
-                "pivot": _pivot(frame.get("pivot"), f"evidence.frames[{index}].pivot"),
+                "pivot": _pivot(frame.get("pivot"), f"frames[{index}].pivot"),
                 "rendered": frame.get("rendered") is True,
             }
         )
     return result
+
+
+def _error_list(value: Any, label: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{label} must be an array")
+    return [_text(item, f"{label}[{index}]", 4096) for index, item in enumerate(value)]
 
 
 def _verify_self_hash(value: dict[str, Any], key: str, label: str) -> str:
@@ -113,6 +122,47 @@ def _verify_self_hash(value: dict[str, Any], key: str, label: str) -> str:
     if value.get("runId") != stored[:20]:
         raise ValueError(f"{label}.runId does not match {key}")
     return stored
+
+
+def compile_sprite_animation_runtime_evidence(
+    raw: dict[str, Any],
+    expectation_sha256: str,
+) -> dict[str, Any]:
+    """Normalize target-owned raw telemetry into a self-hashed evidence document."""
+    source = _object(raw, "raw")
+    expectation_sha = _hash(expectation_sha256, "expectationSha256")
+    status = _text(source.get("status"), "raw.status", 32)
+    if status not in {"passed", "failed"}:
+        raise ValueError("raw.status must be passed or failed")
+    loop_mode = _text(source.get("loopMode"), "raw.loopMode", 32)
+    if loop_mode not in _LOOP_MODES:
+        raise ValueError("raw.loopMode is unsupported")
+    body = {
+        "schema": EVIDENCE_SCHEMA,
+        "expectationSha256": expectation_sha,
+        "status": status,
+        "clipId": _text(source.get("clipId"), "raw.clipId", 256),
+        "godotVersion": _text(source.get("godotVersion"), "raw.godotVersion", 256),
+        "renderer": _text(source.get("renderer"), "raw.renderer", 256),
+        "spriteFramesLoaded": source.get("spriteFramesLoaded") is True,
+        "animationStarted": source.get("animationStarted") is True,
+        "loopMode": loop_mode,
+        "completeCyclesObserved": _positive_int(
+            source.get("completeCyclesObserved"),
+            "raw.completeCyclesObserved",
+            allow_zero=True,
+        ),
+        "frames": _runtime_frames(source.get("frames")),
+        "importErrors": _error_list(source.get("importErrors"), "raw.importErrors"),
+        "consoleErrors": _error_list(source.get("consoleErrors"), "raw.consoleErrors"),
+        "authority": AUTHORITY,
+    }
+    evidence_sha = hash_object(body)
+    return {
+        **body,
+        "evidenceSha256": evidence_sha,
+        "runId": evidence_sha[:20],
+    }
 
 
 def admit_sprite_animation_runtime(
@@ -128,6 +178,8 @@ def admit_sprite_animation_runtime(
         raise ValueError(f"evidence.schema must be {EVIDENCE_SCHEMA}")
     expectation_sha = _verify_self_hash(expected, "expectationSha256", "expectation")
     evidence_sha = _verify_self_hash(observed, "evidenceSha256", "evidence")
+    if observed.get("expectationSha256") != expectation_sha:
+        raise ValueError("runtime evidence is bound to a different expectation")
     _all_false(expected.get("authority"), "expectation.authority")
     _all_false(observed.get("authority"), "evidence.authority")
 
@@ -164,9 +216,9 @@ def admit_sprite_animation_runtime(
         raise ValueError("runtime evidence did not load SpriteFrames")
     if observed.get("animationStarted") is not True:
         raise ValueError("runtime evidence did not start the animation")
-    if observed.get("importErrors") not in ([], None):
+    if observed.get("importErrors") != []:
         raise ValueError("runtime evidence contains import errors")
-    if observed.get("consoleErrors") not in ([], None):
+    if observed.get("consoleErrors") != []:
         raise ValueError("runtime evidence contains console errors")
     if observed.get("loopMode") != loop_mode:
         raise ValueError("runtime loop mode differs from expectation")
@@ -197,8 +249,8 @@ def admit_sprite_animation_runtime(
     anchor = frames[0]["pivot"]
     pivot_failures = []
     for frame in frames[1:]:
-        dx = abs(frame["pivot"][0] - anchor[0])
-        dy = abs(frame["pivot"][1] - anchor[1])
+        dx = abs(frame["pivot"]["x"] - anchor["x"])
+        dy = abs(frame["pivot"]["y"] - anchor["y"])
         if dx > pivot_tolerance or dy > pivot_tolerance:
             pivot_failures.append({"frameId": frame["frameId"], "dx": dx, "dy": dy})
     if pivot_failures:
