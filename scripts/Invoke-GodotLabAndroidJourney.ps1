@@ -82,7 +82,7 @@ if ($DryRun) {
         bridgeEvidencePre = $preEvidence
         bridgeEvidencePost = $postEvidence
         labEvidenceDirectory = [System.IO.Path]::GetFullPath($EvidenceDir)
-        cleanupGuaranteed = $true
+        cleanupAttemptedOnFailure = $true
     } | ConvertTo-Json -Depth 6
     exit 0
 }
@@ -91,7 +91,9 @@ New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 $journeyOutput = Join-Path $EvidenceDir 'android-semantic-journey.json'
 $summaryOutput = Join-Path $EvidenceDir 'android-journey-summary.json'
 $mappingCreated = $false
+$mappingRemoved = $false
 $failure = $null
+$cleanupFailure = $null
 
 try {
     $deployParams = @{
@@ -126,8 +128,13 @@ catch {
 finally {
     if ($mappingCreated) {
         & node $bridgeCli forward-remove --target $Target --local-port ([string]$HostPort) --json
-        if ($LASTEXITCODE -ne 0 -and -not $failure) {
-            $failure = [System.Exception]::new("ADB forward cleanup failed with exit code $LASTEXITCODE.")
+        if ($LASTEXITCODE -eq 0) {
+            $mappingRemoved = $true
+        } else {
+            $cleanupFailure = "ADB forward cleanup failed with exit code $LASTEXITCODE."
+            if (-not $failure) {
+                $failure = [System.Exception]::new($cleanupFailure)
+            }
         }
     }
 }
@@ -143,10 +150,12 @@ $journeySucceeded = -not $failure
     journey = [System.IO.Path]::GetFullPath($Journey)
     journeyResult = if (Test-Path -LiteralPath $journeyOutput) { [System.IO.Path]::GetFullPath($journeyOutput) } else { $null }
     bridgeEvidencePre = $preEvidence
-    bridgeEvidencePost = if ($journeySucceeded) { $postEvidence } else { $null }
+    bridgeEvidencePost = if (Test-Path -LiteralPath $journeyOutput) { $postEvidence } else { $null }
     hostPort = $HostPort
     devicePort = $DevicePort
-    portMappingRemoved = $mappingCreated
+    portMappingCreated = $mappingCreated
+    portMappingRemoved = $mappingRemoved
+    cleanupFailure = $cleanupFailure
     physicalDeviceExecutionClaimed = $journeySucceeded
     semanticGameplayClaimed = $journeySucceeded
     releaseBuildClaimed = $false
