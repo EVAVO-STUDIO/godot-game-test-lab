@@ -57,6 +57,12 @@ if (-not $Python) {
     throw 'Python is unavailable. Install the Godot Lab environment or supply -Python.'
 }
 
+$resolvedProject = (Resolve-Path -LiteralPath $Project).Path
+& $Python -m godot_game_test_lab.android_export_admission --project $resolvedProject --preset $Preset
+if ($LASTEXITCODE -ne 0) {
+    throw 'Godot Android semantic export admission failed. The selected Android preset must enable INTERNET permission.'
+}
+
 $projectName = Split-Path -Leaf ([System.IO.Path]::GetFullPath($Project).TrimEnd('\','/'))
 $runId = Get-Date -Format 'yyyyMMdd-HHmmss'
 if (-not $EvidenceDir) {
@@ -79,6 +85,7 @@ if ($DryRun) {
         hostPort = $HostPort
         devicePort = $DevicePort
         debugExportRequired = $true
+        internetPermissionVerified = $true
         bridgeEvidencePre = $preEvidence
         bridgeEvidencePost = $postEvidence
         labEvidenceDirectory = [System.IO.Path]::GetFullPath($EvidenceDir)
@@ -154,6 +161,7 @@ $journeySucceeded = -not $failure
     bridgeEvidencePre = $preEvidence
     bridgeEvidencePost = if ($postEvidenceCaptured) { $postEvidence } else { $null }
     postEvidenceCaptured = $postEvidenceCaptured
+    internetPermissionVerified = $true
     hostPort = $HostPort
     devicePort = $DevicePort
     portMappingCreated = $mappingCreated
