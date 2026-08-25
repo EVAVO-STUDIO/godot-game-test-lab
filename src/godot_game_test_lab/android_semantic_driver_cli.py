@@ -2,18 +2,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .android_semantic_driver import AndroidSemanticDriverClient
 
 SCHEMA = "evavo.godot.android-semantic-journey.v1"
+CHECKPOINT_RESUME_SCHEMA = "evavo.godot.android-visual-checkpoint-resume.v1"
 MAX_STEPS = 256
 MAX_WAIT_MS = 10_000
 MAX_TOTAL_WAIT_MS = 120_000
 MAX_EXPECTED_STATE_KEYS = 32
 MAX_STATE_STRING_LENGTH = 128
+MAX_CHECKPOINTS = 32
+MAX_CHECKPOINT_WAIT_SECONDS = 45.0
+_CHECKPOINT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+CheckpointHandler = Callable[[int, str, dict[str, Any]], dict[str, Any]]
 
 
 def _valid_expected_value(value: Any) -> bool:
@@ -35,6 +41,12 @@ def _validate_expected_state(value: Any, index: int) -> dict[str, Any]:
     return normalized
 
 
+def _validate_checkpoint_name(value: Any, index: int) -> str:
+    if not isinstance(value, str) or _CHECKPOINT_RE.fullmatch(value) is None:
+        raise ValueError(f"step {index} checkpoint name must match [A-Za-z0-9][A-Za-z0-9_.-]{{0,63}}")
+    return value
+
+
 def _load_journey(path: Path) -> list[dict[str, Any]]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or value.get("schema") != SCHEMA:
@@ -44,11 +56,12 @@ def _load_journey(path: Path) -> list[dict[str, Any]]:
         raise ValueError(f"journey steps must contain 1..{MAX_STEPS} entries")
     normalized: list[dict[str, Any]] = []
     total_wait = 0
+    checkpoint_count = 0
     for index, step in enumerate(steps):
         if not isinstance(step, dict):
             raise ValueError(f"step {index} must be an object")
         kind = step.get("type")
-        if kind not in {"press", "release", "pulse", "wait", "state", "assert-state"}:
+        if kind not in {"press", "release", "pulse", "wait", "state", "assert-state", "checkpoint"}:
             raise ValueError(f"step {index} has unsupported type")
         current = dict(step)
         if kind == "wait":
@@ -62,6 +75,11 @@ def _load_journey(path: Path) -> list[dict[str, Any]]:
                 raise ValueError("journey cumulative wait exceeds 120 seconds")
         if kind == "assert-state":
             current["expected"] = _validate_expected_state(step.get("expected"), index)
+        if kind == "checkpoint":
+            checkpoint_count += 1
+            if checkpoint_count > MAX_CHECKPOINTS:
+                raise ValueError(f"journey contains more than {MAX_CHECKPOINTS} visual checkpoints")
+            current["name"] = _validate_checkpoint_name(step.get("name"), index)
         normalized.append(current)
     return normalized
 
@@ -83,10 +101,58 @@ def _assert_project_state(response: dict[str, Any], expected: dict[str, Any], in
     return {"matched": True, "expected": expected, "observed": {key: observed[key] for key in expected}}
 
 
-def run_journey(port: int, steps: list[dict[str, Any]]) -> dict[str, Any]:
+def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def _filesystem_checkpoint_handler(directory: Path) -> CheckpointHandler:
+    root = directory.expanduser().absolute()
+    root.mkdir(parents=True, exist_ok=True)
+
+    def handler(index: int, name: str, state: dict[str, Any]) -> dict[str, Any]:
+        stem = f"{index:03d}-{name}"
+        request_path = root / f"{stem}.request.json"
+        resume_path = root / f"{stem}.resume.json"
+        if request_path.exists() or resume_path.exists():
+            raise RuntimeError(f"checkpoint rendezvous already exists for {name}")
+        _write_json_atomic(
+            request_path,
+            {
+                "schema": "evavo.godot.android-visual-checkpoint-request.v1",
+                "index": index,
+                "name": name,
+                "state": state,
+            },
+        )
+        deadline = time.monotonic() + MAX_CHECKPOINT_WAIT_SECONDS
+        while time.monotonic() < deadline:
+            if resume_path.is_file():
+                value = json.loads(resume_path.read_text(encoding="utf-8"))
+                if not isinstance(value, dict) or value.get("schema") != CHECKPOINT_RESUME_SCHEMA or value.get("ok") is not True:
+                    raise RuntimeError(f"checkpoint host rejected visual evidence for {name}")
+                evidence_ref = value.get("evidenceRef")
+                if not isinstance(evidence_ref, str) or not 1 <= len(evidence_ref) <= 256:
+                    raise RuntimeError(f"checkpoint host returned invalid evidence reference for {name}")
+                return {"captured": True, "evidenceRef": evidence_ref}
+            time.sleep(0.05)
+        raise TimeoutError(f"checkpoint host did not resume {name} within {int(MAX_CHECKPOINT_WAIT_SECONDS)} seconds")
+
+    return handler
+
+
+def run_journey(
+    port: int,
+    steps: list[dict[str, Any]],
+    *,
+    checkpoint_handler: CheckpointHandler | None = None,
+) -> dict[str, Any]:
     started = time.monotonic()
     records: list[dict[str, Any]] = []
     assertion_count = 0
+    checkpoint_count = 0
     with AndroidSemanticDriverClient(port) as client:
         records.append({"index": -1, "type": "initial-state", "response": client.state()})
         for index, step in enumerate(steps):
@@ -101,6 +167,13 @@ def run_journey(port: int, steps: list[dict[str, Any]]) -> dict[str, Any]:
                 state = client.state()
                 response = {"state": state, "assertion": _assert_project_state(state, dict(step["expected"]), index)}
                 assertion_count += 1
+            elif kind == "checkpoint":
+                name = str(step["name"])
+                state = client.state()
+                response = {"name": name, "state": state}
+                if checkpoint_handler is not None:
+                    response["hostEvidence"] = checkpoint_handler(index, name, state)
+                checkpoint_count += 1
             elif kind == "press":
                 response = client.press(
                     str(step.get("action", "")),
@@ -122,6 +195,7 @@ def run_journey(port: int, steps: list[dict[str, Any]]) -> dict[str, Any]:
         "port": port,
         "stepCount": len(steps),
         "assertionCount": assertion_count,
+        "checkpointCount": checkpoint_count,
         "elapsedMs": round((time.monotonic() - started) * 1000),
         "records": records,
         "finalState": final_state,
@@ -129,6 +203,8 @@ def run_journey(port: int, steps: list[dict[str, Any]]) -> dict[str, Any]:
             "physicalAndroidBuild": True,
             "semanticInput": True,
             "projectStateAssertions": assertion_count > 0,
+            "visualCheckpointsRequested": checkpoint_count > 0,
+            "visualCheckpointHostEvidence": checkpoint_count > 0 and checkpoint_handler is not None,
             "rawCoordinatesUsed": False,
             "androidShellExposed": False,
             "arbitraryNodeInspection": False,
@@ -143,13 +219,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--journey", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--checkpoint-directory", type=Path)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     steps = _load_journey(args.journey)
-    result = run_journey(args.port, steps)
+    handler = _filesystem_checkpoint_handler(args.checkpoint_directory) if args.checkpoint_directory else None
+    result = run_journey(args.port, steps, checkpoint_handler=handler)
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
