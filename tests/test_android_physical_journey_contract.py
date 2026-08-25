@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "scripts" / "Invoke-GodotLabAndroidJourney.ps1"
+CHECKPOINT_HOST = ROOT / "scripts" / "Invoke-GodotLabAndroidSemanticJourneyWithCheckpoints.ps1"
 DRIVER = ROOT / "templates" / "android-semantic-driver" / "EVAVOAndroidSemanticDriver.gd"
 
 
@@ -24,6 +25,24 @@ def test_physical_journey_retains_semantic_outcome_assertions() -> None:
     assert "semanticOutcomeAssertionsClaimed" in source
     assert "finalSemanticState" in source
     assert "semanticDriverEnabled" in source
+
+
+def test_physical_journey_binds_named_checkpoints_to_android_bridge_evidence() -> None:
+    source = WRAPPER.read_text(encoding="utf-8")
+    host = CHECKPOINT_HOST.read_text(encoding="utf-8")
+    assert "Invoke-GodotLabAndroidSemanticJourneyWithCheckpoints.ps1" in source
+    assert "visualCheckpointEvidenceCaptured" in source
+    assert "visualGameplayEvidenceClaimed" in source
+    assert "bridgeEvidenceCheckpoints" in source
+    assert "visualCheckpointHostEvidence" in source
+    assert "godot_game_test_lab.android_semantic_driver_cli" in host
+    assert "android-visual-checkpoint-request.v1" in host
+    assert "android-visual-checkpoint-resume.v1" in host
+    assert "node $BridgeCli evidence --target $Target --package $Package" in host
+    assert "semanticInputOwnedByGodotDriver = $true" in host
+    assert "visualEvidenceOwnedByAndroidBridge = $true" in host
+    assert "rawCoordinatesUsed = $false" in host
+    assert "arbitraryAdbShellExposed = $false" in host
 
 
 def test_android_driver_remains_debug_loopback_and_bounded_state_only() -> None:
