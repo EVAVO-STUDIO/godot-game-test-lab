@@ -92,6 +92,7 @@ $journeyOutput = Join-Path $EvidenceDir 'android-semantic-journey.json'
 $summaryOutput = Join-Path $EvidenceDir 'android-journey-summary.json'
 $mappingCreated = $false
 $mappingRemoved = $false
+$postEvidenceCaptured = $false
 $failure = $null
 $cleanupFailure = $null
 
@@ -121,6 +122,7 @@ try {
 
     & node $bridgeCli evidence --target $Target --package $Package --output-dir $postEvidence --lines ([string]$LogLines) --json
     if ($LASTEXITCODE -ne 0) { throw "Post-journey Android evidence capture failed with exit code $LASTEXITCODE." }
+    $postEvidenceCaptured = $true
 }
 catch {
     $failure = $_
@@ -150,7 +152,8 @@ $journeySucceeded = -not $failure
     journey = [System.IO.Path]::GetFullPath($Journey)
     journeyResult = if (Test-Path -LiteralPath $journeyOutput) { [System.IO.Path]::GetFullPath($journeyOutput) } else { $null }
     bridgeEvidencePre = $preEvidence
-    bridgeEvidencePost = if (Test-Path -LiteralPath $journeyOutput) { $postEvidence } else { $null }
+    bridgeEvidencePost = if ($postEvidenceCaptured) { $postEvidence } else { $null }
+    postEvidenceCaptured = $postEvidenceCaptured
     hostPort = $HostPort
     devicePort = $DevicePort
     portMappingCreated = $mappingCreated
