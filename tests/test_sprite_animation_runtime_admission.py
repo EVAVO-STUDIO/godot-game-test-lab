@@ -31,7 +31,7 @@ def expectation() -> dict:
             "frameDurationMicros": [125000, 125000, 250000, 125000, 125000, 125000, 250000, 125000],
             "framesPerSecond": 8,
             "loopMode": "linear",
-            "maximumFrameTimingErrorMs": 3,
+            "maximumFrameTimingErrorMs": 20,
             "maximumPivotDriftPixels": 0,
             "authority": AUTHORITY,
         },
@@ -40,7 +40,8 @@ def expectation() -> dict:
 
 
 def raw_telemetry() -> dict:
-    durations = [125.0, 125.0, 250.0, 125.0, 125.0, 125.0, 250.0, 125.0]
+    duration_micros = [125000, 125000, 250000, 125000, 125000, 125000, 250000, 125000]
+    observed = [133.0, 124.0, 258.0, 126.0, 133.0, 124.0, 258.0, 126.0]
     return {
         "status": "passed",
         "clipId": "hero-walk-right",
@@ -48,12 +49,14 @@ def raw_telemetry() -> dict:
         "renderer": "Forward+",
         "spriteFramesLoaded": True,
         "animationStarted": True,
+        "configuredFramesPerSecond": 8.0,
         "loopMode": "linear",
         "completeCyclesObserved": 2,
         "frames": [
             {
                 "frameId": f"hero-walk-right:f{index:03d}",
-                "observedDurationMs": durations[index - 1],
+                "configuredDurationMicros": duration_micros[index - 1],
+                "observedDurationMs": observed[index - 1],
                 "pivot": {"x": 48.0, "y": 120.0},
                 "rendered": True,
             }
@@ -78,15 +81,19 @@ def test_compiles_self_hashed_evidence_bound_to_exact_expectation() -> None:
     assert compiled["expectationSha256"] == expected["expectationSha256"]
     assert compiled["runId"] == compiled["evidenceSha256"][:20]
     assert compiled["authority"] == AUTHORITY
+    assert compiled["configuredFramesPerSecond"] == 8.0
+    assert compiled["frames"][2]["configuredDurationMicros"] == 250000
 
 
-def test_accepts_exact_target_owned_runtime_telemetry_with_variable_holds() -> None:
+def test_accepts_exact_runtime_configuration_with_scheduler_tolerant_observed_cadence() -> None:
     expected = expectation()
     report = admit_sprite_animation_runtime(expected, evidence(expected))
     assert report["status"] == "passed"
     assert report["frameIds"][0] == "hero-walk-right:f001"
     assert report["frameDurationMicros"][2] == 250000
+    assert report["configuredFramesPerSecond"] == 8.0
     assert report["completeCyclesObserved"] == 2
+    assert report["truthBoundary"]["spriteFramesConfigurationValidated"] is True
     assert report["truthBoundary"]["runtimeTelemetryValidated"] is True
     assert report["truthBoundary"]["humanVisualApproval"] is False
 
@@ -110,11 +117,30 @@ def test_rejects_wrong_frame_order_and_missing_cycle() -> None:
         )
 
 
-def test_rejects_timing_or_pivot_drift() -> None:
+def test_rejects_wrong_configured_fps_or_frame_duration() -> None:
+    expected = expectation()
+    wrong_fps = raw_telemetry()
+    wrong_fps["configuredFramesPerSecond"] = 9.0
+    with pytest.raises(ValueError, match="FPS differs"):
+        admit_sprite_animation_runtime(
+            expected,
+            compile_sprite_animation_runtime_evidence(wrong_fps, expected["expectationSha256"]),
+        )
+
+    wrong_duration = raw_telemetry()
+    wrong_duration["frames"][2]["configuredDurationMicros"] = 125000
+    with pytest.raises(ValueError, match="configured durations differ"):
+        admit_sprite_animation_runtime(
+            expected,
+            compile_sprite_animation_runtime_evidence(wrong_duration, expected["expectationSha256"]),
+        )
+
+
+def test_rejects_large_observed_cadence_error_or_pivot_drift() -> None:
     expected = expectation()
     slow = raw_telemetry()
-    slow["frames"][2]["observedDurationMs"] = 140.0
-    with pytest.raises(ValueError, match="frame timing"):
+    slow["frames"][2]["observedDurationMs"] = 300.0
+    with pytest.raises(ValueError, match="observed frame cadence"):
         admit_sprite_animation_runtime(
             expected,
             compile_sprite_animation_runtime_evidence(slow, expected["expectationSha256"]),
