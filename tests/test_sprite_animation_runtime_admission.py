@@ -28,10 +28,11 @@ def expectation() -> dict:
             "animationDirectorPlanSha256": "a" * 64,
             "godotDescriptorSha256": "b" * 64,
             "frameIds": [f"hero-walk-right:f{index:03d}" for index in range(1, 9)],
+            "frameDurationMicros": [125000, 125000, 250000, 125000, 125000, 125000, 250000, 125000],
             "framesPerSecond": 8,
             "loopMode": "linear",
             "maximumFrameTimingErrorMs": 3,
-            "maximumPivotDriftPixels": 0.25,
+            "maximumPivotDriftPixels": 0,
             "authority": AUTHORITY,
         },
         "expectationSha256",
@@ -39,6 +40,7 @@ def expectation() -> dict:
 
 
 def evidence() -> dict:
+    durations = [125.0, 125.0, 250.0, 125.0, 125.0, 125.0, 250.0, 125.0]
     return _self_hash(
         {
             "schema": EVIDENCE_SCHEMA,
@@ -53,7 +55,7 @@ def evidence() -> dict:
             "frames": [
                 {
                     "frameId": f"hero-walk-right:f{index:03d}",
-                    "observedDurationMs": 125.0,
+                    "observedDurationMs": durations[index - 1],
                     "pivot": {"x": 48.0, "y": 120.0},
                     "rendered": True,
                 }
@@ -67,10 +69,11 @@ def evidence() -> dict:
     )
 
 
-def test_accepts_exact_target_owned_runtime_telemetry() -> None:
+def test_accepts_exact_target_owned_runtime_telemetry_with_variable_holds() -> None:
     report = admit_sprite_animation_runtime(expectation(), evidence())
     assert report["status"] == "passed"
     assert report["frameIds"][0] == "hero-walk-right:f001"
+    assert report["frameDurationMicros"][2] == 250000
     assert report["completeCyclesObserved"] == 2
     assert report["truthBoundary"]["runtimeTelemetryValidated"] is True
     assert report["truthBoundary"]["humanVisualApproval"] is False
@@ -95,7 +98,7 @@ def test_rejects_wrong_frame_order_and_missing_cycle() -> None:
 def test_rejects_timing_or_pivot_drift() -> None:
     slow = evidence()
     unsigned = {k: v for k, v in slow.items() if k not in {"evidenceSha256", "runId"}}
-    unsigned["frames"][3]["observedDurationMs"] = 140.0
+    unsigned["frames"][2]["observedDurationMs"] = 140.0
     slow = _self_hash(unsigned, "evidenceSha256")
     with pytest.raises(ValueError, match="frame timing"):
         admit_sprite_animation_runtime(expectation(), slow)
@@ -106,6 +109,15 @@ def test_rejects_timing_or_pivot_drift() -> None:
     drifting = _self_hash(unsigned, "evidenceSha256")
     with pytest.raises(ValueError, match="pivot drift"):
         admit_sprite_animation_runtime(expectation(), drifting)
+
+
+def test_rejects_duration_count_mismatch() -> None:
+    broken = expectation()
+    unsigned = {k: v for k, v in broken.items() if k not in {"expectationSha256", "runId"}}
+    unsigned["frameDurationMicros"] = unsigned["frameDurationMicros"][:-1]
+    broken = _self_hash(unsigned, "expectationSha256")
+    with pytest.raises(ValueError, match="must match frameIds length"):
+        admit_sprite_animation_runtime(broken, evidence())
 
 
 def test_rejects_mutated_self_hashed_inputs_and_false_authority() -> None:
