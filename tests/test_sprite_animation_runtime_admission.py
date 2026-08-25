@@ -7,9 +7,9 @@ import pytest
 from godot_game_test_lab.game_asset_delivery_common import hash_object
 from godot_game_test_lab.sprite_animation_runtime_admission import (
     AUTHORITY,
-    EVIDENCE_SCHEMA,
     EXPECTATION_SCHEMA,
     admit_sprite_animation_runtime,
+    compile_sprite_animation_runtime_evidence,
 )
 
 
@@ -39,38 +39,50 @@ def expectation() -> dict:
     )
 
 
-def evidence() -> dict:
+def raw_telemetry() -> dict:
     durations = [125.0, 125.0, 250.0, 125.0, 125.0, 125.0, 250.0, 125.0]
-    return _self_hash(
-        {
-            "schema": EVIDENCE_SCHEMA,
-            "status": "passed",
-            "clipId": "hero-walk-right",
-            "godotVersion": "4.6.2.stable",
-            "renderer": "Forward+",
-            "spriteFramesLoaded": True,
-            "animationStarted": True,
-            "loopMode": "linear",
-            "completeCyclesObserved": 2,
-            "frames": [
-                {
-                    "frameId": f"hero-walk-right:f{index:03d}",
-                    "observedDurationMs": durations[index - 1],
-                    "pivot": {"x": 48.0, "y": 120.0},
-                    "rendered": True,
-                }
-                for index in range(1, 9)
-            ],
-            "importErrors": [],
-            "consoleErrors": [],
-            "authority": AUTHORITY,
-        },
-        "evidenceSha256",
+    return {
+        "status": "passed",
+        "clipId": "hero-walk-right",
+        "godotVersion": "4.6.2.stable",
+        "renderer": "Forward+",
+        "spriteFramesLoaded": True,
+        "animationStarted": True,
+        "loopMode": "linear",
+        "completeCyclesObserved": 2,
+        "frames": [
+            {
+                "frameId": f"hero-walk-right:f{index:03d}",
+                "observedDurationMs": durations[index - 1],
+                "pivot": {"x": 48.0, "y": 120.0},
+                "rendered": True,
+            }
+            for index in range(1, 9)
+        ],
+        "importErrors": [],
+        "consoleErrors": [],
+    }
+
+
+def evidence(expectation_doc: dict | None = None) -> dict:
+    expected = expectation_doc or expectation()
+    return compile_sprite_animation_runtime_evidence(
+        raw_telemetry(),
+        expected["expectationSha256"],
     )
 
 
+def test_compiles_self_hashed_evidence_bound_to_exact_expectation() -> None:
+    expected = expectation()
+    compiled = evidence(expected)
+    assert compiled["expectationSha256"] == expected["expectationSha256"]
+    assert compiled["runId"] == compiled["evidenceSha256"][:20]
+    assert compiled["authority"] == AUTHORITY
+
+
 def test_accepts_exact_target_owned_runtime_telemetry_with_variable_holds() -> None:
-    report = admit_sprite_animation_runtime(expectation(), evidence())
+    expected = expectation()
+    report = admit_sprite_animation_runtime(expected, evidence(expected))
     assert report["status"] == "passed"
     assert report["frameIds"][0] == "hero-walk-right:f001"
     assert report["frameDurationMicros"][2] == 250000
@@ -80,55 +92,72 @@ def test_accepts_exact_target_owned_runtime_telemetry_with_variable_holds() -> N
 
 
 def test_rejects_wrong_frame_order_and_missing_cycle() -> None:
-    wrong_order = evidence()
-    unsigned = {k: v for k, v in wrong_order.items() if k not in {"evidenceSha256", "runId"}}
-    unsigned["frames"][0], unsigned["frames"][1] = unsigned["frames"][1], unsigned["frames"][0]
-    wrong_order = _self_hash(unsigned, "evidenceSha256")
+    expected = expectation()
+    wrong = raw_telemetry()
+    wrong["frames"][0], wrong["frames"][1] = wrong["frames"][1], wrong["frames"][0]
     with pytest.raises(ValueError, match="frame order"):
-        admit_sprite_animation_runtime(expectation(), wrong_order)
+        admit_sprite_animation_runtime(
+            expected,
+            compile_sprite_animation_runtime_evidence(wrong, expected["expectationSha256"]),
+        )
 
-    no_cycle = evidence()
-    unsigned = {k: v for k, v in no_cycle.items() if k not in {"evidenceSha256", "runId"}}
-    unsigned["completeCyclesObserved"] = 0
-    no_cycle = _self_hash(unsigned, "evidenceSha256")
+    no_cycle = raw_telemetry()
+    no_cycle["completeCyclesObserved"] = 0
     with pytest.raises(ValueError, match="complete observed cycle"):
-        admit_sprite_animation_runtime(expectation(), no_cycle)
+        admit_sprite_animation_runtime(
+            expected,
+            compile_sprite_animation_runtime_evidence(no_cycle, expected["expectationSha256"]),
+        )
 
 
 def test_rejects_timing_or_pivot_drift() -> None:
-    slow = evidence()
-    unsigned = {k: v for k, v in slow.items() if k not in {"evidenceSha256", "runId"}}
-    unsigned["frames"][2]["observedDurationMs"] = 140.0
-    slow = _self_hash(unsigned, "evidenceSha256")
+    expected = expectation()
+    slow = raw_telemetry()
+    slow["frames"][2]["observedDurationMs"] = 140.0
     with pytest.raises(ValueError, match="frame timing"):
-        admit_sprite_animation_runtime(expectation(), slow)
+        admit_sprite_animation_runtime(
+            expected,
+            compile_sprite_animation_runtime_evidence(slow, expected["expectationSha256"]),
+        )
 
-    drifting = evidence()
-    unsigned = {k: v for k, v in drifting.items() if k not in {"evidenceSha256", "runId"}}
-    unsigned["frames"][5]["pivot"]["x"] = 49.0
-    drifting = _self_hash(unsigned, "evidenceSha256")
+    drifting = raw_telemetry()
+    drifting["frames"][5]["pivot"]["x"] = 49.0
     with pytest.raises(ValueError, match="pivot drift"):
-        admit_sprite_animation_runtime(expectation(), drifting)
+        admit_sprite_animation_runtime(
+            expected,
+            compile_sprite_animation_runtime_evidence(drifting, expected["expectationSha256"]),
+        )
 
 
-def test_rejects_duration_count_mismatch() -> None:
+def test_rejects_duration_count_and_expectation_binding_mismatch() -> None:
     broken = expectation()
     unsigned = {k: v for k, v in broken.items() if k not in {"expectationSha256", "runId"}}
     unsigned["frameDurationMicros"] = unsigned["frameDurationMicros"][:-1]
     broken = _self_hash(unsigned, "expectationSha256")
     with pytest.raises(ValueError, match="must match frameIds length"):
-        admit_sprite_animation_runtime(broken, evidence())
+        admit_sprite_animation_runtime(broken, evidence(broken))
+
+    expected = expectation()
+    other = _self_hash(
+        {
+            **{k: v for k, v in expected.items() if k not in {"expectationSha256", "runId"}},
+            "clipId": "different-clip",
+        },
+        "expectationSha256",
+    )
+    with pytest.raises(ValueError, match="different expectation"):
+        admit_sprite_animation_runtime(other, evidence(expected))
 
 
-def test_rejects_mutated_self_hashed_inputs_and_false_authority() -> None:
-    changed = evidence()
+def test_rejects_mutated_self_hashed_inputs_and_bad_raw_data() -> None:
+    expected = expectation()
+    changed = evidence(expected)
     changed["frames"][0]["rendered"] = False
     with pytest.raises(ValueError, match="does not match canonical content"):
-        admit_sprite_animation_runtime(expectation(), changed)
+        admit_sprite_animation_runtime(expected, changed)
 
-    unsafe = expectation()
-    unsigned = {k: v for k, v in unsafe.items() if k not in {"expectationSha256", "runId"}}
-    unsigned["authority"] = {**AUTHORITY, "publication": True}
-    unsafe = _self_hash(unsigned, "expectationSha256")
-    with pytest.raises(ValueError, match="must remain all false"):
-        admit_sprite_animation_runtime(unsafe, evidence())
+    with pytest.raises(ValueError, match="raw.status"):
+        compile_sprite_animation_runtime_evidence(
+            {**raw_telemetry(), "status": "maybe"},
+            expected["expectationSha256"],
+        )
