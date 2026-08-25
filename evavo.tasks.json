@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "evavo-repository-task-manifest",
+  "repository": "EVAVO-STUDIO/godot-game-test-lab",
+  "tasks": {
+    "toolchain": {
+      "runtime": "python-script",
+      "entry": "scripts/check_repository_toolchain.py",
+      "cwd": ".",
+      "arguments": [],
+      "network": "disabled",
+      "timeoutSeconds": 1800,
+      "description": "Run the Godot Game Test Lab's bounded source/toolchain contract without target-game execution or provider access."
+    },
+    "unit": {
+      "runtime": "python-module",
+      "entry": "pytest",
+      "cwd": ".",
+      "arguments": ["-q"],
+      "network": "disabled",
+      "timeoutSeconds": 7200,
+      "description": "Run the complete deterministic Godot Game Test Lab Python unit suite explicitly."
+    }
+  }
+}
