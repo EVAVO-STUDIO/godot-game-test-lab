@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "evavo-local-ai-client-v1",
+  "studio": "godot-game-test-lab",
+  "aliases": [],
+  "allowedWorkloads": ["text", "image", "audio"],
+  "planner": {"server": "evavo-local-ai", "tool": "evavo_local_ai_plan"},
+  "catalog": {"server": "evavo-local-ai", "tool": "evavo_local_ai_catalog"},
+  "execution": {"repository": "EVAVO-STUDIO/evavo-local-compute", "provider": "evavo-local-execution", "arbitraryCommandTextAccepted": false},
+  "models": {"repository": "EVAVO-STUDIO/evavo-model-lab", "weightsInGit": false},
+  "storage": {"repository": "EVAVO-STUDIO/evavo-local-storage", "canonicalRoot": "bee://primary/EVAVO/AI"},
+  "durable": {"repository": "EVAVO-STUDIO/evavo-storage"},
+  "authority": {"planningOnly": true, "physicalExecutionReceiptRequired": true, "creativeApproval": false, "publication": false, "clientRelease": false}
+}
