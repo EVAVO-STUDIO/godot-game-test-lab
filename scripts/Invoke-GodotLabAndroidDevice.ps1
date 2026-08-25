@@ -7,6 +7,7 @@ param(
     [string]$AndroidBridgeRepo,
     [string]$Godot,
     [string]$EvidenceDir,
+    [string]$BridgeEvidenceDir,
     [int]$LogLines = 2000,
     [switch]$AllowDowngrade,
     [switch]$Release,
@@ -28,10 +29,13 @@ if (-not (Test-Path -LiteralPath $deployScript -PathType Leaf)) {
     throw "EVAVO Android Device Bridge deployment script not found: $deployScript"
 }
 
+$projectName = Split-Path -Leaf ([System.IO.Path]::GetFullPath($Project).TrimEnd('\','/'))
+$runId = Get-Date -Format 'yyyyMMdd-HHmmss'
 if (-not $EvidenceDir) {
-    $projectName = Split-Path -Leaf ([System.IO.Path]::GetFullPath($Project).TrimEnd('\','/'))
-    $runId = Get-Date -Format 'yyyyMMdd-HHmmss'
     $EvidenceDir = Join-Path 'C:\GodotLabEvidence' "$projectName\android-$runId"
+}
+if (-not $BridgeEvidenceDir) {
+    $BridgeEvidenceDir = "evidence/private/godot-lab/$projectName/android-$runId"
 }
 
 $params = @{
@@ -39,9 +43,9 @@ $params = @{
     Project = $Project
     Package = $Package
     Preset = $Preset
-    EvidenceDir = $EvidenceDir
     LogLines = $LogLines
 }
+if (-not $SkipEvidence) { $params.EvidenceDir = $BridgeEvidenceDir }
 if ($Godot) { $params.Godot = $Godot }
 if ($AllowDowngrade) { $params.AllowDowngrade = $true }
 if ($Release) { $params.Release = $true }
@@ -50,4 +54,27 @@ if ($DryRun) { $params.DryRun = $true }
 if ($Confirm) { $params.Confirm = $Confirm }
 
 & $deployScript @params
-exit $LASTEXITCODE
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
+
+if (-not $DryRun) {
+    New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
+    [ordered]@{
+        schema = 'evavo_godot_lab_android_device_dispatch_v1'
+        ok = $true
+        targetRef = $Target
+        package = $Package
+        project = [System.IO.Path]::GetFullPath($Project)
+        preset = $Preset
+        exportMode = if ($Release) { 'release' } else { 'debug' }
+        bridgeEvidenceRelativePath = if ($SkipEvidence) { $null } else { $BridgeEvidenceDir }
+        bridgeRepository = [System.IO.Path]::GetFullPath($AndroidBridgeRepo)
+        labEvidenceDirectory = [System.IO.Path]::GetFullPath($EvidenceDir)
+        physicalDeviceExecutionClaimed = $true
+        semanticGameplayClaimed = $false
+        completedAt = (Get-Date).ToUniversalTime().ToString('o')
+    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $EvidenceDir 'android-device-dispatch.json') -Encoding UTF8
+}
+
+exit 0
