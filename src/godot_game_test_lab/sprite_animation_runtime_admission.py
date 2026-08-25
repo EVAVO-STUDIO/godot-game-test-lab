@@ -88,6 +88,18 @@ def _runtime_frames(value: Any) -> list[dict[str, Any]]:
     return result
 
 
+def _verify_self_hash(value: dict[str, Any], key: str, label: str) -> str:
+    stored = _hash(value.get(key), f"{label}.{key}")
+    unsigned = dict(value)
+    unsigned.pop(key, None)
+    unsigned.pop("runId", None)
+    if hash_object(unsigned) != stored:
+        raise ValueError(f"{label}.{key} does not match canonical content")
+    if value.get("runId") != stored[:20]:
+        raise ValueError(f"{label}.runId does not match {key}")
+    return stored
+
+
 def admit_sprite_animation_runtime(
     expectation: dict[str, Any],
     evidence: dict[str, Any],
@@ -99,6 +111,8 @@ def admit_sprite_animation_runtime(
         raise ValueError(f"expectation.schema must be {EXPECTATION_SCHEMA}")
     if observed.get("schema") != EVIDENCE_SCHEMA:
         raise ValueError(f"evidence.schema must be {EVIDENCE_SCHEMA}")
+    expectation_sha = _verify_self_hash(expected, "expectationSha256", "expectation")
+    evidence_sha = _verify_self_hash(observed, "evidenceSha256", "evidence")
     _all_false(expected.get("authority"), "expectation.authority")
     _all_false(observed.get("authority"), "evidence.authority")
 
@@ -163,9 +177,7 @@ def admit_sprite_animation_runtime(
         dx = abs(frame["pivot"][0] - anchor[0])
         dy = abs(frame["pivot"][1] - anchor[1])
         if dx > pivot_tolerance or dy > pivot_tolerance:
-            pivot_failures.append(
-                {"frameId": frame["frameId"], "dx": dx, "dy": dy}
-            )
+            pivot_failures.append({"frameId": frame["frameId"], "dx": dx, "dy": dy})
     if pivot_failures:
         raise ValueError("runtime pivot drift exceeds expectation tolerance")
 
@@ -177,14 +189,20 @@ def admit_sprite_animation_runtime(
     if loop_mode != "none" and loops_observed < 1:
         raise ValueError("looping animation evidence lacks a complete observed cycle")
 
-    plan_sha = _hash(expected.get("animationDirectorPlanSha256"), "animationDirectorPlanSha256")
-    descriptor_sha = _hash(expected.get("godotDescriptorSha256"), "godotDescriptorSha256")
-    evidence_sha = _hash(observed.get("evidenceSha256"), "evidence.evidenceSha256")
+    plan_sha = _hash(
+        expected.get("animationDirectorPlanSha256"),
+        "animationDirectorPlanSha256",
+    )
+    descriptor_sha = _hash(
+        expected.get("godotDescriptorSha256"),
+        "godotDescriptorSha256",
+    )
 
     body = {
         "schema": REPORT_SCHEMA,
         "status": "passed",
         "clipId": clip_id,
+        "expectationSha256": expectation_sha,
         "animationDirectorPlanSha256": plan_sha,
         "godotDescriptorSha256": descriptor_sha,
         "runtimeEvidenceSha256": evidence_sha,
