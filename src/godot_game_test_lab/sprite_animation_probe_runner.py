@@ -71,6 +71,14 @@ def _read_json_object(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
+def _assert_target_state(root: Path, expected: str, phase: str) -> None:
+    state = read_git_state(root)
+    if not state.available or state.target_sha != expected:
+        raise ValueError(f"target checkout HEAD differs from expected-target-sha {phase}")
+    if state.dirty:
+        raise ValueError(f"target checkout must be clean {phase}")
+
+
 def run_sprite_animation_probe(
     *,
     project: Path,
@@ -87,14 +95,10 @@ def run_sprite_animation_probe(
     timeout_seconds: int = 30,
 ) -> dict[str, Any]:
     root = find_project_root(project)
-    git_state = read_git_state(root)
     expected = expected_target_sha.strip().lower()
     if not HEAD40.fullmatch(expected):
         raise ValueError("expected-target-sha must be a lowercase 40-character Git SHA")
-    if not git_state.available or git_state.target_sha != expected:
-        raise ValueError("target checkout HEAD differs from expected-target-sha")
-    if git_state.dirty:
-        raise ValueError("target checkout must be clean for authoritative sprite-animation evidence")
+    _assert_target_state(root, expected, "before probe execution")
 
     _inside_resource(root, scene, "scene")
     _inside_resource(root, resource, "resource")
@@ -145,6 +149,8 @@ def run_sprite_animation_probe(
     if not raw_path.is_file():
         raise ValueError("Godot sprite-animation probe did not create raw telemetry")
 
+    _assert_target_state(root, expected, "after probe execution")
+
     raw = _read_json_object(raw_path, "raw telemetry")
     evidence = compile_sprite_animation_runtime_evidence(
         raw,
@@ -157,6 +163,7 @@ def run_sprite_animation_probe(
     return {
         "status": report["status"],
         "targetSha": expected,
+        "targetStateReverifiedAfterProbe": True,
         "projectRoot": str(root),
         "godotExecutable": str(executable),
         "command": asdict(command),
