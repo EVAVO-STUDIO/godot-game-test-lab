@@ -36,9 +36,13 @@ if (-not $AndroidBridgeRepo) {
     $AndroidBridgeRepo = Join-Path $repoParent 'evavo-android-device-bridge'
 }
 $bridgeCli = Join-Path $AndroidBridgeRepo 'src\cli.mjs'
+$bringupCli = Join-Path $AndroidBridgeRepo 'src\bringup-cli.mjs'
 $deviceScript = Join-Path $PSScriptRoot 'Invoke-GodotLabAndroidDevice.ps1'
 if (-not (Test-Path -LiteralPath $bridgeCli -PathType Leaf)) {
     throw "Android bridge CLI not found: $bridgeCli"
+}
+if (-not (Test-Path -LiteralPath $bringupCli -PathType Leaf)) {
+    throw "Android bridge bring-up CLI not found: $bringupCli"
 }
 if (-not (Test-Path -LiteralPath $deviceScript -PathType Leaf)) {
     throw "Godot Android device wrapper not found: $deviceScript"
@@ -57,10 +61,23 @@ if (-not $Python) {
     throw 'Python is unavailable. Install the Godot Lab environment or supply -Python.'
 }
 
+$bringupText = (& node $bringupCli --json | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($bringupText)) {
+    throw 'Android bridge bring-up failed before physical Godot journey admission.'
+}
+try { $bringup = $bringupText | ConvertFrom-Json -ErrorAction Stop } catch { throw 'Android bridge bring-up returned invalid JSON.' }
+$targetDevice = @($bringup.devices | Where-Object { $_.targetRef -eq $Target -and $_.state -eq 'device' }) | Select-Object -First 1
+if (-not $targetDevice) { throw 'The selected Android target is not currently authorised and online.' }
+if ($targetDevice.deviceClass -ne 'physical') { throw 'Physical Godot Android semantic journeys reject emulator or unknown targets.' }
+
 $resolvedProject = (Resolve-Path -LiteralPath $Project).Path
-& $Python -m godot_game_test_lab.android_export_admission --project $resolvedProject --preset $Preset
+$admissionText = (& $Python -m godot_game_test_lab.android_export_admission --project $resolvedProject --preset $Preset | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) {
-    throw 'Godot Android semantic export admission failed. The selected Android preset must enable INTERNET permission.'
+    throw 'Godot Android semantic export admission failed. The selected Android preset and semantic driver must satisfy the debug journey contract.'
+}
+try { $admission = $admissionText | ConvertFrom-Json -ErrorAction Stop } catch { throw 'Godot Android semantic export admission returned invalid JSON.' }
+if ($admission.ok -ne $true -or $admission.semanticDriverEnabled -ne $true -or [int]$admission.allowedActionCount -lt 1) {
+    throw 'Godot Android semantic driver admission was not verified.'
 }
 
 $projectName = Split-Path -Leaf ([System.IO.Path]::GetFullPath($Project).TrimEnd('\','/'))
@@ -78,6 +95,8 @@ if ($DryRun) {
         ok = $true
         mutationPerformed = $false
         targetRef = $Target
+        deviceClass = $targetDevice.deviceClass
+        physicalDeviceRequired = $true
         project = [System.IO.Path]::GetFullPath($Project)
         package = $Package
         preset = $Preset
@@ -85,7 +104,10 @@ if ($DryRun) {
         hostPort = $HostPort
         devicePort = $DevicePort
         debugExportRequired = $true
-        internetPermissionVerified = $true
+        internetPermissionVerified = $admission.internetPermission -eq $true
+        semanticDriverEnabled = $admission.semanticDriverEnabled -eq $true
+        semanticDriverAutoload = $admission.semanticDriverAutoload
+        allowedActionCount = $admission.allowedActionCount
         bridgeEvidencePre = $preEvidence
         bridgeEvidencePost = $postEvidence
         labEvidenceDirectory = [System.IO.Path]::GetFullPath($EvidenceDir)
@@ -102,6 +124,7 @@ $mappingRemoved = $false
 $postEvidenceCaptured = $false
 $failure = $null
 $cleanupFailure = $null
+$journeyReceipt = $null
 
 try {
     $deployParams = @{
@@ -126,6 +149,10 @@ try {
 
     & $Python -m godot_game_test_lab.android_semantic_driver_cli --port ([string]$HostPort) --journey (Resolve-Path -LiteralPath $Journey).Path --output $journeyOutput
     if ($LASTEXITCODE -ne 0) { throw "Android semantic journey failed with exit code $LASTEXITCODE." }
+    try { $journeyReceipt = Get-Content -LiteralPath $journeyOutput -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop } catch { throw 'Android semantic journey output was missing or invalid.' }
+    if ($journeyReceipt.ok -ne $true -or $journeyReceipt.truth.semanticInput -ne $true -or $journeyReceipt.truth.rawCoordinatesUsed -ne $false -or $journeyReceipt.truth.androidShellExposed -ne $false) {
+        throw 'Android semantic journey returned an invalid truth receipt.'
+    }
 
     & node $bridgeCli evidence --target $Target --package $Package --output-dir $postEvidence --lines ([string]$LogLines) --json
     if ($LASTEXITCODE -ne 0) { throw "Post-journey Android evidence capture failed with exit code $LASTEXITCODE." }
@@ -149,19 +176,29 @@ finally {
 }
 
 $journeySucceeded = -not $failure
+$assertionCount = if ($journeyReceipt) { [int]$journeyReceipt.assertionCount } else { 0 }
+$finalState = if ($journeyReceipt) { $journeyReceipt.finalState } else { $null }
 [ordered]@{
     schema = 'evavo_godot_lab_android_journey_summary_v1'
     ok = $journeySucceeded
     targetRef = $Target
+    deviceClass = $targetDevice.deviceClass
+    physicalDeviceRequired = $true
     package = $Package
     project = [System.IO.Path]::GetFullPath($Project)
     preset = $Preset
     journey = [System.IO.Path]::GetFullPath($Journey)
     journeyResult = if (Test-Path -LiteralPath $journeyOutput) { [System.IO.Path]::GetFullPath($journeyOutput) } else { $null }
+    assertionCount = $assertionCount
+    projectStateAssertionsPerformed = $assertionCount -gt 0
+    finalSemanticState = $finalState
     bridgeEvidencePre = $preEvidence
     bridgeEvidencePost = if ($postEvidenceCaptured) { $postEvidence } else { $null }
     postEvidenceCaptured = $postEvidenceCaptured
-    internetPermissionVerified = $true
+    internetPermissionVerified = $admission.internetPermission -eq $true
+    semanticDriverEnabled = $admission.semanticDriverEnabled -eq $true
+    semanticDriverAutoload = $admission.semanticDriverAutoload
+    allowedActionCount = $admission.allowedActionCount
     hostPort = $HostPort
     devicePort = $DevicePort
     portMappingCreated = $mappingCreated
@@ -169,12 +206,14 @@ $journeySucceeded = -not $failure
     cleanupFailure = $cleanupFailure
     physicalDeviceExecutionClaimed = $journeySucceeded
     semanticGameplayClaimed = $journeySucceeded
+    semanticOutcomeAssertionsClaimed = $journeySucceeded -and $assertionCount -gt 0
     releaseBuildClaimed = $false
     rawCoordinatesUsed = $false
     arbitraryAdbShellExposed = $false
+    arbitraryNodeInspectionExposed = $false
     failure = if ($failure) { $failure.Exception.Message } else { $null }
     completedAt = (Get-Date).ToUniversalTime().ToString('o')
-} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryOutput -Encoding UTF8
+} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $summaryOutput -Encoding UTF8
 
 if ($failure) {
     throw $failure
