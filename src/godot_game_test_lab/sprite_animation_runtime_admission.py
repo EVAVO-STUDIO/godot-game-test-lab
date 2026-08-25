@@ -41,6 +41,15 @@ def _positive_number(value: Any, label: str) -> float:
     return result
 
 
+def _non_negative_number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError(f"{label} must be a finite number greater than or equal to zero")
+    result = float(value)
+    if result != result or result in {float("inf"), float("-inf")}:
+        raise ValueError(f"{label} must be finite")
+    return result
+
+
 def _string_list(value: Any, label: str) -> list[str]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"{label} must be a non-empty array")
@@ -126,8 +135,8 @@ def admit_sprite_animation_runtime(
         expected.get("maximumFrameTimingErrorMs", 2.0),
         "expectation.maximumFrameTimingErrorMs",
     )
-    pivot_tolerance = _positive_number(
-        expected.get("maximumPivotDriftPixels", 0.01),
+    pivot_tolerance = _non_negative_number(
+        expected.get("maximumPivotDriftPixels", 0.0),
         "expectation.maximumPivotDriftPixels",
     )
 
