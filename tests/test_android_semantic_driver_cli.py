@@ -25,14 +25,16 @@ def test_loads_bounded_semantic_journey(tmp_path: Path) -> None:
                 {"type": "wait", "milliseconds": 250},
                 {"type": "pulse", "action": "jump", "durationMs": 80},
                 {"type": "assert-state", "expected": {"checkpoint": "ledge_2", "alive": True}},
+                {"type": "checkpoint", "name": "ledge_2_visual"},
                 {"type": "release", "action": "move_right"},
             ],
         },
     )
     steps = _load_journey(journey)
-    assert len(steps) == 6
+    assert len(steps) == 7
     assert steps[1]["action"] == "move_right"
     assert steps[4]["expected"] == {"checkpoint": "ledge_2", "alive": True}
+    assert steps[5] == {"type": "checkpoint", "name": "ledge_2_visual"}
 
 
 def test_project_state_assertion_matches_only_declared_expected_keys() -> None:
@@ -59,9 +61,11 @@ def test_rejects_unknown_schema_step_type_and_unbounded_assertion(tmp_path: Path
         _load_journey(_write(tmp_path / "type.json", {"schema": SCHEMA, "steps": [{"type": "shell"}]}))
     with pytest.raises(ValueError, match="bounded scalar"):
         _load_journey(_write(tmp_path / "nested.json", {"schema": SCHEMA, "steps": [{"type": "assert-state", "expected": {"bad": {"nested": True}}}]}))
+    with pytest.raises(ValueError, match="checkpoint name"):
+        _load_journey(_write(tmp_path / "bad-checkpoint.json", {"schema": SCHEMA, "steps": [{"type": "checkpoint", "name": "bad checkpoint"}]}))
 
 
-def test_rejects_excessive_waits_and_step_counts(tmp_path: Path) -> None:
+def test_rejects_excessive_waits_step_counts_and_checkpoints(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="10000ms"):
         _load_journey(
             _write(
@@ -84,5 +88,12 @@ def test_rejects_excessive_waits_and_step_counts(tmp_path: Path) -> None:
             _write(
                 tmp_path / "too-many.json",
                 {"schema": SCHEMA, "steps": [{"type": "state"} for _ in range(257)]},
+            )
+        )
+    with pytest.raises(ValueError, match="more than 32 visual checkpoints"):
+        _load_journey(
+            _write(
+                tmp_path / "too-many-checkpoints.json",
+                {"schema": SCHEMA, "steps": [{"type": "checkpoint", "name": f"cp_{index}"} for index in range(33)]},
             )
         )
