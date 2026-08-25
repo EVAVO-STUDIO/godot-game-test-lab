@@ -1,0 +1,12 @@
+{
+  "schema": "evavo.godot.android-semantic-journey.v1",
+  "steps": [
+    { "type": "state" },
+    { "type": "press", "action": "move_right", "strength": 1.0 },
+    { "type": "wait", "milliseconds": 600 },
+    { "type": "pulse", "action": "jump", "durationMs": 100, "strength": 1.0 },
+    { "type": "wait", "milliseconds": 500 },
+    { "type": "release", "action": "move_right" },
+    { "type": "state" }
+  ]
+}
