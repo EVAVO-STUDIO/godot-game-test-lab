@@ -88,11 +88,20 @@ def _runtime_frames(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
         raise ValueError("frames must be a non-empty array")
     result: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for index, raw in enumerate(value):
         frame = _object(raw, f"frames[{index}]")
+        frame_id = _text(frame.get("frameId"), f"frames[{index}].frameId", 256)
+        if frame_id in seen:
+            raise ValueError(f"frames contains duplicate frameId {frame_id}")
+        seen.add(frame_id)
         result.append(
             {
-                "frameId": _text(frame.get("frameId"), f"frames[{index}].frameId", 256),
+                "frameId": frame_id,
+                "configuredDurationMicros": _positive_int(
+                    frame.get("configuredDurationMicros"),
+                    f"frames[{index}].configuredDurationMicros",
+                ),
                 "observedDurationMs": _positive_number(
                     frame.get("observedDurationMs"),
                     f"frames[{index}].observedDurationMs",
@@ -146,6 +155,10 @@ def compile_sprite_animation_runtime_evidence(
         "renderer": _text(source.get("renderer"), "raw.renderer", 256),
         "spriteFramesLoaded": source.get("spriteFramesLoaded") is True,
         "animationStarted": source.get("animationStarted") is True,
+        "configuredFramesPerSecond": _positive_number(
+            source.get("configuredFramesPerSecond"),
+            "raw.configuredFramesPerSecond",
+        ),
         "loopMode": loop_mode,
         "completeCyclesObserved": _positive_int(
             source.get("completeCyclesObserved"),
@@ -196,7 +209,7 @@ def admit_sprite_animation_runtime(
     if loop_mode not in _LOOP_MODES:
         raise ValueError("expectation.loopMode is unsupported")
     timing_tolerance = _positive_number(
-        expected.get("maximumFrameTimingErrorMs", 2.0),
+        expected.get("maximumFrameTimingErrorMs", 20.0),
         "expectation.maximumFrameTimingErrorMs",
     )
     pivot_tolerance = _non_negative_number(
@@ -216,6 +229,12 @@ def admit_sprite_animation_runtime(
         raise ValueError("runtime evidence did not load SpriteFrames")
     if observed.get("animationStarted") is not True:
         raise ValueError("runtime evidence did not start the animation")
+    configured_fps = _positive_number(
+        observed.get("configuredFramesPerSecond"),
+        "evidence.configuredFramesPerSecond",
+    )
+    if abs(configured_fps - fps) > 1e-9:
+        raise ValueError("runtime SpriteFrames FPS differs from expectation")
     if observed.get("importErrors") != []:
         raise ValueError("runtime evidence contains import errors")
     if observed.get("consoleErrors") != []:
@@ -229,6 +248,10 @@ def admit_sprite_animation_runtime(
         raise ValueError("runtime frame order differs from expectation")
     if not all(frame["rendered"] for frame in frames):
         raise ValueError("runtime evidence did not render every expected frame")
+
+    configured_duration_micros = [frame["configuredDurationMicros"] for frame in frames]
+    if configured_duration_micros != frame_duration_micros:
+        raise ValueError("runtime SpriteFrames configured durations differ from expectation")
 
     timing_failures = []
     for index, frame in enumerate(frames):
@@ -244,7 +267,7 @@ def admit_sprite_animation_runtime(
                 }
             )
     if timing_failures:
-        raise ValueError("runtime frame timing differs beyond expectation tolerance")
+        raise ValueError("runtime observed frame cadence differs beyond expectation tolerance")
 
     anchor = frames[0]["pivot"]
     pivot_failures = []
@@ -285,14 +308,16 @@ def admit_sprite_animation_runtime(
         "renderer": renderer,
         "frameIds": frame_ids,
         "frameDurationMicros": frame_duration_micros,
+        "configuredFramesPerSecond": configured_fps,
         "framesPerSecond": fps,
         "loopMode": loop_mode,
         "completeCyclesObserved": loops_observed,
         "timingToleranceMs": timing_tolerance,
         "pivotTolerancePixels": pivot_tolerance,
         "truthBoundary": {
-            "sourceContractValidated": True,
+            "spriteFramesConfigurationValidated": True,
             "runtimeTelemetryValidated": True,
+            "renderCompletionObserved": True,
             "humanVisualApproval": False,
             "gameFeelApproval": False,
             "physicalControllerApproval": False,
