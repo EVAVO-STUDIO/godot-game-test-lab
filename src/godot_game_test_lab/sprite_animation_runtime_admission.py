@@ -64,6 +64,12 @@ def _string_list(value: Any, label: str) -> list[str]:
     return result
 
 
+def _positive_int_list(value: Any, label: str) -> list[int]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{label} must be a non-empty array")
+    return [_positive_int(item, f"{label}[{index}]") for index, item in enumerate(value)]
+
+
 def _pivot(value: Any, label: str) -> tuple[float, float]:
     item = _object(value, label)
     x = item.get("x")
@@ -127,6 +133,12 @@ def admit_sprite_animation_runtime(
 
     clip_id = _text(expected.get("clipId"), "expectation.clipId", 256)
     frame_ids = _string_list(expected.get("frameIds"), "expectation.frameIds")
+    frame_duration_micros = _positive_int_list(
+        expected.get("frameDurationMicros"),
+        "expectation.frameDurationMicros",
+    )
+    if len(frame_duration_micros) != len(frame_ids):
+        raise ValueError("expectation.frameDurationMicros must match frameIds length")
     fps = _positive_number(expected.get("framesPerSecond"), "expectation.framesPerSecond")
     loop_mode = _text(expected.get("loopMode"), "expectation.loopMode", 32)
     if loop_mode not in _LOOP_MODES:
@@ -166,17 +178,19 @@ def admit_sprite_animation_runtime(
     if not all(frame["rendered"] for frame in frames):
         raise ValueError("runtime evidence did not render every expected frame")
 
-    expected_duration = 1000.0 / fps
-    timing_failures = [
-        {
-            "frameId": frame["frameId"],
-            "observedDurationMs": frame["observedDurationMs"],
-            "expectedDurationMs": expected_duration,
-            "absoluteErrorMs": abs(frame["observedDurationMs"] - expected_duration),
-        }
-        for frame in frames
-        if abs(frame["observedDurationMs"] - expected_duration) > timing_tolerance
-    ]
+    timing_failures = []
+    for index, frame in enumerate(frames):
+        expected_duration_ms = frame_duration_micros[index] / 1000.0
+        error_ms = abs(frame["observedDurationMs"] - expected_duration_ms)
+        if error_ms > timing_tolerance:
+            timing_failures.append(
+                {
+                    "frameId": frame["frameId"],
+                    "observedDurationMs": frame["observedDurationMs"],
+                    "expectedDurationMs": expected_duration_ms,
+                    "absoluteErrorMs": error_ms,
+                }
+            )
     if timing_failures:
         raise ValueError("runtime frame timing differs beyond expectation tolerance")
 
@@ -218,6 +232,7 @@ def admit_sprite_animation_runtime(
         "godotVersion": godot_version,
         "renderer": renderer,
         "frameIds": frame_ids,
+        "frameDurationMicros": frame_duration_micros,
         "framesPerSecond": fps,
         "loopMode": loop_mode,
         "completeCyclesObserved": loops_observed,
