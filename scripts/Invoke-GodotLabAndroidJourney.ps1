@@ -38,6 +38,7 @@ if (-not $AndroidBridgeRepo) {
 $bridgeCli = Join-Path $AndroidBridgeRepo 'src\cli.mjs'
 $bringupCli = Join-Path $AndroidBridgeRepo 'src\bringup-cli.mjs'
 $deviceScript = Join-Path $PSScriptRoot 'Invoke-GodotLabAndroidDevice.ps1'
+$checkpointScript = Join-Path $PSScriptRoot 'Invoke-GodotLabAndroidSemanticJourneyWithCheckpoints.ps1'
 if (-not (Test-Path -LiteralPath $bridgeCli -PathType Leaf)) {
     throw "Android bridge CLI not found: $bridgeCli"
 }
@@ -46,6 +47,9 @@ if (-not (Test-Path -LiteralPath $bringupCli -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $deviceScript -PathType Leaf)) {
     throw "Godot Android device wrapper not found: $deviceScript"
+}
+if (-not (Test-Path -LiteralPath $checkpointScript -PathType Leaf)) {
+    throw "Godot Android checkpoint runner not found: $checkpointScript"
 }
 
 if (-not $Python) {
@@ -88,6 +92,7 @@ if (-not $EvidenceDir) {
 $bridgeEvidenceBase = "evidence/private/godot-lab/$projectName/android-journey-$runId"
 $preEvidence = "$bridgeEvidenceBase/pre"
 $postEvidence = "$bridgeEvidenceBase/post"
+$checkpointEvidenceBase = "$bridgeEvidenceBase/checkpoints"
 
 if ($DryRun) {
     [ordered]@{
@@ -108,7 +113,9 @@ if ($DryRun) {
         semanticDriverEnabled = $admission.semanticDriverEnabled -eq $true
         semanticDriverAutoload = $admission.semanticDriverAutoload
         allowedActionCount = $admission.allowedActionCount
+        visualCheckpointEvidenceEnabled = $true
         bridgeEvidencePre = $preEvidence
+        bridgeEvidenceCheckpoints = $checkpointEvidenceBase
         bridgeEvidencePost = $postEvidence
         labEvidenceDirectory = [System.IO.Path]::GetFullPath($EvidenceDir)
         cleanupAttemptedOnFailure = $true
@@ -119,12 +126,14 @@ if ($DryRun) {
 New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
 $journeyOutput = Join-Path $EvidenceDir 'android-semantic-journey.json'
 $summaryOutput = Join-Path $EvidenceDir 'android-journey-summary.json'
+$checkpointDirectory = Join-Path $EvidenceDir 'checkpoint-rendezvous'
 $mappingCreated = $false
 $mappingRemoved = $false
 $postEvidenceCaptured = $false
 $failure = $null
 $cleanupFailure = $null
 $journeyReceipt = $null
+$checkpointHostReceipt = $null
 
 try {
     $deployParams = @{
@@ -147,11 +156,32 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "ADB forward creation failed with exit code $LASTEXITCODE." }
     $mappingCreated = $true
 
-    & $Python -m godot_game_test_lab.android_semantic_driver_cli --port ([string]$HostPort) --journey (Resolve-Path -LiteralPath $Journey).Path --output $journeyOutput | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Android semantic journey failed with exit code $LASTEXITCODE." }
+    $checkpointText = (& $checkpointScript `
+        -Python $Python `
+        -Port $HostPort `
+        -Journey (Resolve-Path -LiteralPath $Journey).Path `
+        -Output $journeyOutput `
+        -CheckpointDirectory $checkpointDirectory `
+        -BridgeCli $bridgeCli `
+        -Target $Target `
+        -Package $Package `
+        -EvidenceBase $checkpointEvidenceBase `
+        -LogLines $LogLines | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($checkpointText)) { throw 'Android semantic journey/checkpoint host failed.' }
+    try { $checkpointHostReceipt = $checkpointText | ConvertFrom-Json -ErrorAction Stop } catch { throw 'Android semantic checkpoint host returned invalid JSON.' }
+    if ($checkpointHostReceipt.ok -ne $true -or $checkpointHostReceipt.rawCoordinatesUsed -ne $false -or $checkpointHostReceipt.arbitraryAdbShellExposed -ne $false) {
+        throw 'Android semantic checkpoint host violated its truth contract.'
+    }
+
     try { $journeyReceipt = Get-Content -LiteralPath $journeyOutput -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop } catch { throw 'Android semantic journey output was missing or invalid.' }
     if ($journeyReceipt.ok -ne $true -or $journeyReceipt.truth.semanticInput -ne $true -or $journeyReceipt.truth.rawCoordinatesUsed -ne $false -or $journeyReceipt.truth.androidShellExposed -ne $false) {
         throw 'Android semantic journey returned an invalid truth receipt.'
+    }
+    if ([int]$journeyReceipt.checkpointCount -ne [int]$checkpointHostReceipt.checkpointCount) {
+        throw 'Android semantic journey and host visual checkpoint counts disagree.'
+    }
+    if ([int]$journeyReceipt.checkpointCount -gt 0 -and $journeyReceipt.truth.visualCheckpointHostEvidence -ne $true) {
+        throw 'Android semantic journey requested visual checkpoints but did not prove host evidence capture.'
     }
 
     & node $bridgeCli evidence --target $Target --package $Package --output-dir $postEvidence --lines ([string]$LogLines) --json | Out-Null
@@ -177,7 +207,9 @@ finally {
 
 $journeySucceeded = -not $failure
 $assertionCount = if ($journeyReceipt) { [int]$journeyReceipt.assertionCount } else { 0 }
+$checkpointCount = if ($journeyReceipt) { [int]$journeyReceipt.checkpointCount } else { 0 }
 $finalState = if ($journeyReceipt) { $journeyReceipt.finalState } else { $null }
+$checkpointEvidence = if ($checkpointHostReceipt) { @($checkpointHostReceipt.checkpoints) } else { @() }
 $summary = [ordered]@{
     schema = 'evavo_godot_lab_android_journey_summary_v1'
     ok = $journeySucceeded
@@ -191,8 +223,12 @@ $summary = [ordered]@{
     journeyResult = if (Test-Path -LiteralPath $journeyOutput) { [System.IO.Path]::GetFullPath($journeyOutput) } else { $null }
     assertionCount = $assertionCount
     projectStateAssertionsPerformed = $assertionCount -gt 0
+    checkpointCount = $checkpointCount
+    visualCheckpointEvidenceCaptured = $journeySucceeded -and $checkpointCount -gt 0 -and $checkpointEvidence.Count -eq $checkpointCount
+    visualCheckpoints = $checkpointEvidence
     finalSemanticState = $finalState
     bridgeEvidencePre = $preEvidence
+    bridgeEvidenceCheckpoints = if ($checkpointCount -gt 0) { $checkpointEvidenceBase } else { $null }
     bridgeEvidencePost = if ($postEvidenceCaptured) { $postEvidence } else { $null }
     postEvidenceCaptured = $postEvidenceCaptured
     internetPermissionVerified = $admission.internetPermission -eq $true
@@ -207,6 +243,7 @@ $summary = [ordered]@{
     physicalDeviceExecutionClaimed = $journeySucceeded
     semanticGameplayClaimed = $journeySucceeded
     semanticOutcomeAssertionsClaimed = $journeySucceeded -and $assertionCount -gt 0
+    visualGameplayEvidenceClaimed = $journeySucceeded -and $checkpointCount -gt 0 -and $checkpointEvidence.Count -eq $checkpointCount
     releaseBuildClaimed = $false
     rawCoordinatesUsed = $false
     arbitraryAdbShellExposed = $false
