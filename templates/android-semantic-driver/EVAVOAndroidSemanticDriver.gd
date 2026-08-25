@@ -4,6 +4,10 @@ const SCHEMA := "evavo.godot.android-semantic-driver.v1"
 const DEFAULT_PORT := 43821
 const MAX_MESSAGE_BYTES := 16384
 const MAX_ACTIONS := 128
+const STATE_PROVIDER_GROUP := "evavo_test_state_provider"
+const STATE_PROVIDER_METHOD := "evavo_test_state"
+const MAX_STATE_KEYS := 32
+const MAX_STATE_STRING_LENGTH := 128
 
 var _server := TCPServer.new()
 var _peer: StreamPeerTCP
@@ -115,6 +119,7 @@ func _handle_request(request: Dictionary) -> void:
             "scene": _current_scene_path(),
             "debugOnly": true,
             "loopbackOnly": true,
+            "projectStateSupported": true,
         })
         return
 
@@ -124,20 +129,77 @@ func _handle_request(request: Dictionary) -> void:
 
     match op:
         "state":
-            _send({
-                "schema": SCHEMA,
-                "ok": true,
-                "op": "state",
-                "session": _session,
-                "scene": _current_scene_path(),
-                "paused": get_tree().paused,
-                "processFrames": Engine.get_process_frames(),
-                "pressedActions": _pressed_allowed_actions(),
-            })
+            _send(_state_response())
         "action":
             _handle_action(request)
         _:
             _send_error("unsupported_operation")
+
+
+func _state_response() -> Dictionary:
+    return {
+        "schema": SCHEMA,
+        "ok": true,
+        "op": "state",
+        "session": _session,
+        "scene": _current_scene_path(),
+        "paused": get_tree().paused,
+        "processFrames": Engine.get_process_frames(),
+        "pressedActions": _pressed_allowed_actions(),
+        "projectState": _collect_project_state(),
+    }
+
+
+func _collect_project_state() -> Dictionary:
+    var merged: Dictionary = {}
+    var providers := get_tree().get_nodes_in_group(STATE_PROVIDER_GROUP)
+    for provider in providers:
+        if merged.size() >= MAX_STATE_KEYS:
+            break
+        if provider == null or not provider.has_method(STATE_PROVIDER_METHOD):
+            continue
+        var candidate: Variant = provider.call(STATE_PROVIDER_METHOD)
+        if not candidate is Dictionary:
+            continue
+        for raw_key in candidate:
+            if merged.size() >= MAX_STATE_KEYS:
+                break
+            var key := str(raw_key)
+            if not _valid_state_key(key) or merged.has(key):
+                continue
+            var sanitized := _sanitize_state_value(candidate[raw_key])
+            if sanitized[0]:
+                merged[key] = sanitized[1]
+    return merged
+
+
+func _sanitize_state_value(value: Variant) -> Array:
+    if value == null or value is bool or value is int or value is float:
+        return [true, value]
+    if value is String or value is StringName:
+        var text := str(value)
+        if text.length() <= MAX_STATE_STRING_LENGTH:
+            return [true, text]
+    return [false, null]
+
+
+func _valid_state_key(value: String) -> bool:
+    if value.is_empty() or value.length() > 64:
+        return false
+    for index in range(value.length()):
+        var code := value.unicode_at(index)
+        var valid := (
+            (code >= 48 and code <= 57)
+            or (code >= 65 and code <= 90)
+            or (code >= 97 and code <= 122)
+            or code == 95
+            or code == 46
+            or code == 58
+            or code == 45
+        )
+        if not valid:
+            return false
+    return true
 
 
 func _handle_action(request: Dictionary) -> void:
@@ -209,22 +271,7 @@ func _current_scene_path() -> String:
 
 
 func _valid_action_name(value: String) -> bool:
-    if value.is_empty() or value.length() > 64:
-        return false
-    for index in range(value.length()):
-        var code := value.unicode_at(index)
-        var valid := (
-            (code >= 48 and code <= 57)
-            or (code >= 65 and code <= 90)
-            or (code >= 97 and code <= 122)
-            or code == 95
-            or code == 46
-            or code == 58
-            or code == 45
-        )
-        if not valid:
-            return false
-    return true
+    return _valid_state_key(value)
 
 
 func _send_error(code: String) -> void:
