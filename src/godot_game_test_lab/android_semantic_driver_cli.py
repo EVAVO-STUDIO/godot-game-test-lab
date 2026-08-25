@@ -46,8 +46,6 @@ def run_journey(port: int, steps: list[dict[str, Any]]) -> dict[str, Any]:
     started = time.monotonic()
     records: list[dict[str, Any]] = []
     with AndroidSemanticDriverClient(port) as client:
-        hello = client.connect() if False else None
-        # __enter__ establishes the session; inspect bounded state as the first receipt.
         records.append({"index": -1, "type": "initial-state", "response": client.state()})
         for index, step in enumerate(steps):
             kind = str(step["type"])
