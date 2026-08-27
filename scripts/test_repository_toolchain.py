@@ -19,7 +19,7 @@ def _read_base() -> None:
     if BASE_PATH.resolve(strict=True) != BASE_PATH.absolute():
         raise RuntimeError("stable repository adversarial test base must be canonical")
     if BASE_PATH.stat().st_size > 4_000_000:
-        raise RuntimeError(bstable repository adversarial test base is too large")
+        raise RuntimeError("stable repository adversarial test base is too large")
     source = BASE_PATH.read_text(encoding="utf-8")
     if source.startswith("\ufeff") or "def main() -> int:" not in source:
         raise RuntimeError("stable repository adversarial test base is invalid")
