@@ -82,7 +82,7 @@ jobs:
           lock = load_engine_lock()
           assert lock.minimum_version == "4.6.2"
           assert lock.default_version == "4.6.3"
-          assert lock.channels == {"4.6": "4.6.3", "4.7": "4.7.1"}
+          assert lock.channels == {"4.6": "4.6.3", "4.7": "4.7.2"}
           PY
 
       - name: Evaluate Ruff and retain correction evidence
