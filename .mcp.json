@@ -5,10 +5,11 @@
       "args": ["../evavo-github-mcp/control-plane/local-agent-executor-mcp.mjs"],
       "env": {"EVAVO_LOCAL_AGENT_MCP_ROLE": "godot-game-test-lab"}
     },
-    "evavo-local-execution": {
-      "command": "../evavo-local-compute/.venv/Scripts/python.exe",
-      "args": ["../evavo-local-compute/scripts/local-execution-mcp.py"],
+    "evavo-windows-workstation-bridge": {
+      "command": "../evavo-local-compute/.venv/Scripts/evavo-windows-workstation-bridge.exe",
+      "args": ["mcp"],
       "env": {
+        "EVAVO_WORKSTATION_BRIDGE_STATE_ROOT": "%LOCALAPPDATA%\\EVAVO\\WindowsWorkstationBridge",
         "EVAVO_LOCAL_EXECUTION_PREPARE_ENABLED": "enabled",
         "EVAVO_LOCAL_EXECUTION_MCP_ENABLED": "enabled",
         "EVAVO_LOCAL_EXECUTION_ENABLED": "enabled",
@@ -22,6 +23,10 @@
         "EVAVO_LOCAL_EXECUTION_ALLOWED_ROOTS": "C:\\GitRepos;%LOCALAPPDATA%\\EVAVO;%USERPROFILE%\\Downloads;C:\\GodotLabEvidence",
         "EVAVO_COMPUTE_ALLOWED_ROOTS": "C:\\GitRepos;%LOCALAPPDATA%\\EVAVO;%USERPROFILE%\\Downloads;C:\\GodotLabEvidence"
       }
+    },
+    "evavo-windows-workstation-execution-provider": {
+      "command": "node",
+      "args": ["../evavo-development-studio/scripts/windows-workstation-execution-provider-mcp.mjs"]
     },
     "evavo-android-device": {
       "command": "node",
