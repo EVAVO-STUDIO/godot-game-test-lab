@@ -101,7 +101,7 @@ def main() -> int:
             raise RuntimeError("stable asset-audit base does not expose main")
         scripts = _load_scripts(_read_regular(ROOT / "pyproject.toml", 128_000))
         if scripts != EXPECTED_SCRIPTS:
-            raise RuntimeError(f"Godot Lab command entrypoints changed")
+            raise RuntimeError("Godot Lab command entrypoints changed")
     except (OSError, UnicodeError, RuntimeError, tomllib.TOMLDecodeError) as error:
         print(f"Asset-audit current authority check failed: {error}", file=sys.stderr)
         return 1
@@ -113,7 +113,7 @@ def main() -> int:
     base_main = namespace.get("main")
     if not callable(base_main):
         raise RuntimeError("stable asset-audit base does not expose callable main")
-    base_main.__globals__["tomlib"] = _compat_tomllib()
+    base_main.__globals__["tomllib"] = _compat_tomllib()
     result = base_main()
     if not isinstance(result, int):
         raise RuntimeError("stable asset-audit base must return an integer")
