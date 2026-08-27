@@ -35,7 +35,7 @@
     "managedGodotDefault": "4.6.3",
     "managedGodotChannels": {
       "4.6": "4.6.3",
-      "4.7": "4.7.1"
+      "4.7": "4.7.2"
     },
     "managedGodotPlatforms": [
       "windows-x86_64",

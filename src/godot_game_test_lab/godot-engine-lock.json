@@ -4,7 +4,7 @@
   "defaultVersion": "4.6.3",
   "channels": {
     "4.6": "4.6.3",
-    "4.7": "4.7.1"
+    "4.7": "4.7.2"
   },
   "defaultFlavors": [
     "standard",
