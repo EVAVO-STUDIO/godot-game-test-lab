@@ -28,6 +28,9 @@ EXPECTED_SCRIPTS = {
     "godot-lab-mcp": "godot_game_test_lab.mcp_server:main",
     "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
     "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
+    "godot-lab-web-export-audit": (
+        "godot_game_test_lab.web_export_audit:main"
+    ),
     "godot-lab-android-journey": (
         "godot_game_test_lab.android_semantic_driver_cli:main"
     ),
