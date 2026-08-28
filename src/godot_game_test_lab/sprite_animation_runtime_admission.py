@@ -33,7 +33,7 @@ _LOOP_MODES = {"none", "linear", "ping-pong"}
 
 
 def _positive_number(value: Any, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
         raise ValueError(f"{label} must be a finite number greater than zero")
     result = float(value)
     if result != result or result in {float("inf"), float("-inf")}:
@@ -42,7 +42,7 @@ def _positive_number(value: Any, label: str) -> float:
 
 
 def _non_negative_number(value: Any, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+    if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
         raise ValueError(f"{label} must be a finite number greater than or equal to zero")
     result = float(value)
     if result != result or result in {float("inf"), float("-inf")}:
@@ -75,7 +75,7 @@ def _pivot(value: Any, label: str) -> dict[str, float]:
     result: dict[str, float] = {}
     for axis in ("x", "y"):
         coordinate = item.get(axis)
-        if isinstance(coordinate, bool) or not isinstance(coordinate, (int, float)):
+        if isinstance(coordinate, bool) or not isinstance(coordinate, int | float):
             raise ValueError(f"{label}.{axis} must be finite")
         number = float(coordinate)
         if number != number or number in {float("inf"), float("-inf")}:
@@ -267,7 +267,9 @@ def admit_sprite_animation_runtime(
                 }
             )
     if timing_failures:
-        raise ValueError("runtime observed frame cadence differs beyond expectation tolerance")
+        raise ValueError(
+            "runtime observed frame cadence differs beyond expectation tolerance"
+        )
 
     anchor = frames[0]["pivot"]
     pivot_failures = []
