@@ -7,10 +7,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from godot_game_test_lab import sprite_animation_probe_runner as runner
 from godot_game_test_lab.core import CommandResult
 from godot_game_test_lab.game_asset_delivery_common import hash_object
-from godot_game_test_lab.sprite_animation_runtime_admission import AUTHORITY, EXPECTATION_SCHEMA
-from godot_game_test_lab import sprite_animation_probe_runner as runner
+from godot_game_test_lab.sprite_animation_runtime_admission import (
+    AUTHORITY,
+    EXPECTATION_SCHEMA,
+)
 
 
 def self_hash(value: dict, key: str) -> dict:
@@ -51,8 +54,20 @@ def raw() -> dict:
         "loopMode": "linear",
         "completeCyclesObserved": 1,
         "frames": [
-            {"frameId": "f1", "configuredDurationMicros": 125000, "observedDurationMs": 133, "pivot": {"x": 4, "y": 7}, "rendered": True},
-            {"frameId": "f2", "configuredDurationMicros": 125000, "observedDurationMs": 133, "pivot": {"x": 4, "y": 7}, "rendered": True},
+            {
+                "frameId": "f1",
+                "configuredDurationMicros": 125000,
+                "observedDurationMs": 133,
+                "pivot": {"x": 4, "y": 7},
+                "rendered": True,
+            },
+            {
+                "frameId": "f2",
+                "configuredDurationMicros": 125000,
+                "observedDurationMs": 133,
+                "pivot": {"x": 4, "y": 7},
+                "rendered": True,
+            },
         ],
         "importErrors": [],
         "consoleErrors": [],
@@ -62,7 +77,10 @@ def raw() -> dict:
 def fixture(tmp_path: Path) -> tuple[Path, Path, str]:
     project = tmp_path / "game"
     project.mkdir()
-    (project / "project.godot").write_text('[application]\nconfig/name="Probe"\n', encoding="utf-8")
+    (project / "project.godot").write_text(
+        '[application]\nconfig/name="Probe"\n',
+        encoding="utf-8",
+    )
     scene = project / "probe.tscn"
     scene.write_text('[gd_scene format=3]\n', encoding="utf-8")
     resource = project / "hero.tres"
@@ -71,7 +89,10 @@ def fixture(tmp_path: Path) -> tuple[Path, Path, str]:
     return project, tmp_path / "external", expected
 
 
-def test_runner_binds_clean_target_and_restores_probe_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runner_binds_clean_target_and_restores_probe_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     project, external, expected_sha = fixture(tmp_path)
     expectation_path = external / "expectation.json"
     expectation_path.parent.mkdir(parents=True)
@@ -81,9 +102,17 @@ def test_runner_binds_clean_target_and_restores_probe_environment(tmp_path: Path
     monkeypatch.setattr(
         runner,
         "read_git_state",
-        lambda _: SimpleNamespace(available=True, target_sha=expected_sha, dirty=False),
+        lambda _: SimpleNamespace(
+            available=True,
+            target_sha=expected_sha,
+            dirty=False,
+        ),
     )
-    monkeypatch.setattr(runner, "discover_godot_binary", lambda *_args, **_kwargs: Path("C:/Godot/godot.exe"))
+    monkeypatch.setattr(
+        runner,
+        "discover_godot_binary",
+        lambda *_args, **_kwargs: Path("C:/Godot/godot.exe"),
+    )
 
     previous = "preserve-me"
     monkeypatch.setenv("EVAVO_SPRITE_ANIMATION_CLIP", previous)
@@ -95,7 +124,13 @@ def test_runner_binds_clean_target_and_restores_probe_environment(tmp_path: Path
         assert os.environ["EVAVO_SPRITE_ANIMATION_CLIP"] == "walk-right"
         raw_path = Path(os.environ["EVAVO_SPRITE_ANIMATION_RAW_TELEMETRY"])
         raw_path.write_text(json.dumps(raw()), encoding="utf-8")
-        return CommandResult(command=list(command), exit_code=0, duration_seconds=0.2, stdout="", stderr="")
+        return CommandResult(
+            command=list(command),
+            exit_code=0,
+            duration_seconds=0.2,
+            stdout="",
+            stderr="",
+        )
 
     monkeypatch.setattr(runner, "run_command", fake_run)
     result = runner.run_sprite_animation_probe(
@@ -117,7 +152,10 @@ def test_runner_binds_clean_target_and_restores_probe_environment(tmp_path: Path
     assert (external / "report.json").is_file()
 
 
-def test_runner_refuses_dirty_or_drifting_target_before_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runner_refuses_dirty_or_drifting_target_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     project, external, expected_sha = fixture(tmp_path)
     expectation_path = external / "expectation.json"
     expectation_path.parent.mkdir(parents=True)
@@ -127,7 +165,11 @@ def test_runner_refuses_dirty_or_drifting_target_before_execution(tmp_path: Path
     monkeypatch.setattr(
         runner,
         "read_git_state",
-        lambda _: SimpleNamespace(available=True, target_sha=expected_sha, dirty=True),
+        lambda _: SimpleNamespace(
+            available=True,
+            target_sha=expected_sha,
+            dirty=True,
+        ),
     )
     with pytest.raises(ValueError, match="must be clean"):
         runner.run_sprite_animation_probe(
@@ -145,7 +187,11 @@ def test_runner_refuses_dirty_or_drifting_target_before_execution(tmp_path: Path
     monkeypatch.setattr(
         runner,
         "read_git_state",
-        lambda _: SimpleNamespace(available=True, target_sha="b" * 40, dirty=False),
+        lambda _: SimpleNamespace(
+            available=True,
+            target_sha="b" * 40,
+            dirty=False,
+        ),
     )
     with pytest.raises(ValueError, match="HEAD differs"):
         runner.run_sprite_animation_probe(
