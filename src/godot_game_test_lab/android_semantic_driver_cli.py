@@ -4,8 +4,9 @@ import argparse
 import json
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .android_semantic_driver import AndroidSemanticDriverClient
 
@@ -23,27 +24,40 @@ CheckpointHandler = Callable[[int, str, dict[str, Any]], dict[str, Any]]
 
 
 def _valid_expected_value(value: Any) -> bool:
-    if value is None or isinstance(value, (bool, int, float)):
+    if value is None or isinstance(value, bool | int | float):
         return True
     return isinstance(value, str) and len(value) <= MAX_STATE_STRING_LENGTH
 
 
 def _validate_expected_state(value: Any, index: int) -> dict[str, Any]:
     if not isinstance(value, dict) or not 1 <= len(value) <= MAX_EXPECTED_STATE_KEYS:
-        raise ValueError(f"step {index} assert-state expected must contain 1..{MAX_EXPECTED_STATE_KEYS} keys")
+        raise ValueError(
+            f"step {index} assert-state expected must contain "
+            f"1..{MAX_EXPECTED_STATE_KEYS} keys"
+        )
     normalized: dict[str, Any] = {}
     for key, expected in value.items():
-        if not isinstance(key, str) or not 1 <= len(key) <= 64 or any(not (ch.isalnum() or ch in "_.:-") for ch in key):
+        invalid_key = (
+            not isinstance(key, str)
+            or not 1 <= len(key) <= 64
+            or any(not (character.isalnum() or character in "_.:-") for character in key)
+        )
+        if invalid_key:
             raise ValueError(f"step {index} assert-state key is invalid")
         if not _valid_expected_value(expected):
-            raise ValueError(f"step {index} assert-state value for {key} is not a bounded scalar")
+            raise ValueError(
+                f"step {index} assert-state value for {key} is not a bounded scalar"
+            )
         normalized[key] = expected
     return normalized
 
 
 def _validate_checkpoint_name(value: Any, index: int) -> str:
     if not isinstance(value, str) or _CHECKPOINT_RE.fullmatch(value) is None:
-        raise ValueError(f"step {index} checkpoint name must match [A-Za-z0-9][A-Za-z0-9_.-]{{0,63}}")
+        raise ValueError(
+            f"step {index} checkpoint name must match "
+            "[A-Za-z0-9][A-Za-z0-9_.-]{0,63}"
+        )
     return value
 
 
@@ -57,11 +71,20 @@ def _load_journey(path: Path) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     total_wait = 0
     checkpoint_count = 0
+    allowed_kinds = {
+        "press",
+        "release",
+        "pulse",
+        "wait",
+        "state",
+        "assert-state",
+        "checkpoint",
+    }
     for index, step in enumerate(steps):
         if not isinstance(step, dict):
             raise ValueError(f"step {index} must be an object")
         kind = step.get("type")
-        if kind not in {"press", "release", "pulse", "wait", "state", "assert-state", "checkpoint"}:
+        if kind not in allowed_kinds:
             raise ValueError(f"step {index} has unsupported type")
         current = dict(step)
         if kind == "wait":
@@ -78,13 +101,19 @@ def _load_journey(path: Path) -> list[dict[str, Any]]:
         if kind == "checkpoint":
             checkpoint_count += 1
             if checkpoint_count > MAX_CHECKPOINTS:
-                raise ValueError(f"journey contains more than {MAX_CHECKPOINTS} visual checkpoints")
+                raise ValueError(
+                    f"journey contains more than {MAX_CHECKPOINTS} visual checkpoints"
+                )
             current["name"] = _validate_checkpoint_name(step.get("name"), index)
         normalized.append(current)
     return normalized
 
 
-def _assert_project_state(response: dict[str, Any], expected: dict[str, Any], index: int) -> dict[str, Any]:
+def _assert_project_state(
+    response: dict[str, Any],
+    expected: dict[str, Any],
+    index: int,
+) -> dict[str, Any]:
     observed = response.get("projectState")
     if not isinstance(observed, dict):
         raise AssertionError(f"step {index} target did not expose projectState")
@@ -94,17 +123,31 @@ def _assert_project_state(response: dict[str, Any], expected: dict[str, Any], in
             mismatches.append({"key": key, "reason": "missing"})
             continue
         if observed[key] != expected_value:
-            mismatches.append({"key": key, "reason": "not_equal", "expected": expected_value, "observed": observed[key]})
+            mismatches.append(
+                {
+                    "key": key,
+                    "reason": "not_equal",
+                    "expected": expected_value,
+                    "observed": observed[key],
+                }
+            )
     if mismatches:
         compact = ", ".join(f"{entry['key']}:{entry['reason']}" for entry in mismatches)
         raise AssertionError(f"step {index} project-state assertion failed: {compact}")
-    return {"matched": True, "expected": expected, "observed": {key: observed[key] for key in expected}}
+    return {
+        "matched": True,
+        "expected": expected,
+        "observed": {key: observed[key] for key in expected},
+    }
 
 
 def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(value, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     temporary.replace(path)
 
 
@@ -131,14 +174,29 @@ def _filesystem_checkpoint_handler(directory: Path) -> CheckpointHandler:
         while time.monotonic() < deadline:
             if resume_path.is_file():
                 value = json.loads(resume_path.read_text(encoding="utf-8"))
-                if not isinstance(value, dict) or value.get("schema") != CHECKPOINT_RESUME_SCHEMA or value.get("ok") is not True:
-                    raise RuntimeError(f"checkpoint host rejected visual evidence for {name}")
+                valid_resume = (
+                    isinstance(value, dict)
+                    and value.get("schema") == CHECKPOINT_RESUME_SCHEMA
+                    and value.get("ok") is True
+                )
+                if not valid_resume:
+                    raise RuntimeError(
+                        f"checkpoint host rejected visual evidence for {name}"
+                    )
                 evidence_ref = value.get("evidenceRef")
-                if not isinstance(evidence_ref, str) or not 1 <= len(evidence_ref) <= 256:
-                    raise RuntimeError(f"checkpoint host returned invalid evidence reference for {name}")
+                if (
+                    not isinstance(evidence_ref, str)
+                    or not 1 <= len(evidence_ref) <= 256
+                ):
+                    raise RuntimeError(
+                        f"checkpoint host returned invalid evidence reference for {name}"
+                    )
                 return {"captured": True, "evidenceRef": evidence_ref}
             time.sleep(0.05)
-        raise TimeoutError(f"checkpoint host did not resume {name} within {int(MAX_CHECKPOINT_WAIT_SECONDS)} seconds")
+        timeout = int(MAX_CHECKPOINT_WAIT_SECONDS)
+        raise TimeoutError(
+            f"checkpoint host did not resume {name} within {timeout} seconds"
+        )
 
     return handler
 
@@ -165,7 +223,14 @@ def run_journey(
                 response = client.state()
             elif kind == "assert-state":
                 state = client.state()
-                response = {"state": state, "assertion": _assert_project_state(state, dict(step["expected"]), index)}
+                response = {
+                    "state": state,
+                    "assertion": _assert_project_state(
+                        state,
+                        dict(step["expected"]),
+                        index,
+                    ),
+                }
                 assertion_count += 1
             elif kind == "checkpoint":
                 name = str(step["name"])
@@ -204,7 +269,9 @@ def run_journey(
             "semanticInput": True,
             "projectStateAssertions": assertion_count > 0,
             "visualCheckpointsRequested": checkpoint_count > 0,
-            "visualCheckpointHostEvidence": checkpoint_count > 0 and checkpoint_handler is not None,
+            "visualCheckpointHostEvidence": (
+                checkpoint_count > 0 and checkpoint_handler is not None
+            ),
             "rawCoordinatesUsed": False,
             "androidShellExposed": False,
             "arbitraryNodeInspection": False,
@@ -215,7 +282,9 @@ def run_journey(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run a bounded Godot semantic journey over loopback.")
+    parser = argparse.ArgumentParser(
+        description="Run a bounded Godot semantic journey over loopback."
+    )
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--journey", type=Path, required=True)
     parser.add_argument("--output", type=Path)
@@ -226,7 +295,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     steps = _load_journey(args.journey)
-    handler = _filesystem_checkpoint_handler(args.checkpoint_directory) if args.checkpoint_directory else None
+    handler = (
+        _filesystem_checkpoint_handler(args.checkpoint_directory)
+        if args.checkpoint_directory
+        else None
+    )
     result = run_journey(args.port, steps, checkpoint_handler=handler)
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:
