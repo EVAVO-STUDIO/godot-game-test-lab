@@ -9,548 +9,151 @@
       "id": "testlab.readiness.automated-testing",
       "title": "Expose privacy-safe Automated Testing readiness",
       "description": "Report compatible Godot and specialist readiness without selecting, executing, mutating or provisioning a target project and without exposing executable paths.",
-      "interfaces": [
-        "automation",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute"
-      ],
-      "entrypoints": [
-        "scripts/automated_testing_probe.py",
-        "src/godot_game_test_lab/automated_testing_probe.py"
-      ],
-      "tags": [
-        "godot",
-        "readiness",
-        "automated-testing",
-        "probe",
-        "read-only"
-      ],
-      "requires": [
-        "Python 3.11+",
-        "Godot Game Test Lab source checkout"
-      ]
+      "interfaces": ["automation", "testing"],
+      "effects": ["read", "compute"],
+      "entrypoints": ["scripts/automated_testing_probe.py", "src/godot_game_test_lab/automated_testing_probe.py"],
+      "tags": ["godot", "readiness", "automated-testing", "probe", "read-only"],
+      "requires": ["Python 3.11+", "Godot Game Test Lab source checkout"]
     },
     {
       "id": "testlab.engine.provision",
       "title": "Provision governed Godot engines",
       "description": "Select, download or reuse official Godot editor and export-template archives under governed policy, verify checksums and retain managed receipts outside target repositories.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "mcp"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "network",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-engine",
-        "godot-lab engine",
-        "godot_ensure_engine",
-        "src/godot_game_test_lab/engine_manager.py"
-      ],
-      "tags": [
-        "godot",
-        "engine",
-        "provisioning",
-        "checksum",
-        "managed-cache"
-      ],
-      "requires": [
-        "Governed Godot engine lock",
-        "Official godotengine/godot-builds source or approved offline source",
-        "Managed engine root distinct from target repository"
-      ]
+      "interfaces": ["automation", "cli", "library", "mcp"],
+      "effects": ["read", "compute", "network", "write", "execute"],
+      "entrypoints": ["godot-lab-engine", "godot-lab engine", "godot_ensure_engine", "src/godot_game_test_lab/engine_manager.py"],
+      "tags": ["godot", "engine", "provisioning", "checksum", "managed-cache"],
+      "requires": ["Governed Godot engine lock", "Official godotengine/godot-builds source or approved offline source", "Managed engine root distinct from target repository"]
     },
     {
       "id": "testlab.project.inspect-audit",
       "title": "Inspect and audit Godot projects",
       "description": "Inspect one allowed project and run bounded scene, resource, path, Git, export and asset integrity checks without executing or modifying it.",
-      "interfaces": [
-        "cli",
-        "library",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute"
-      ],
-      "entrypoints": [
-        "godot-lab inspect",
-        "godot-lab audit",
-        "godot_inspect",
-        "godot_audit",
-        "src/godot_game_test_lab/integrity.py"
-      ],
-      "tags": [
-        "godot",
-        "inspection",
-        "audit",
-        "integrity",
-        "read-only"
-      ],
-      "requires": [
-        "Allowed external project root",
-        "Bounded audit limits"
-      ]
+      "interfaces": ["cli", "library", "mcp", "testing"],
+      "effects": ["read", "compute"],
+      "entrypoints": ["godot-lab inspect", "godot-lab audit", "godot_inspect", "godot_audit", "src/godot_game_test_lab/integrity.py"],
+      "tags": ["godot", "inspection", "audit", "integrity", "read-only"],
+      "requires": ["Allowed external project root", "Bounded audit limits"]
     },
     {
       "id": "testlab.web-export.audit",
       "title": "Audit exact Godot web export bundles",
       "description": "Inspect one bounded Godot web export directory and schemaVersion 2 export descriptor, verify safe local asset references, SHA-256 and byte-size identities, required JS/WASM/PCK coverage, threaded isolation intent or retained COOP/COEP evidence, and signature-envelope structure without executing a browser or granting publication authority.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute"
-      ],
-      "entrypoints": [
-        "godot-lab-web-export-audit",
-        "python -m godot_game_test_lab.web_export_audit",
-        "scripts/audit_godot_web_export.py",
-        "src/godot_game_test_lab/web_export_audit.py"
-      ],
-      "tags": [
-        "godot",
-        "web",
-        "export",
-        "integrity",
-        "threaded",
-        "isolation",
-        "read-only"
-      ],
-      "requires": [
-        "Bounded local Godot web export root",
-        "schemaVersion 2 export.json descriptor inside the export root",
-        "Retained COOP/COEP header evidence when threaded isolation is not descriptor-provided",
-        "Browser execution and publication authority remain downstream"
-      ]
+      "interfaces": ["automation", "cli", "library", "testing"],
+      "effects": ["read", "compute"],
+      "entrypoints": ["godot-lab-web-export-audit", "python -m godot_game_test_lab.web_export_audit", "scripts/audit_godot_web_export.py", "src/godot_game_test_lab/web_export_audit.py"],
+      "tags": ["godot", "web", "export", "integrity", "threaded", "isolation", "read-only"],
+      "requires": ["Bounded local Godot web export root", "schemaVersion 2 export.json descriptor inside the export root", "Retained COOP/COEP header evidence when threaded isolation is not descriptor-provided", "Browser execution and publication authority remain downstream"]
     },
     {
       "id": "testlab.project.validate-runtime",
       "title": "Run authoritative Godot validation",
       "description": "Run exact-source integrity, optional .NET build, Godot import, bounded runtime, recording and export evidence while keeping target repair and publication outside Test Lab authority.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab validate",
-        "godot-lab run",
-        "godot-lab record",
-        "godot-lab export",
-        "godot_validate",
-        "src/godot_game_test_lab/pipeline.py"
-      ],
-      "tags": [
-        "godot",
-        "validation",
-        "runtime",
-        "import",
-        "recording",
-        "export-evidence"
-      ],
-      "requires": [
-        "Exact external project source",
-        "Compatible Godot editor",
-        "Bounded artifact paths",
-        "Downstream authority for repair or publication"
-      ]
+      "interfaces": ["automation", "cli", "library", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab validate", "godot-lab run", "godot-lab record", "godot-lab export", "godot_validate", "src/godot_game_test_lab/pipeline.py"],
+      "tags": ["godot", "validation", "runtime", "import", "recording", "export-evidence"],
+      "requires": ["Exact external project source", "Compatible Godot editor", "Bounded artifact paths", "Downstream authority for repair or publication"]
     },
     {
       "id": "testlab.localization.plural-runtime",
       "title": "Validate exact-head Godot plural localization runtime",
       "description": "Verify one fingerprinted plural artifact against an exact clean target head, run authoritative import and reviewed integer lookup probes, remove transient material and prove target source remained unchanged.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-localization-plural",
-        "python -m godot_game_test_lab.localization_plural_runtime_cli",
-        "src/godot_game_test_lab/localization_plural_runtime.py",
-        "src/godot_game_test_lab/localization_plural_safe.py",
-        "scripts/Invoke-GodotPluralLocalizationValidation.ps1",
-        "docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md"
-      ],
-      "tags": [
-        "godot",
-        "localization",
-        "plural",
-        "exact-head",
-        "runtime-probe",
-        "admission",
-        "evidence"
-      ],
-      "requires": [
-        "Fingerprint-valid localization-godot-plural-testlab-request-v1",
-        "Exact clean target Git head with supported github.com origin",
-        "Exact admitted project-relative CSV bytes",
-        "Compatible Godot editor and .NET SDK when required",
-        "External evidence root",
-        "Human-reviewed locale probe mapping"
-      ]
+      "interfaces": ["automation", "cli", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-localization-plural", "python -m godot_game_test_lab.localization_plural_runtime_cli", "src/godot_game_test_lab/localization_plural_runtime.py", "src/godot_game_test_lab/localization_plural_safe.py", "scripts/Invoke-GodotPluralLocalizationValidation.ps1", "docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md"],
+      "tags": ["godot", "localization", "plural", "exact-head", "runtime-probe", "admission", "evidence"],
+      "requires": ["Fingerprint-valid localization-godot-plural-testlab-request-v1", "Exact clean target Git head with supported github.com origin", "Exact admitted project-relative CSV bytes", "Compatible Godot editor and .NET SDK when required", "External evidence root", "Human-reviewed locale probe mapping"]
     },
     {
       "id": "testlab.localization.stable-id-bundle-admit",
       "title": "Admit exact stable-ID application bundles",
       "description": "Independently verify a fingerprinted Localization Manager stable-ID application bundle against one exact clean Godot repository head, including current and proposed scene bytes, stable-key assignments, source-catalog bytes, provenance and post-run non-mutation. It does not apply files, execute Godot, commit, push, release or publish.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute"
-      ],
-      "entrypoints": [
-        "godot-lab-localization-stable-id-bundle",
-        "python -m godot_game_test_lab.localization_stable_id_bundle_cli",
-        "src/godot_game_test_lab/localization_stable_id_bundle.py",
-        "src/godot_game_test_lab/localization_stable_id_bundle_cli.py",
-        "docs/LOCALIZATION_STABLE_ID_BUNDLE_ADMISSION.md"
-      ],
-      "tags": [
-        "godot",
-        "localization",
-        "stable-id",
-        "exact-head",
-        "exact-bytes",
-        "admission",
-        "read-only"
-      ],
-      "requires": [
-        "Fingerprint-valid localization-godot-stable-id-application-bundle-v1",
-        "Exact clean target Git head with supported github.com origin",
-        "Exact current, proposed and source-catalog byte identities",
-        "Separate product-owned authority for later application or commit"
-      ]
+      "interfaces": ["automation", "cli", "library", "testing"],
+      "effects": ["read", "compute"],
+      "entrypoints": ["godot-lab-localization-stable-id-bundle", "python -m godot_game_test_lab.localization_stable_id_bundle_cli", "src/godot_game_test_lab/localization_stable_id_bundle.py", "src/godot_game_test_lab/localization_stable_id_bundle_cli.py", "docs/LOCALIZATION_STABLE_ID_BUNDLE_ADMISSION.md"],
+      "tags": ["godot", "localization", "stable-id", "exact-head", "exact-bytes", "admission", "read-only"],
+      "requires": ["Fingerprint-valid localization-godot-stable-id-application-bundle-v1", "Exact clean target Git head with supported github.com origin", "Exact current, proposed and source-catalog byte identities", "Separate product-owned authority for later application or commit"]
     },
     {
       "id": "testlab.qa.native-authored",
       "title": "Run exact-SHA native authored QA",
       "description": "Run target-authored native Windows journeys against exact Lab and target SHAs, retaining bounded synchronized evidence outside both repositories.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "desktop",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-native-qa",
-        "godot_run_native_qa",
-        "src/godot_game_test_lab/native_qa.py",
-        "scripts/Invoke-GodotLabNativeAgentQA.ps1"
-      ],
-      "tags": [
-        "godot",
-        "native",
-        "qa",
-        "journeys",
-        "visual",
-        "audio"
-      ],
-      "requires": [
-        "Exact Lab and target SHAs",
-        "Reviewed QA profile",
-        "Allowed external artifact root",
-        "Interactive Windows session for authoritative visual evidence"
-      ]
+      "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-native-qa", "godot_run_native_qa", "src/godot_game_test_lab/native_qa.py", "scripts/Invoke-GodotLabNativeAgentQA.ps1"],
+      "tags": ["godot", "native", "qa", "journeys", "visual", "audio"],
+      "requires": ["Exact Lab and target SHAs", "Reviewed QA profile", "Allowed external artifact root", "Interactive Windows session for authoritative visual evidence"]
     },
     {
       "id": "testlab.qa.multiplayer",
       "title": "Run and independently attest exact-SHA concurrent multiplayer QA",
       "description": "Run two to eight reviewed multiplayer roles concurrently under one guarded desktop lease with isolated runtime homes, bounded evidence and final mutation verification, then optionally rehash that completed run into a same-session operator-attended receipt without converting attendance into human approval.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "desktop",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-multiplayer-qa",
-        "python -m godot_game_test_lab.attended_multiplayer",
-        "src/godot_game_test_lab/multiplayer_qa.py",
-        "src/godot_game_test_lab/attended_multiplayer.py",
-        "scripts/Invoke-GodotLabMultiplayerAgentQA.ps1",
-        "docs/ATTENDED_MULTIPLAYER_RECEIPT.md"
-      ],
-      "tags": [
-        "godot",
-        "multiplayer",
-        "concurrent",
-        "qa",
-        "playtest",
-        "roles",
-        "exact-sha",
-        "attended",
-        "receipt"
-      ],
-      "requires": [
-        "Exact Lab and target SHAs",
-        "Reviewed multiplayer profile with 2 to 8 roles",
-        "Allowed external artifact root",
-        "Interactive Windows session",
-        "Completed passed multiplayer run for attended receipt",
-        "Same-session operator attestation for attended receipt",
-        "Human review for game-feel conclusions"
-      ]
+      "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-multiplayer-qa", "python -m godot_game_test_lab.attended_multiplayer", "src/godot_game_test_lab/multiplayer_qa.py", "src/godot_game_test_lab/attended_multiplayer.py", "scripts/Invoke-GodotLabMultiplayerAgentQA.ps1", "docs/ATTENDED_MULTIPLAYER_RECEIPT.md"],
+      "tags": ["godot", "multiplayer", "concurrent", "qa", "playtest", "roles", "exact-sha", "attended", "receipt"],
+      "requires": ["Exact Lab and target SHAs", "Reviewed multiplayer profile with 2 to 8 roles", "Allowed external artifact root", "Interactive Windows session", "Completed passed multiplayer run for attended receipt", "Same-session operator attestation for attended receipt", "Human review for game-feel conclusions"]
     },
     {
       "id": "testlab.qa.bot",
       "title": "Run deterministic bot QA",
       "description": "Execute bounded deterministic fresh-process bot journeys across supported input paths while retaining replay, state and media evidence without claiming complete state coverage.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "desktop",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-bot-qa",
-        "godot_run_bot_qa",
-        "src/godot_game_test_lab/bot_qa.py",
-        "scripts/Invoke-GodotLabBotQA.ps1"
-      ],
-      "tags": [
-        "godot",
-        "bot",
-        "playtest",
-        "deterministic",
-        "input",
-        "state-graph"
-      ],
-      "requires": [
-        "Exact Lab and target SHAs",
-        "Reviewed bot QA profile",
-        "Bounded artifact root",
-        "Human review for game-feel conclusions"
-      ]
+      "interfaces": ["automation", "cli", "desktop", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-bot-qa", "godot_run_bot_qa", "src/godot_game_test_lab/bot_qa.py", "scripts/Invoke-GodotLabBotQA.ps1"],
+      "tags": ["godot", "bot", "playtest", "deterministic", "input", "state-graph"],
+      "requires": ["Exact Lab and target SHAs", "Reviewed bot QA profile", "Bounded artifact root", "Human review for game-feel conclusions"]
     },
     {
       "id": "testlab.sandbox.linux",
       "title": "Run isolated Linux Godot QA",
       "description": "Prepare an ephemeral bounded copy and run Linux Godot validation under a governed no-network sandbox while keeping the target outside repair and publication authority.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-sandbox",
-        "godot-lab linux-sandbox",
-        "godot_run_linux_sandbox",
-        "src/godot_game_test_lab/linux_sandbox.py",
-        "scripts/Invoke-GodotLabLinuxSandbox.ps1"
-      ],
-      "tags": [
-        "godot",
-        "linux",
-        "sandbox",
-        "isolated",
-        "no-network",
-        "evidence"
-      ],
-      "requires": [
-        "Allowed target source",
-        "Sandbox root distinct from target",
-        "Bounded resources and artifact root"
-      ]
+      "interfaces": ["automation", "cli", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-sandbox", "godot-lab linux-sandbox", "godot_run_linux_sandbox", "src/godot_game_test_lab/linux_sandbox.py", "scripts/Invoke-GodotLabLinuxSandbox.ps1"],
+      "tags": ["godot", "linux", "sandbox", "isolated", "no-network", "evidence"],
+      "requires": ["Allowed target source", "Sandbox root distinct from target", "Bounded resources and artifact root"]
     },
     {
       "id": "testlab.media.analyze",
       "title": "Analyse retained gameplay media",
       "description": "Extract and analyse synchronized gameplay audio and video with governed FFmpeg policy while keeping human mix and visual judgment separate.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "mcp",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "godot-lab-media-qa",
-        "src/godot_game_test_lab/media_cli.py"
-      ],
-      "tags": [
-        "godot",
-        "media",
-        "audio",
-        "video",
-        "ffmpeg",
-        "evidence"
-      ],
-      "requires": [
-        "Retained gameplay media",
-        "Bounded artifact path",
-        "FFmpeg and FFprobe"
-      ]
+      "interfaces": ["automation", "cli", "library", "mcp", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["godot-lab-media-qa", "src/godot_game_test_lab/media_cli.py"],
+      "tags": ["godot", "media", "audio", "video", "ffmpeg", "evidence"],
+      "requires": ["Retained gameplay media", "Bounded artifact path", "FFmpeg and FFprobe"]
     },
     {
       "id": "testlab.asset-delivery.admit",
       "title": "Admit exact installed game-asset deliveries",
       "description": "Bind an exact game head, delivery bundle, storage admission, installed bytes and optional native evidence into create-only asset-delivery evidence.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write"
-      ],
-      "entrypoints": [
-        "src/godot_game_test_lab/game_asset_delivery_admission.py",
-        "scripts/check_game_asset_delivery_admission.py"
-      ],
-      "tags": [
-        "godot",
-        "assets",
-        "delivery",
-        "admission",
-        "exact-bytes"
-      ],
-      "requires": [
-        "Exact game head",
-        "Exact delivery and storage admission",
-        "Installed target bytes",
-        "Optional native evidence for full pass"
-      ]
+      "interfaces": ["automation", "cli", "library", "testing"],
+      "effects": ["read", "compute", "write"],
+      "entrypoints": ["src/godot_game_test_lab/game_asset_delivery_admission.py", "scripts/check_game_asset_delivery_admission.py"],
+      "tags": ["godot", "assets", "delivery", "admission", "exact-bytes"],
+      "requires": ["Exact game head", "Exact delivery and storage admission", "Installed target bytes", "Optional native evidence for full pass"]
     },
     {
       "id": "testlab.visual-animation.admit",
       "title": "Admit Brass visual-animation evidence",
       "description": "Verify exact candidate and frame bytes, SpriteFrames references, Art Studio evaluations and Godot engine evidence while retaining creative and publication approvals as false.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "library",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write"
-      ],
-      "entrypoints": [
-        "src/godot_game_test_lab/visual_animation_admission.py",
-        "config/visual-animation-admission.v1.json"
-      ],
-      "tags": [
-        "godot",
-        "brass-brine",
-        "visual",
-        "animation",
-        "spriteframes",
-        "admission"
-      ],
-      "requires": [
-        "Exact game head",
-        "Passed Art Studio evaluation",
-        "Exact candidate roots",
-        "Passed Godot import or render evidence"
-      ]
+      "interfaces": ["automation", "cli", "library", "testing"],
+      "effects": ["read", "compute", "write"],
+      "entrypoints": ["src/godot_game_test_lab/visual_animation_admission.py", "config/visual-animation-admission.v1.json"],
+      "tags": ["godot", "brass-brine", "visual", "animation", "spriteframes", "admission"],
+      "requires": ["Exact game head", "Passed Art Studio evaluation", "Exact candidate roots", "Passed Godot import or render evidence"]
     },
     {
       "id": "testlab.rig-motion.accept-v4.1",
       "title": "Run exact-byte rig-motion acceptance v4.1",
       "description": "Run an isolated hash-bound Godot rig-motion probe, require measurable motion and write create-only evidence for named human review.",
-      "interfaces": [
-        "automation",
-        "cli",
-        "testing"
-      ],
-      "effects": [
-        "read",
-        "compute",
-        "write",
-        "execute"
-      ],
-      "entrypoints": [
-        "tools/rig_motion_acceptance_v4_1.py",
-        "tools/rig_motion_probe_v4_1.gd",
-        "docs/RIG_MOTION_ACCEPTANCE_V4_1.md"
-      ],
-      "tags": [
-        "godot",
-        "3d",
-        "rig",
-        "motion",
-        "acceptance",
-        "exact-bytes"
-      ],
-      "requires": [
-        "Exact executable and asset hashes",
-        "Supported rig family",
-        "Create-only output path",
-        "Named human review after technical acceptance"
-      ]
+      "interfaces": ["automation", "cli", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["tools/rig_motion_acceptance_v4_1.py", "tools/rig_motion_probe_v4_1.gd", "docs/RIG_MOTION_ACCEPTANCE_V4_1.md"],
+      "tags": ["godot", "3d", "rig", "motion", "acceptance", "exact-bytes"],
+      "requires": ["Exact executable and asset hashes", "Supported rig family", "Create-only output path", "Named human review after technical acceptance"]
     }
   ],
   "brain": {
