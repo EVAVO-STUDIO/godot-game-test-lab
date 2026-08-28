@@ -51,7 +51,14 @@ def build_quality_profile_receipt(
     profile = _parse_json(profile_bytes, "quality profile")
     if profile.get("gameId") != game_id:
         raise ValueError("quality profile gameId mismatch")
-    declared = next((item for item in profile.get("profiles", []) if item.get("id") == profile_id), None)
+    declared = next(
+        (
+            item
+            for item in profile.get("profiles", [])
+            if item.get("id") == profile_id
+        ),
+        None,
+    )
     if declared is None:
         raise ValueError("profile_id is not declared by quality profile")
     if declared.get("platform") != platform:
@@ -104,7 +111,10 @@ def _sha256(data: bytes) -> str:
 
 
 def _require_id(value: str, label: str) -> None:
-    if not value or len(value) > 120 or any(ch not in "abcdefghijklmnopqrstuvwxyz0123456789-" for ch in value):
+    invalid_character = any(
+        character not in "abcdefghijklmnopqrstuvwxyz0123456789-" for character in value
+    )
+    if not value or len(value) > 120 or invalid_character:
         raise ValueError(f"{label} must be a bounded kebab-case identifier")
     if value.startswith("-") or value.endswith("-") or "--" in value:
         raise ValueError(f"{label} must be a bounded kebab-case identifier")

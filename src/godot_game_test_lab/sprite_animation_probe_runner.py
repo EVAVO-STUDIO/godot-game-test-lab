@@ -33,7 +33,12 @@ def _res_path(value: str, label: str) -> str:
         raise ValueError(f"{label} must be a canonical res:// path")
     relative = value.removeprefix("res://")
     parsed = PurePosixPath(relative)
-    if not relative or parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts):
+    invalid = (
+        not relative
+        or parsed.is_absolute()
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    )
+    if invalid:
         raise ValueError(f"{label} must not contain traversal")
     return value
 
@@ -74,7 +79,10 @@ def _read_json_object(path: Path, label: str) -> dict[str, Any]:
 def _assert_target_state(root: Path, expected: str, phase: str) -> None:
     state = read_git_state(root)
     if not state.available or state.target_sha != expected:
-        raise ValueError(f"target checkout HEAD differs from expected-target-sha {phase}")
+        raise ValueError(
+            "target checkout HEAD differs from expected-target-sha "
+            f"{phase}"
+        )
     if state.dirty:
         raise ValueError(f"target checkout must be clean {phase}")
 
@@ -97,16 +105,31 @@ def run_sprite_animation_probe(
     root = find_project_root(project)
     expected = expected_target_sha.strip().lower()
     if not HEAD40.fullmatch(expected):
-        raise ValueError("expected-target-sha must be a lowercase 40-character Git SHA")
+        raise ValueError(
+            "expected-target-sha must be a lowercase 40-character Git SHA"
+        )
     _assert_target_state(root, expected, "before probe execution")
 
     _inside_resource(root, scene, "scene")
     _inside_resource(root, resource, "resource")
-    if not isinstance(clip, str) or not clip.strip() or clip != clip.strip() or len(clip) > 256:
-        raise ValueError("clip must be a non-empty trimmed string up to 256 characters")
+    if (
+        not isinstance(clip, str)
+        or not clip.strip()
+        or clip != clip.strip()
+        or len(clip) > 256
+    ):
+        raise ValueError(
+            "clip must be a non-empty trimmed string up to 256 characters"
+        )
     if isinstance(cycles, bool) or not isinstance(cycles, int) or cycles < 1 or cycles > 8:
         raise ValueError("cycles must be an integer from 1 to 8")
-    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or timeout_seconds < 1 or timeout_seconds > 300:
+    invalid_timeout = (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int)
+        or timeout_seconds < 1
+        or timeout_seconds > 300
+    )
+    if invalid_timeout:
         raise ValueError("timeout-seconds must be an integer from 1 to 300")
 
     raw_path = _external_output(root, raw_output, "raw-output")
@@ -115,7 +138,10 @@ def run_sprite_animation_probe(
     if len({raw_path, evidence_path, report_path}) != 3:
         raise ValueError("raw, evidence and report outputs must be distinct")
 
-    expectation = _read_json_object(expectation_path.resolve(strict=True), "expectation")
+    expectation = _read_json_object(
+        expectation_path.resolve(strict=True),
+        "expectation",
+    )
     executable = discover_godot_binary(godot_executable, requires_mono=False)
     if executable is None:
         raise ValueError("Godot executable could not be resolved")
@@ -145,9 +171,14 @@ def run_sprite_animation_probe(
     if command.timed_out:
         raise ValueError("Godot sprite-animation probe timed out")
     if command.exit_code != 0:
-        raise ValueError(f"Godot sprite-animation probe exited with code {command.exit_code}")
+        raise ValueError(
+            "Godot sprite-animation probe exited with code "
+            f"{command.exit_code}"
+        )
     if not raw_path.is_file():
-        raise ValueError("Godot sprite-animation probe did not create raw telemetry")
+        raise ValueError(
+            "Godot sprite-animation probe did not create raw telemetry"
+        )
 
     _assert_target_state(root, expected, "after probe execution")
 
@@ -179,7 +210,10 @@ def run_sprite_animation_probe(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="godot-lab-sprite-animation-probe",
-        description="Run a target-owned AnimatedSprite2D probe and admit its exact runtime evidence.",
+        description=(
+            "Run a target-owned AnimatedSprite2D probe and admit its exact "
+            "runtime evidence."
+        ),
     )
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--expected-target-sha", required=True)
@@ -214,7 +248,10 @@ def main() -> int:
             timeout_seconds=args.timeout_seconds,
         )
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
-        print(f"sprite animation probe failed: {error}", file=os.sys.stderr)
+        print(
+            f"sprite animation probe failed: {error}",
+            file=os.sys.stderr,
+        )
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0

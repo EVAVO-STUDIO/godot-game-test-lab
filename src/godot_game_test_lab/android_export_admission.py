@@ -33,7 +33,9 @@ class AndroidExportAdmission:
 def _inspect_driver(project: Path) -> tuple[str, bool, int]:
     project_file = project / "project.godot"
     if not project_file.is_file():
-        raise AndroidExportAdmissionError("project.godot is required for physical Android semantic QA")
+        raise AndroidExportAdmissionError(
+            "project.godot is required for physical Android semantic QA"
+        )
     text = project_file.read_text(encoding="utf-8-sig")
     section = ""
     autoload: str | None = None
@@ -62,14 +64,22 @@ def _inspect_driver(project: Path) -> tuple[str, bool, int]:
                     allowed_count = len(re.findall(r'"(?:[^"\\]|\\.)*"', body))
 
     if autoload is None:
-        raise AndroidExportAdmissionError("EVAVOAndroidSemanticDriver autoload is required for semantic Android QA")
+        raise AndroidExportAdmissionError(
+            "EVAVOAndroidSemanticDriver autoload is required for semantic Android QA"
+        )
     script_path = project / autoload.removeprefix("res://")
     if not script_path.is_file():
-        raise AndroidExportAdmissionError("EVAVOAndroidSemanticDriver autoload target does not exist")
+        raise AndroidExportAdmissionError(
+            "EVAVOAndroidSemanticDriver autoload target does not exist"
+        )
     if not enabled:
-        raise AndroidExportAdmissionError("evavo/test_driver/enabled=true is required for semantic Android QA")
+        raise AndroidExportAdmissionError(
+            "evavo/test_driver/enabled=true is required for semantic Android QA"
+        )
     if not 1 <= allowed_count <= 128:
-        raise AndroidExportAdmissionError("evavo/test_driver/allowed_actions must contain 1..128 actions")
+        raise AndroidExportAdmissionError(
+            "evavo/test_driver/allowed_actions must contain 1..128 actions"
+        )
     return autoload, True, allowed_count
 
 
@@ -78,7 +88,9 @@ def inspect_android_export_preset(project: Path, preset: str) -> AndroidExportAd
     driver_autoload, driver_enabled, allowed_action_count = _inspect_driver(project)
     export_file = project / "export_presets.cfg"
     if not export_file.is_file():
-        raise AndroidExportAdmissionError("export_presets.cfg is required for physical Android semantic QA")
+        raise AndroidExportAdmissionError(
+            "export_presets.cfg is required for physical Android semantic QA"
+        )
     if not preset or len(preset) > 100 or "\x00" in preset:
         raise AndroidExportAdmissionError("preset name is invalid")
 
@@ -112,10 +124,14 @@ def inspect_android_export_preset(project: Path, preset: str) -> AndroidExportAd
 
     matches = [(index, value) for index, value in values.items() if value["name"] == preset]
     if len(matches) != 1:
-        raise AndroidExportAdmissionError("requested Godot export preset must resolve exactly once")
+        raise AndroidExportAdmissionError(
+            "requested Godot export preset must resolve exactly once"
+        )
     index, value = matches[0]
     if value["platform"] != "Android":
-        raise AndroidExportAdmissionError("requested Godot export preset is not an Android preset")
+        raise AndroidExportAdmissionError(
+            "requested Godot export preset is not an Android preset"
+        )
     if value["internet"] is not True:
         raise AndroidExportAdmissionError(
             "Android semantic QA requires permissions/internet=true in the selected export preset"
@@ -132,30 +148,44 @@ def inspect_android_export_preset(project: Path, preset: str) -> AndroidExportAd
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate a Godot Android semantic QA export preset and driver installation.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate a Godot Android semantic QA export preset and driver installation."
+        )
+    )
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--preset", required=True)
     args = parser.parse_args(argv)
     try:
         result = inspect_android_export_preset(args.project, args.preset)
     except AndroidExportAdmissionError as error:
-        print(json.dumps({
-            "schema": "evavo.godot.android-export-admission.v1",
-            "ok": False,
-            "code": "android_export_not_admitted",
-            "message": str(error),
-        }, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "schema": "evavo.godot.android-export-admission.v1",
+                    "ok": False,
+                    "code": "android_export_not_admitted",
+                    "message": str(error),
+                },
+                sort_keys=True,
+            )
+        )
         return 2
-    print(json.dumps({
-        "schema": "evavo.godot.android-export-admission.v1",
-        "ok": True,
-        "preset": result.preset,
-        "platform": result.platform,
-        "internetPermission": result.internet_permission,
-        "semanticDriverAutoload": result.driver_autoload,
-        "semanticDriverEnabled": result.driver_enabled,
-        "allowedActionCount": result.allowed_action_count,
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "schema": "evavo.godot.android-export-admission.v1",
+                "ok": True,
+                "preset": result.preset,
+                "platform": result.platform,
+                "internetPermission": result.internet_permission,
+                "semanticDriverAutoload": result.driver_autoload,
+                "semanticDriverEnabled": result.driver_enabled,
+                "allowedActionCount": result.allowed_action_count,
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

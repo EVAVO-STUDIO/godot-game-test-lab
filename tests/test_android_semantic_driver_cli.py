@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from godot_game_test_lab.android_semantic_driver_cli import SCHEMA, _assert_project_state, _load_journey
+from godot_game_test_lab.android_semantic_driver_cli import (
+    SCHEMA,
+    _assert_project_state,
+    _load_journey,
+)
 
 
 def _write(path: Path, value: dict[str, object]) -> Path:
@@ -24,7 +28,10 @@ def test_loads_bounded_semantic_journey(tmp_path: Path) -> None:
                 {"type": "press", "action": "move_right"},
                 {"type": "wait", "milliseconds": 250},
                 {"type": "pulse", "action": "jump", "durationMs": 80},
-                {"type": "assert-state", "expected": {"checkpoint": "ledge_2", "alive": True}},
+                {
+                    "type": "assert-state",
+                    "expected": {"checkpoint": "ledge_2", "alive": True},
+                },
                 {"type": "checkpoint", "name": "ledge_2_visual"},
                 {"type": "release", "action": "move_right"},
             ],
@@ -49,28 +56,76 @@ def test_project_state_assertion_matches_only_declared_expected_keys() -> None:
 
 def test_project_state_assertion_rejects_missing_or_wrong_value() -> None:
     with pytest.raises(AssertionError, match="checkpoint:not_equal"):
-        _assert_project_state({"projectState": {"checkpoint": "ledge_1"}}, {"checkpoint": "ledge_2"}, 4)
+        _assert_project_state(
+            {"projectState": {"checkpoint": "ledge_1"}},
+            {"checkpoint": "ledge_2"},
+            4,
+        )
     with pytest.raises(AssertionError, match="inventory_open:missing"):
-        _assert_project_state({"projectState": {}}, {"inventory_open": True}, 5)
+        _assert_project_state(
+            {"projectState": {}},
+            {"inventory_open": True},
+            5,
+        )
 
 
-def test_rejects_unknown_schema_step_type_and_unbounded_assertion(tmp_path: Path) -> None:
+def test_rejects_unknown_schema_step_type_and_unbounded_assertion(
+    tmp_path: Path,
+) -> None:
     with pytest.raises(ValueError, match="journey schema"):
-        _load_journey(_write(tmp_path / "schema.json", {"schema": "wrong", "steps": [{"type": "state"}]}))
+        _load_journey(
+            _write(
+                tmp_path / "schema.json",
+                {"schema": "wrong", "steps": [{"type": "state"}]},
+            )
+        )
     with pytest.raises(ValueError, match="unsupported type"):
-        _load_journey(_write(tmp_path / "type.json", {"schema": SCHEMA, "steps": [{"type": "shell"}]}))
+        _load_journey(
+            _write(
+                tmp_path / "type.json",
+                {"schema": SCHEMA, "steps": [{"type": "shell"}]},
+            )
+        )
     with pytest.raises(ValueError, match="bounded scalar"):
-        _load_journey(_write(tmp_path / "nested.json", {"schema": SCHEMA, "steps": [{"type": "assert-state", "expected": {"bad": {"nested": True}}}]}))
+        _load_journey(
+            _write(
+                tmp_path / "nested.json",
+                {
+                    "schema": SCHEMA,
+                    "steps": [
+                        {
+                            "type": "assert-state",
+                            "expected": {"bad": {"nested": True}},
+                        }
+                    ],
+                },
+            )
+        )
     with pytest.raises(ValueError, match="checkpoint name"):
-        _load_journey(_write(tmp_path / "bad-checkpoint.json", {"schema": SCHEMA, "steps": [{"type": "checkpoint", "name": "bad checkpoint"}]}))
+        _load_journey(
+            _write(
+                tmp_path / "bad-checkpoint.json",
+                {
+                    "schema": SCHEMA,
+                    "steps": [
+                        {"type": "checkpoint", "name": "bad checkpoint"}
+                    ],
+                },
+            )
+        )
 
 
-def test_rejects_excessive_waits_step_counts_and_checkpoints(tmp_path: Path) -> None:
+def test_rejects_excessive_waits_step_counts_and_checkpoints(
+    tmp_path: Path,
+) -> None:
     with pytest.raises(ValueError, match="10000ms"):
         _load_journey(
             _write(
                 tmp_path / "long-wait.json",
-                {"schema": SCHEMA, "steps": [{"type": "wait", "milliseconds": 10001}]},
+                {
+                    "schema": SCHEMA,
+                    "steps": [{"type": "wait", "milliseconds": 10001}],
+                },
             )
         )
     with pytest.raises(ValueError, match="120 seconds"):
@@ -79,7 +134,10 @@ def test_rejects_excessive_waits_step_counts_and_checkpoints(tmp_path: Path) -> 
                 tmp_path / "total-wait.json",
                 {
                     "schema": SCHEMA,
-                    "steps": [{"type": "wait", "milliseconds": 10000} for _ in range(13)],
+                    "steps": [
+                        {"type": "wait", "milliseconds": 10000}
+                        for _ in range(13)
+                    ],
                 },
             )
         )
@@ -87,13 +145,22 @@ def test_rejects_excessive_waits_step_counts_and_checkpoints(tmp_path: Path) -> 
         _load_journey(
             _write(
                 tmp_path / "too-many.json",
-                {"schema": SCHEMA, "steps": [{"type": "state"} for _ in range(257)]},
+                {
+                    "schema": SCHEMA,
+                    "steps": [{"type": "state"} for _ in range(257)],
+                },
             )
         )
     with pytest.raises(ValueError, match="more than 32 visual checkpoints"):
         _load_journey(
             _write(
                 tmp_path / "too-many-checkpoints.json",
-                {"schema": SCHEMA, "steps": [{"type": "checkpoint", "name": f"cp_{index}"} for index in range(33)]},
+                {
+                    "schema": SCHEMA,
+                    "steps": [
+                        {"type": "checkpoint", "name": f"cp_{index}"}
+                        for index in range(33)
+                    ],
+                },
             )
         )
