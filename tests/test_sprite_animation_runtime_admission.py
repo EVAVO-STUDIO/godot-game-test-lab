@@ -28,7 +28,16 @@ def expectation() -> dict:
             "animationDirectorPlanSha256": "a" * 64,
             "godotDescriptorSha256": "b" * 64,
             "frameIds": [f"hero-walk-right:f{index:03d}" for index in range(1, 9)],
-            "frameDurationMicros": [125000, 125000, 250000, 125000, 125000, 125000, 250000, 125000],
+            "frameDurationMicros": [
+                125000,
+                125000,
+                250000,
+                125000,
+                125000,
+                125000,
+                250000,
+                125000,
+            ],
             "framesPerSecond": 8,
             "loopMode": "linear",
             "maximumFrameTimingErrorMs": 20,
@@ -40,7 +49,16 @@ def expectation() -> dict:
 
 
 def raw_telemetry() -> dict:
-    duration_micros = [125000, 125000, 250000, 125000, 125000, 125000, 250000, 125000]
+    duration_micros = [
+        125000,
+        125000,
+        250000,
+        125000,
+        125000,
+        125000,
+        250000,
+        125000,
+    ]
     observed = [133.0, 124.0, 258.0, 126.0, 133.0, 124.0, 258.0, 126.0]
     return {
         "status": "passed",
@@ -85,7 +103,8 @@ def test_compiles_self_hashed_evidence_bound_to_exact_expectation() -> None:
     assert compiled["frames"][2]["configuredDurationMicros"] == 250000
 
 
-def test_accepts_exact_runtime_configuration_with_scheduler_tolerant_observed_cadence() -> None:
+def test_accepts_exact_runtime_configuration_with_scheduler_tolerant_cadence(
+) -> None:
     expected = expectation()
     report = admit_sprite_animation_runtime(expected, evidence(expected))
     assert report["status"] == "passed"
@@ -105,7 +124,10 @@ def test_rejects_wrong_frame_order_and_missing_cycle() -> None:
     with pytest.raises(ValueError, match="frame order"):
         admit_sprite_animation_runtime(
             expected,
-            compile_sprite_animation_runtime_evidence(wrong, expected["expectationSha256"]),
+            compile_sprite_animation_runtime_evidence(
+                wrong,
+                expected["expectationSha256"],
+            ),
         )
 
     no_cycle = raw_telemetry()
@@ -113,7 +135,10 @@ def test_rejects_wrong_frame_order_and_missing_cycle() -> None:
     with pytest.raises(ValueError, match="complete observed cycle"):
         admit_sprite_animation_runtime(
             expected,
-            compile_sprite_animation_runtime_evidence(no_cycle, expected["expectationSha256"]),
+            compile_sprite_animation_runtime_evidence(
+                no_cycle,
+                expected["expectationSha256"],
+            ),
         )
 
 
@@ -124,7 +149,10 @@ def test_rejects_wrong_configured_fps_or_frame_duration() -> None:
     with pytest.raises(ValueError, match="FPS differs"):
         admit_sprite_animation_runtime(
             expected,
-            compile_sprite_animation_runtime_evidence(wrong_fps, expected["expectationSha256"]),
+            compile_sprite_animation_runtime_evidence(
+                wrong_fps,
+                expected["expectationSha256"],
+            ),
         )
 
     wrong_duration = raw_telemetry()
@@ -132,7 +160,10 @@ def test_rejects_wrong_configured_fps_or_frame_duration() -> None:
     with pytest.raises(ValueError, match="configured durations differ"):
         admit_sprite_animation_runtime(
             expected,
-            compile_sprite_animation_runtime_evidence(wrong_duration, expected["expectationSha256"]),
+            compile_sprite_animation_runtime_evidence(
+                wrong_duration,
+                expected["expectationSha256"],
+            ),
         )
 
 
@@ -143,7 +174,10 @@ def test_rejects_large_observed_cadence_error_or_pivot_drift() -> None:
     with pytest.raises(ValueError, match="observed frame cadence"):
         admit_sprite_animation_runtime(
             expected,
-            compile_sprite_animation_runtime_evidence(slow, expected["expectationSha256"]),
+            compile_sprite_animation_runtime_evidence(
+                slow,
+                expected["expectationSha256"],
+            ),
         )
 
     drifting = raw_telemetry()
@@ -151,13 +185,20 @@ def test_rejects_large_observed_cadence_error_or_pivot_drift() -> None:
     with pytest.raises(ValueError, match="pivot drift"):
         admit_sprite_animation_runtime(
             expected,
-            compile_sprite_animation_runtime_evidence(drifting, expected["expectationSha256"]),
+            compile_sprite_animation_runtime_evidence(
+                drifting,
+                expected["expectationSha256"],
+            ),
         )
 
 
 def test_rejects_duration_count_and_expectation_binding_mismatch() -> None:
     broken = expectation()
-    unsigned = {k: v for k, v in broken.items() if k not in {"expectationSha256", "runId"}}
+    unsigned = {
+        key: value
+        for key, value in broken.items()
+        if key not in {"expectationSha256", "runId"}
+    }
     unsigned["frameDurationMicros"] = unsigned["frameDurationMicros"][:-1]
     broken = _self_hash(unsigned, "expectationSha256")
     with pytest.raises(ValueError, match="must match frameIds length"):
@@ -166,7 +207,11 @@ def test_rejects_duration_count_and_expectation_binding_mismatch() -> None:
     expected = expectation()
     other = _self_hash(
         {
-            **{k: v for k, v in expected.items() if k not in {"expectationSha256", "runId"}},
+            **{
+                key: value
+                for key, value in expected.items()
+                if key not in {"expectationSha256", "runId"}
+            },
             "clipId": "different-clip",
         },
         "expectationSha256",
