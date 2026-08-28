@@ -33,7 +33,7 @@ def _lock() -> EngineLock:
         schema_version="1.0",
         minimum_version="4.6.2",
         default_version="4.6.3",
-        channels={"4.6": "4.6.3", "4.7": "4.7.1"},
+        channels={"4.6": "4.6.3", "4.7": "4.7.2"},
         default_flavors=("standard", "mono"),
         install_export_templates=True,
         self_contained=True,
@@ -331,7 +331,7 @@ def test_project_selection_uses_compatible_maintenance_and_mono_for_csharp(
     mono = select_engine_for_project(csharp, lock=_lock())
 
     assert (standard.version, standard.flavor) == ("4.6.3", "standard")
-    assert (mono.version, mono.flavor) == ("4.7.1", "mono")
+    assert (mono.version, mono.flavor) == ("4.7.2", "mono")
 
 
 
@@ -467,7 +467,7 @@ def test_prepare_estate_deduplicates_required_installations(
 
     assert report["status"] == "passed"
     assert report["projectCount"] == 3
-    assert calls == [("4.6.3", "standard"), ("4.7.1", "mono")]
+    assert calls == [("4.6.3", "standard"), ("4.7.2", "mono")]
 
 
 def test_engine_lock_is_packaged_and_canonical() -> None:
@@ -476,7 +476,7 @@ def test_engine_lock_is_packaged_and_canonical() -> None:
     value = json.loads(path.read_text())
     assert value["minimumVersion"] == "4.6.2"
     assert value["defaultVersion"] == "4.6.3"
-    assert value["channels"] == {"4.6": "4.6.3", "4.7": "4.7.1"}
+    assert value["channels"] == {"4.6": "4.6.3", "4.7": "4.7.2"}
     assert value["releaseRepository"] == "godotengine/godot-builds"
 
 

@@ -73,27 +73,34 @@ class AndroidSemanticDriverClient:
         sock = socket.create_connection(("127.0.0.1", self.port), timeout=self.timeout_seconds)
         sock.settimeout(self.timeout_seconds)
         self._socket = sock
-        response = self._request({"op": "hello"}, include_session=False)
-        if response.get("schema") != SCHEMA or response.get("ok") is not True:
+        try:
+            response = self._request({"op": "hello"}, include_session=False)
+            session = response.get("session")
+            actions = response.get("allowedActions")
+            if not isinstance(session, str) or len(session) != 32:
+                raise AndroidSemanticDriverError("driver returned an invalid session id")
+            if not isinstance(actions, list) or len(actions) > 128:
+                raise AndroidSemanticDriverError(
+                    "driver returned an invalid action allow-list"
+                )
+            normalized = tuple(validate_action_name(action) for action in actions)
+            if len(set(normalized)) != len(normalized):
+                raise AndroidSemanticDriverError(
+                    "driver returned duplicate allowed actions"
+                )
+            self._session = session
+            self._allowed_actions = frozenset(normalized)
+            scene = response.get("scene")
+            if scene is not None and not isinstance(scene, str):
+                scene = None
+            return DriverHello(
+                session=session,
+                allowed_actions=normalized,
+                scene=scene,
+            )
+        except (OSError, ValueError, AndroidSemanticDriverError):
             self.close()
-            raise AndroidSemanticDriverError("unexpected driver hello response")
-        session = response.get("session")
-        actions = response.get("allowedActions")
-        if not isinstance(session, str) or len(session) != 32:
-            self.close()
-            raise AndroidSemanticDriverError("driver returned an invalid session id")
-        if not isinstance(actions, list) or len(actions) > 128:
-            self.close()
-            raise AndroidSemanticDriverError("driver returned an invalid action allow-list")
-        normalized: list[str] = []
-        for action in actions:
-            normalized.append(validate_action_name(action))
-        self._session = session
-        self._allowed_actions = frozenset(normalized)
-        scene = response.get("scene")
-        if scene is not None and not isinstance(scene, str):
-            scene = None
-        return DriverHello(session=session, allowed_actions=tuple(normalized), scene=scene)
+            raise
 
     def close(self) -> None:
         if self._socket is not None:
@@ -149,24 +156,42 @@ class AndroidSemanticDriverClient:
             payload["durationMs"] = duration_ms
         return self._request(payload)
 
-    def _request(self, payload: dict[str, Any], *, include_session: bool = True) -> dict[str, Any]:
+    def _request(
+        self,
+        payload: dict[str, Any],
+        *,
+        include_session: bool = True,
+    ) -> dict[str, Any]:
         if self._socket is None:
             raise AndroidSemanticDriverError("driver client is not connected")
         body = dict(payload)
+        operation = body.get("op")
+        operation_name = (
+            operation
+            if isinstance(operation, str) and _ACTION_RE.fullmatch(operation) is not None
+            else "request"
+        )
         if include_session:
             if self._session is None:
                 raise AndroidSemanticDriverError("driver session is not established")
             body["session"] = self._session
-        encoded = json.dumps(body, separators=(",", ":"), ensure_ascii=True).encode("ascii") + b"\n"
+        encoded = (
+            json.dumps(body, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+            + b"\n"
+        )
         if len(encoded) > MAX_MESSAGE_BYTES:
             raise AndroidSemanticDriverError("driver request exceeds message bound")
         self._socket.sendall(encoded)
         response = self._read_message()
         if response.get("schema") != SCHEMA:
-            raise AndroidSemanticDriverError("driver response schema mismatch")
+            raise AndroidSemanticDriverError(
+                f"driver {operation_name} response schema mismatch"
+            )
         if response.get("ok") is not True:
             code = response.get("code", "driver_rejected_request")
-            raise AndroidSemanticDriverError(str(code))
+            raise AndroidSemanticDriverError(
+                f"driver {operation_name} request rejected: {code}"
+            )
         return response
 
     def _read_message(self) -> dict[str, Any]:

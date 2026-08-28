@@ -36,7 +36,7 @@ def _profile(tmp_path: Path) -> SandboxProfile:
 
 def test_sandbox_uses_governed_maintenance_release() -> None:
     assert _select_sandbox_engine_version("4.6.2") == "4.6.3"
-    assert _select_sandbox_engine_version("4.7.0") == "4.7.1"
+    assert _select_sandbox_engine_version("4.7.0") == "4.7.2"
     with pytest.raises(SandboxError, match="unmapped Godot branch 4.8"):
         _select_sandbox_engine_version("4.8.0")
     with pytest.raises(SandboxError, match="older than the profile minimum"):

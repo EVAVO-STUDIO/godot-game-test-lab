@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+WEB_EXPORT_ID = "testlab.web-export.audit"
 PLURAL_ID = "testlab.localization.plural-runtime"
 STABLE_ID_BUNDLE_ID = "testlab.localization.stable-id-bundle-admit"
 
@@ -18,11 +19,12 @@ def load_json(relative: str) -> dict:
 def test_manifest_declares_exact_guarded_capability_surface() -> None:
     manifest = load_json("evavo.capabilities.json")
     capabilities = {item["id"]: item for item in manifest["capabilities"]}
-    assert len(capabilities) == 14
+    assert len(capabilities) == 15
     assert set(capabilities) == {
         "testlab.readiness.automated-testing",
         "testlab.engine.provision",
         "testlab.project.inspect-audit",
+        WEB_EXPORT_ID,
         "testlab.project.validate-runtime",
         PLURAL_ID,
         STABLE_ID_BUNDLE_ID,
@@ -35,6 +37,22 @@ def test_manifest_declares_exact_guarded_capability_surface() -> None:
         "testlab.visual-animation.admit",
         "testlab.rig-motion.accept-v4.1",
     }
+
+    web_export = capabilities[WEB_EXPORT_ID]
+    assert web_export["interfaces"] == ["automation", "cli", "library", "testing"]
+    assert web_export["effects"] == ["read", "compute"]
+    for effect in ("write", "execute", "network", "publish", "financial"):
+        assert effect not in web_export["effects"]
+    assert "godot-lab-web-export-audit" in web_export["entrypoints"]
+    assert "python -m godot_game_test_lab.web_export_audit" in web_export["entrypoints"]
+    assert "scripts/audit_godot_web_export.py" in web_export["entrypoints"]
+    assert {
+        "web",
+        "integrity",
+        "threaded",
+        "isolation",
+        "read-only",
+    }.issubset(web_export["tags"])
 
     plural = capabilities[PLURAL_ID]
     assert plural["interfaces"] == ["automation", "cli", "testing"]
@@ -64,9 +82,12 @@ def test_manifest_declares_exact_guarded_capability_surface() -> None:
     )
 
 
-def test_console_aliases_use_guarded_localization_clis() -> None:
+def test_console_aliases_use_guarded_specialist_clis() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     scripts = pyproject["project"]["scripts"]
+    assert scripts["godot-lab-web-export-audit"] == (
+        "godot_game_test_lab.web_export_audit:main"
+    )
     assert scripts["godot-lab-localization-plural"] == (
         "godot_game_test_lab.localization_plural_runtime_cli:main"
     )
@@ -143,4 +164,4 @@ def test_dependency_free_capability_checker_passes() -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "PASS 14 Godot Test Lab capabilities" in result.stdout
+    assert "PASS 15 Godot Test Lab capabilities and 16 commands" in result.stdout

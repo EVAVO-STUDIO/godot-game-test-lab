@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate all Test Lab capabilities, extending the retained broad checker."""
+"""Validate all Test Lab capabilities against retained guarded source."""
 
 from __future__ import annotations
 
@@ -8,6 +8,22 @@ import json
 import sys
 from pathlib import Path
 from types import ModuleType
+
+WEB_EXPORT_ID = "testlab.web-export.audit"
+WEB_EXPORT_EFFECTS = ["read", "compute"]
+WEB_EXPORT_INTERFACES = ["automation", "cli", "library", "testing"]
+WEB_EXPORT_ENTRYPOINTS = {
+    "godot-lab-web-export-audit",
+    "python -m godot_game_test_lab.web_export_audit",
+    "scripts/audit_godot_web_export.py",
+    "src/godot_game_test_lab/web_export_audit.py",
+}
+WEB_EXPORT_REQUIRES = {
+    "Bounded local Godot web export root",
+    "schemaVersion 2 export.json descriptor inside the export root",
+    "Retained COOP/COEP header evidence when threaded isolation is not descriptor-provided",
+    "Browser execution and publication authority remain downstream",
+}
 
 PLURAL_ID = "testlab.localization.plural-runtime"
 PLURAL_EFFECTS = ["read", "compute", "write", "execute"]
@@ -46,6 +62,33 @@ STABLE_ID_BUNDLE_REQUIRES = {
     "Separate product-owned authority for later application or commit",
 }
 
+EXPECTED_SCRIPTS = {
+    "godot-lab": "godot_game_test_lab.cli:main",
+    "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
+    "godot-lab-multiplayer-qa": "godot_game_test_lab.multiplayer_qa:main",
+    "godot-lab-bot-qa": "godot_game_test_lab.bot_qa:main",
+    "godot-lab-init-qa": "godot_game_test_lab.profile_bootstrap:main",
+    "godot-lab-media-qa": "godot_game_test_lab.media_cli:main",
+    "godot-lab-mcp": "godot_game_test_lab.mcp_server:main",
+    "godot-lab-engine": "godot_game_test_lab.engine_cli:main",
+    "godot-lab-sandbox": "godot_game_test_lab.local_sandbox:main",
+    "godot-lab-web-export-audit": "godot_game_test_lab.web_export_audit:main",
+    "godot-lab-android-journey": "godot_game_test_lab.android_semantic_driver_cli:main",
+    "godot-lab-rally-falcon-preview": "godot_game_test_lab.rally_falcon_preview:main",
+    "godot-lab-localization-plural": (
+        "godot_game_test_lab.localization_plural_runtime_cli:main"
+    ),
+    "godot-lab-localization-stable-id-bundle": (
+        "godot_game_test_lab.localization_stable_id_bundle_cli:main"
+    ),
+    "godot-lab-sprite-animation": (
+        "godot_game_test_lab.sprite_animation_runtime_cli:main"
+    ),
+    "godot-lab-sprite-animation-probe": (
+        "godot_game_test_lab.sprite_animation_probe_runner:main"
+    ),
+}
+
 
 def load_legacy() -> ModuleType:
     path = Path(__file__).with_name("check_evavo_capability_manifest_legacy.py")
@@ -59,19 +102,12 @@ def load_legacy() -> ModuleType:
 
 def patch_expected_contract(legacy: ModuleType) -> None:
     effects = dict(legacy.EXPECTED_EFFECTS)
+    effects[WEB_EXPORT_ID] = WEB_EXPORT_EFFECTS
     effects[PLURAL_ID] = PLURAL_EFFECTS
     effects[STABLE_ID_BUNDLE_ID] = STABLE_ID_BUNDLE_EFFECTS
     legacy.EXPECTED_EFFECTS = effects
     legacy.EXPECTED_IDS = tuple(effects)
-
-    scripts = dict(legacy.EXPECTED_SCRIPTS)
-    scripts["godot-lab-localization-plural"] = (
-        "godot_game_test_lab.localization_plural_runtime_cli:main"
-    )
-    scripts["godot-lab-localization-stable-id-bundle"] = (
-        "godot_game_test_lab.localization_stable_id_bundle_cli:main"
-    )
-    legacy.EXPECTED_SCRIPTS = scripts
+    legacy.EXPECTED_SCRIPTS = dict(EXPECTED_SCRIPTS)
 
 
 def json_object(legacy: ModuleType, relative: str) -> dict:
@@ -84,6 +120,54 @@ def json_object(legacy: ModuleType, relative: str) -> dict:
         legacy.FAILURES.append(f"{relative} must be an object")
         return {}
     return value
+
+
+def validate_web_export_capability(
+    legacy: ModuleType,
+    by_id: dict[str, dict],
+) -> None:
+    capability = by_id.get(WEB_EXPORT_ID, {})
+    legacy.check(
+        capability.get("interfaces") == WEB_EXPORT_INTERFACES,
+        "web-export audit interfaces drifted",
+    )
+    legacy.check(
+        capability.get("effects") == WEB_EXPORT_EFFECTS,
+        "web-export audit effect authority drifted",
+    )
+    legacy.check(
+        set(capability.get("entrypoints", [])) == WEB_EXPORT_ENTRYPOINTS,
+        "web-export audit entrypoints drifted",
+    )
+    legacy.check(
+        set(capability.get("requires", [])) == WEB_EXPORT_REQUIRES,
+        "web-export audit prerequisites drifted",
+    )
+    tags = set(capability.get("tags", []))
+    legacy.check(
+        {"web", "integrity", "threaded", "isolation", "read-only"}.issubset(tags),
+        "web-export audit tags are incomplete",
+    )
+    legacy.check(
+        capability.get("effects") == ["read", "compute"],
+        "web-export audit exceeds read-only computation authority",
+    )
+
+    markers = {
+        "src/godot_game_test_lab/web_export_audit.py": (
+            "class WebExportAuditLimits",
+            "assetIntegrity",
+            "ensureCrossOriginIsolationHeaders",
+            "web.threaded_isolation_unproven",
+            "It does not prove browser execution",
+        ),
+        "scripts/audit_godot_web_export.py": (
+            "import_module(\"godot_game_test_lab.web_export_audit\").main",
+            "raise SystemExit(main())",
+        ),
+    }
+    for relative, required in markers.items():
+        legacy.includes_all(legacy.read(relative, 4_000_000), required, relative)
 
 
 def validate_plural_capability(legacy: ModuleType, by_id: dict[str, dict]) -> None:
@@ -203,7 +287,8 @@ def validate_plural_capability(legacy: ModuleType, by_id: dict[str, dict]) -> No
 
 
 def validate_stable_id_bundle_capability(
-    legacy: ModuleType, by_id: dict[str, dict]
+    legacy: ModuleType,
+    by_id: dict[str, dict],
 ) -> None:
     capability = by_id.get(STABLE_ID_BUNDLE_ID, {})
     legacy.check(
@@ -323,6 +408,7 @@ def main() -> int:
         manifest, by_id = legacy.validate_manifest_shape()
         if manifest and by_id:
             legacy.validate_live_sources(manifest, by_id)
+            validate_web_export_capability(legacy, by_id)
             validate_plural_capability(legacy, by_id)
             validate_stable_id_bundle_capability(legacy, by_id)
     except (OSError, RuntimeError) as error:
@@ -338,9 +424,12 @@ def main() -> int:
         )
         return 1
 
+    capability_count = len(legacy.EXPECTED_IDS)
+    command_count = len(legacy.EXPECTED_SCRIPTS)
     print(
-        "PASS 14 Godot Test Lab capabilities match live guarded source while "
-        "retaining no target publication or financial authority."
+        f"PASS {capability_count} Godot Test Lab capabilities and "
+        f"{command_count} commands match live guarded source while retaining "
+        "no target publication or financial authority."
     )
     return 0
 

@@ -81,7 +81,11 @@ def test_project_mcp_does_not_embed_provider_credentials() -> None:
 
 def test_agent_rules_keep_target_mutation_and_publication_external() -> None:
     rules = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    normalized_rules = " ".join(rules.split())
 
     assert "Development Studio owns" in rules
-    assert "must never edit, commit, push, deploy, sign, or publish" in rules
+    assert (
+        "must never edit, commit, push, deploy, sign, or publish"
+        in normalized_rules
+    )
     assert "separate Development Studio execution grant" in rules
