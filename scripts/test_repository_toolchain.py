@@ -86,7 +86,7 @@ def main() -> int:
     )
 
     print("Godot lab current authority adversarial tests passed.")
-    print("- all 15 commands and both Godot 4.7 authorities fail closed on drift")
+    print("- all 16 commands and both Godot 4.7 authorities fail closed on drift")
     return 0
 
 

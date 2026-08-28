@@ -88,4 +88,4 @@ def test_agent_rules_keep_target_mutation_and_publication_external() -> None:
         "must never edit, commit, push, deploy, sign, or publish"
         in normalized_rules
     )
-    assert "separate Development Studio execution grant" in rules
+    assert "without a separate Development Studio execution grant" in normalized_rules
