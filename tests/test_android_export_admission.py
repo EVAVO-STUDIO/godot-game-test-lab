@@ -22,8 +22,17 @@ def _project(
     addon = tmp_path / "addons" / "evavo_test_driver"
     addon.mkdir(parents=True, exist_ok=True)
     if driver:
-        (addon / "EVAVOAndroidSemanticDriver.gd").write_text("extends Node\n", encoding="utf-8")
+        (addon / "EVAVOAndroidSemanticDriver.gd").write_text(
+            "extends Node\n",
+            encoding="utf-8",
+        )
     action_text = ", ".join(f'"{value}"' for value in actions)
+    driver_autoload = (
+        'EVAVOAndroidSemanticDriver="*res://addons/evavo_test_driver/'
+        'EVAVOAndroidSemanticDriver.gd"'
+        if driver
+        else 'Other="*res://other.gd"'
+    )
     (tmp_path / "project.godot").write_text(
         "\n".join(
             [
@@ -31,7 +40,7 @@ def _project(
                 'config/name="Test"',
                 "",
                 "[autoload]",
-                'EVAVOAndroidSemanticDriver="*res://addons/evavo_test_driver/EVAVOAndroidSemanticDriver.gd"' if driver else 'Other="*res://other.gd"',
+                driver_autoload,
                 "",
                 "[evavo]",
                 f"test_driver/enabled={'true' if enabled else 'false'}",
@@ -59,7 +68,9 @@ def _project(
     return tmp_path
 
 
-def test_accepts_android_preset_with_semantic_driver_and_internet_permission(tmp_path: Path) -> None:
+def test_accepts_android_preset_with_semantic_driver_and_internet_permission(
+    tmp_path: Path,
+) -> None:
     result = inspect_android_export_preset(_project(tmp_path), "Android")
     assert result.platform == "Android"
     assert result.internet_permission is True
@@ -76,11 +87,20 @@ def test_rejects_missing_internet_permission(tmp_path: Path) -> None:
 
 def test_rejects_missing_or_disabled_semantic_driver(tmp_path: Path) -> None:
     with pytest.raises(AndroidExportAdmissionError, match="autoload"):
-        inspect_android_export_preset(_project(tmp_path / "missing", driver=False), "Android")
+        inspect_android_export_preset(
+            _project(tmp_path / "missing", driver=False),
+            "Android",
+        )
     with pytest.raises(AndroidExportAdmissionError, match="enabled=true"):
-        inspect_android_export_preset(_project(tmp_path / "disabled", enabled=False), "Android")
+        inspect_android_export_preset(
+            _project(tmp_path / "disabled", enabled=False),
+            "Android",
+        )
     with pytest.raises(AndroidExportAdmissionError, match="1..128"):
-        inspect_android_export_preset(_project(tmp_path / "actions", actions=()), "Android")
+        inspect_android_export_preset(
+            _project(tmp_path / "actions", actions=()),
+            "Android",
+        )
 
 
 def test_rejects_non_android_and_ambiguous_presets(tmp_path: Path) -> None:
@@ -89,9 +109,20 @@ def test_rejects_non_android_and_ambiguous_presets(tmp_path: Path) -> None:
 
     project = _project(tmp_path)
     export_file = project / "export_presets.cfg"
+    duplicate = "\n".join(
+        [
+            "",
+            "[preset.1]",
+            'name="Android"',
+            'platform="Android"',
+            "",
+            "[preset.1.options]",
+            "permissions/internet=true",
+            "",
+        ]
+    )
     export_file.write_text(
-        export_file.read_text(encoding="utf-8")
-        + '\n[preset.1]\nname="Android"\nplatform="Android"\n\n[preset.1.options]\npermissions/internet=true\n',
+        export_file.read_text(encoding="utf-8") + duplicate,
         encoding="utf-8",
     )
     with pytest.raises(AndroidExportAdmissionError, match="exactly once"):
