@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "id": "contract-fixture",
+  "loaderUrl": "./contract-fixture.js",
+  "executable": "contract-fixture",
+  "mainPack": "./contract-fixture.pck",
+  "webRuntimeProfile": "threaded",
+  "qualityProfileId": "web-balanced",
+  "renderer": "compatibility",
+  "fileSizes": {
+    "./contract-fixture.js": 0,
+    "./contract-fixture.pck": 0,
+    "./contract-fixture.wasm": 0
+  },
+  "assetIntegrity": {
+    "./contract-fixture.js": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "./contract-fixture.pck": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "./contract-fixture.wasm": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "args": [],
+  "focusCanvas": true,
+  "canvasResizePolicy": 2,
+  "ensureCrossOriginIsolationHeaders": true,
+  "requiresAgentBridge": true,
+  "bridgeTimeoutMs": 10000
+}
