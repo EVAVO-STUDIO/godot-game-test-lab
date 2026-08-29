@@ -3,15 +3,18 @@ extends SceneTree
 const REPORT_SCHEMA_VERSION := 1
 const MAX_CONTROL_RECORDS := 512
 const MAX_INTERACTIVE_RECORDS := 192
-const MAX_OVERLAP_PAIRS := 1024
+const MAX_LAYOUT_PAIRS := 1024
+const MAX_PAIR_CHECKS := 50000
 const MAX_PERFORMANCE_SAMPLES := 2048
 const PERFORMANCE_SAMPLE_INTERVAL := 5
+const MAX_CONTROL_TEXT_CHARACTERS := 256
 
 var _journey: Dictionary = {}
 var _result: Dictionary = {}
 var _failures := PackedStringArray()
 var _step_results: Array[Dictionary] = []
 var _checkpoint_records: Array[Dictionary] = []
+var _checkpoint_ui_records: Array[Dictionary] = []
 var _performance_samples: Array[Dictionary] = []
 var _elapsed_frames := 0
 var _max_frames := 900
@@ -355,11 +358,21 @@ func _capture_checkpoint(checkpoint_id: String) -> bool:
     var error := image.save_png(path)
     if error != OK:
         return false
+    var ux := Dictionary(_journey.get("ux", {}))
+    var ui_captured := false
+    if checkpoint_id != "final" and bool(ux.get("captureUiAtCheckpoints", true)):
+        _checkpoint_ui_records.append({
+            "id": checkpoint_id,
+            "screenshot": path.get_file(),
+            "ui": _collect_ui_telemetry(),
+        })
+        ui_captured = true
     _checkpoint_records.append({
         "id": checkpoint_id,
         "path": path.get_file(),
         "width": image.get_width(),
         "height": image.get_height(),
+        "uiCaptured": ui_captured,
     })
     return true
 
@@ -478,10 +491,17 @@ func _collect_ui_telemetry() -> Dictionary:
     var viewport_rect := root.get_visible_rect()
     var visible_controls: Array[Dictionary] = []
     var interactive_controls: Array[Dictionary] = []
+    var total_interactive := 0
+    var records_truncated := false
     var stack: Array[Node] = [root]
-    while not stack.is_empty() and visible_controls.size() < MAX_CONTROL_RECORDS:
+    while not stack.is_empty():
+        if visible_controls.size() >= MAX_CONTROL_RECORDS:
+            records_truncated = true
+            break
         var node: Node = stack.pop_back()
-        for child: Node in node.get_children():
+        var children := node.get_children()
+        for child_index in range(children.size() - 1, -1, -1):
+            var child: Node = children[child_index]
             stack.append(child)
         if not node is Control:
             continue
@@ -489,33 +509,57 @@ func _collect_ui_telemetry() -> Dictionary:
         if not control.is_visible_in_tree():
             continue
         var rect := control.get_global_rect()
+        var interactive := _is_interactive_control(control)
+        var disabled := _control_disabled(control)
+        var parent := control.get_parent()
         var record := {
             "path": String(control.get_path()),
+            "parentPath": String(parent.get_path()) if parent is Control else "",
+            "ancestorPaths": Array(_control_ancestor_paths(control)),
             "class": control.get_class(),
-            "name": control.name,
+            "name": String(control.name),
             "text": _control_text(control),
+            "inputTextRedacted": control is LineEdit or control is TextEdit,
             "x": rect.position.x,
             "y": rect.position.y,
             "width": rect.size.x,
             "height": rect.size.y,
             "focusMode": control.focus_mode,
             "mouseFilter": control.mouse_filter,
+            "interactive": interactive,
+            "disabled": disabled,
+            "editable": _control_editable(control),
             "insideViewport": viewport_rect.encloses(rect),
+            "clippedByAncestor": _control_clipped_by_ancestor(control, rect),
+            "clipContents": control.clip_contents,
+            "treeOrder": visible_controls.size(),
+            "paintOrder": visible_controls.size(),
+            "canvasLayer": _canvas_layer(control),
+            "zIndex": control.z_index,
+            "effectiveZIndex": _effective_z_index(control),
+            "zAsRelative": control.z_as_relative,
         }
         visible_controls.append(record)
-        if (
-            _is_interactive_control(control)
-            and interactive_controls.size() < MAX_INTERACTIVE_RECORDS
-        ):
-            interactive_controls.append(record)
+        if interactive:
+            total_interactive += 1
+            if not disabled and interactive_controls.size() < MAX_INTERACTIVE_RECORDS:
+                interactive_controls.append(record)
 
+    _annotate_center_occlusion(visible_controls, interactive_controls)
     var minimum_width := float(ux.get("minimumInteractiveWidth", 24))
     var minimum_height := float(ux.get("minimumInteractiveHeight", 24))
+    var minimum_gap := float(ux.get("minimumInteractiveGap", 8))
     var out_of_bounds: Array[Dictionary] = []
     var small_targets: Array[Dictionary] = []
+    var ancestor_clipped: Array[Dictionary] = []
+    var occluded: Array[Dictionary] = []
     for record: Dictionary in interactive_controls:
         if not bool(record.get("insideViewport", false)):
             out_of_bounds.append(record)
+        if bool(record.get("clippedByAncestor", false)):
+            ancestor_clipped.append(record)
+        if not String(record.get("centerBlockedBy", "")).is_empty():
+            occluded.append(record)
         if (
             float(record.get("width", 0.0)) < minimum_width
             or float(record.get("height", 0.0)) < minimum_height
@@ -523,26 +567,82 @@ func _collect_ui_telemetry() -> Dictionary:
             small_targets.append(record)
 
     var overlaps: Array[Dictionary] = []
+    var close_pairs: Array[Dictionary] = []
+    var pair_checks := 0
+    var pair_analysis_truncated := false
+    var maximum_pair_checks := mini(
+        MAX_PAIR_CHECKS,
+        maxi(0, int(ux.get("maximumPairChecks", MAX_PAIR_CHECKS)))
+    )
     for left_index in range(interactive_controls.size()):
-        if overlaps.size() >= MAX_OVERLAP_PAIRS:
+        if pair_analysis_truncated:
             break
         var left := Dictionary(interactive_controls[left_index])
-        var left_rect := Rect2(
-            Vector2(float(left["x"]), float(left["y"])),
-            Vector2(float(left["width"]), float(left["height"]))
-        )
-        if left_rect.size.x <= 0.0 or left_rect.size.y <= 0.0:
+        var left_rect := _record_rect(left)
+        if not left_rect.has_area():
             continue
         for right_index in range(left_index + 1, interactive_controls.size()):
+            if pair_checks >= maximum_pair_checks:
+                pair_analysis_truncated = true
+                break
+            pair_checks += 1
             var right := Dictionary(interactive_controls[right_index])
-            var right_rect := Rect2(
-                Vector2(float(right["x"]), float(right["y"])),
-                Vector2(float(right["width"]), float(right["height"]))
-            )
+            if _paths_related(String(left["path"]), String(right["path"])):
+                continue
+            var right_rect := _record_rect(right)
+            if not right_rect.has_area():
+                continue
             if left_rect.intersects(right_rect):
-                overlaps.append({"left": left["path"], "right": right["path"]})
-                if overlaps.size() >= MAX_OVERLAP_PAIRS:
-                    break
+                if overlaps.size() < MAX_LAYOUT_PAIRS:
+                    var intersection := left_rect.intersection(right_rect)
+                    var overlap_area := intersection.get_area()
+                    var left_coverage := overlap_area / left_rect.get_area()
+                    var right_coverage := overlap_area / right_rect.get_area()
+                    overlaps.append({
+                        "left": left["path"],
+                        "right": right["path"],
+                        "overlapArea": overlap_area,
+                        "overlapWidth": intersection.size.x,
+                        "overlapHeight": intersection.size.y,
+                        "leftCoverage": left_coverage,
+                        "rightCoverage": right_coverage,
+                        "minimumCoverage": minf(left_coverage, right_coverage),
+                    })
+                continue
+            var horizontal_overlap := _axis_overlap(
+                left_rect.position.x,
+                left_rect.end.x,
+                right_rect.position.x,
+                right_rect.end.x
+            )
+            var vertical_overlap := _axis_overlap(
+                left_rect.position.y,
+                left_rect.end.y,
+                right_rect.position.y,
+                right_rect.end.y
+            )
+            var gap := -1.0
+            if horizontal_overlap > 0.0:
+                gap = _axis_gap(
+                    left_rect.position.y,
+                    left_rect.end.y,
+                    right_rect.position.y,
+                    right_rect.end.y
+                )
+            elif vertical_overlap > 0.0:
+                gap = _axis_gap(
+                    left_rect.position.x,
+                    left_rect.end.x,
+                    right_rect.position.x,
+                    right_rect.end.x
+                )
+            if gap >= 0.0 and gap < minimum_gap and close_pairs.size() < MAX_LAYOUT_PAIRS:
+                close_pairs.append({
+                    "left": left["path"],
+                    "right": right["path"],
+                    "gap": gap,
+                    "minimumGap": minimum_gap,
+                })
 
     var focus_owner := root.gui_get_focus_owner()
     var telemetry := {
@@ -551,12 +651,21 @@ func _collect_ui_telemetry() -> Dictionary:
             "height": viewport_rect.size.y,
         },
         "visibleControlCount": visible_controls.size(),
-        "interactiveControlCount": interactive_controls.size(),
+        "interactiveControlCount": total_interactive,
+        "retainedInteractiveControlCount": interactive_controls.size(),
+        "controlRecordsTruncated": records_truncated,
+        "interactiveRecordsTruncated": total_interactive > interactive_controls.size(),
+        "pairChecks": pair_checks,
+        "pairAnalysisTruncated": pair_analysis_truncated,
         "focusOwner": String(focus_owner.get_path()) if focus_owner != null else "",
         "mouseMode": Input.mouse_mode,
         "outOfBoundsInteractive": out_of_bounds,
+        "ancestorClippedInteractive": ancestor_clipped,
+        "occludedInteractive": occluded,
         "smallInteractiveTargets": small_targets,
         "overlappingInteractivePairs": overlaps,
+        "closeInteractivePairs": close_pairs,
+        "interactiveControls": interactive_controls,
     }
     if bool(ux.get("captureControlTree", true)):
         telemetry["controls"] = visible_controls
@@ -564,19 +673,24 @@ func _collect_ui_telemetry() -> Dictionary:
 
 
 func _control_text(control: Control) -> String:
+    if control is LineEdit or control is TextEdit:
+        return ""
     if control is Button:
-        return (control as Button).text
+        return _bounded_control_text((control as Button).text)
     if control is LinkButton:
-        return (control as LinkButton).text
-    if control is LineEdit:
-        return (control as LineEdit).text
-    if control is TextEdit:
-        return (control as TextEdit).text
+        return _bounded_control_text((control as LinkButton).text)
     if control is Label:
-        return (control as Label).text
+        return _bounded_control_text((control as Label).text)
     if control is RichTextLabel:
-        return (control as RichTextLabel).get_parsed_text()
+        return _bounded_control_text((control as RichTextLabel).get_parsed_text())
     return ""
+
+
+func _bounded_control_text(value: String) -> String:
+    return value.replace("\r", " ").replace("\n", " ").strip_edges().substr(
+        0,
+        MAX_CONTROL_TEXT_CHARACTERS
+    )
 
 
 func _is_interactive_control(control: Control) -> bool:
@@ -594,6 +708,150 @@ func _is_interactive_control(control: Control) -> bool:
     )
 
 
+func _control_disabled(control: Control) -> bool:
+    if control is BaseButton:
+        return (control as BaseButton).disabled
+    if control is LineEdit:
+        return not (control as LineEdit).editable
+    if control is TextEdit:
+        return not (control as TextEdit).editable
+    return false
+
+
+func _control_editable(control: Control) -> bool:
+    if control is LineEdit:
+        return (control as LineEdit).editable
+    if control is TextEdit:
+        return (control as TextEdit).editable
+    return not _control_disabled(control)
+
+
+func _control_ancestor_paths(control: Control) -> PackedStringArray:
+    var paths := PackedStringArray()
+    var ancestor := control.get_parent()
+    while ancestor != null:
+        if ancestor is Control:
+            paths.append(String(ancestor.get_path()))
+        ancestor = ancestor.get_parent()
+    return paths
+
+
+func _control_clipped_by_ancestor(control: Control, rect: Rect2) -> bool:
+    var ancestor := control.get_parent()
+    while ancestor != null:
+        if ancestor is Control:
+            var ancestor_control := ancestor as Control
+            if (
+                ancestor_control.clip_contents
+                and not ancestor_control.get_global_rect().encloses(rect)
+            ):
+                return true
+        ancestor = ancestor.get_parent()
+    return false
+
+
+func _canvas_layer(control: Control) -> int:
+    var ancestor: Node = control
+    while ancestor != null:
+        if ancestor is CanvasLayer:
+            return (ancestor as CanvasLayer).layer
+        ancestor = ancestor.get_parent()
+    return 0
+
+
+func _effective_z_index(control: Control) -> int:
+    var total := control.z_index
+    var relative := control.z_as_relative
+    var ancestor := control.get_parent()
+    while relative and ancestor is CanvasItem:
+        var item := ancestor as CanvasItem
+        total += item.z_index
+        relative = item.z_as_relative
+        ancestor = item.get_parent()
+    return total
+
+
+func _record_rect(record: Dictionary) -> Rect2:
+    return Rect2(
+        Vector2(float(record.get("x", 0.0)), float(record.get("y", 0.0))),
+        Vector2(float(record.get("width", 0.0)), float(record.get("height", 0.0)))
+    )
+
+
+func _paths_related(left: String, right: String) -> bool:
+    return left == right or left.begins_with(right + "/") or right.begins_with(left + "/")
+
+
+func _record_is_above(candidate: Dictionary, target: Dictionary) -> bool:
+    var candidate_layer := int(candidate.get("canvasLayer", 0))
+    var target_layer := int(target.get("canvasLayer", 0))
+    if candidate_layer != target_layer:
+        return candidate_layer > target_layer
+    var candidate_z := int(candidate.get("effectiveZIndex", 0))
+    var target_z := int(target.get("effectiveZIndex", 0))
+    if candidate_z != target_z:
+        return candidate_z > target_z
+    return int(candidate.get("paintOrder", -1)) > int(target.get("paintOrder", -1))
+
+
+func _annotate_center_occlusion(
+    visible_controls: Array[Dictionary],
+    interactive_controls: Array[Dictionary]
+) -> void:
+    var blockers := {}
+    for target: Dictionary in interactive_controls:
+        var target_rect := _record_rect(target)
+        if not target_rect.has_area():
+            continue
+        var center := target_rect.get_center()
+        var selected: Dictionary = {}
+        for candidate: Dictionary in visible_controls:
+            var target_path := String(target.get("path", ""))
+            var candidate_path := String(candidate.get("path", ""))
+            if (
+                candidate_path.is_empty()
+                or _paths_related(target_path, candidate_path)
+                or int(candidate.get("mouseFilter", Control.MOUSE_FILTER_STOP))
+                    == Control.MOUSE_FILTER_IGNORE
+                or not _record_is_above(candidate, target)
+                or not _record_rect(candidate).has_point(center)
+            ):
+                continue
+            if selected.is_empty() or _record_is_above(candidate, selected):
+                selected = candidate
+        if not selected.is_empty():
+            blockers[String(target.get("path", ""))] = String(selected.get("path", ""))
+    for index in range(visible_controls.size()):
+        var record := Dictionary(visible_controls[index])
+        var path := String(record.get("path", ""))
+        if blockers.has(path):
+            record["centerBlockedBy"] = blockers[path]
+            visible_controls[index] = record
+    for index in range(interactive_controls.size()):
+        var record := Dictionary(interactive_controls[index])
+        var path := String(record.get("path", ""))
+        if blockers.has(path):
+            record["centerBlockedBy"] = blockers[path]
+            interactive_controls[index] = record
+
+
+func _axis_gap(left_start: float, left_end: float, right_start: float, right_end: float) -> float:
+    if left_end < right_start:
+        return right_start - left_end
+    if right_end < left_start:
+        return left_start - right_end
+    return 0.0
+
+
+func _axis_overlap(
+    left_start: float,
+    left_end: float,
+    right_start: float,
+    right_end: float
+) -> float:
+    return maxf(0.0, minf(left_end, right_end) - maxf(left_start, right_start))
+
+
 func _validate_ux(telemetry: Dictionary) -> PackedStringArray:
     var errors := PackedStringArray()
     var ux := Dictionary(_journey.get("ux", {}))
@@ -608,10 +866,25 @@ func _validate_ux(telemetry: Dictionary) -> PackedStringArray:
     ):
         errors.append("Interactive controls extend outside the viewport.")
     if (
+        Array(telemetry.get("ancestorClippedInteractive", [])).size()
+        > int(ux.get("maximumAncestorClippedInteractive", 0))
+    ):
+        errors.append("Interactive controls are clipped by ancestor controls.")
+    if (
+        Array(telemetry.get("occludedInteractive", [])).size()
+        > int(ux.get("maximumOccludedInteractive", 0))
+    ):
+        errors.append("Interactive controls are occluded at their centre point.")
+    if (
         Array(telemetry.get("overlappingInteractivePairs", [])).size()
         > int(ux.get("maximumOverlappingInteractivePairs", 0))
     ):
         errors.append("Interactive controls overlap beyond the governed limit.")
+    if (
+        Array(telemetry.get("closeInteractivePairs", [])).size()
+        > int(ux.get("maximumCloseInteractivePairs", 32))
+    ):
+        errors.append("Interactive controls are too closely spaced.")
     if (
         bool(ux.get("requireFocusOwner", false))
         and String(telemetry.get("focusOwner", "")).is_empty()
@@ -622,6 +895,15 @@ func _validate_ux(telemetry: Dictionary) -> PackedStringArray:
         > int(ux.get("maximumSmallInteractiveTargets", 8))
     ):
         errors.append("Too many interactive controls are below the target size.")
+    if (
+        bool(ux.get("failOnTruncatedLayoutAnalysis", false))
+        and (
+            bool(telemetry.get("controlRecordsTruncated", false))
+            or bool(telemetry.get("interactiveRecordsTruncated", false))
+            or bool(telemetry.get("pairAnalysisTruncated", false))
+        )
+    ):
+        errors.append("Semantic UI layout analysis reached a configured bound.")
     return errors
 
 
@@ -633,6 +915,7 @@ func _finish() -> void:
     _result["completedUnixMsec"] = Time.get_unix_time_from_system() * 1000.0
     _result["steps"] = _step_results
     _result["checkpoints"] = _checkpoint_records
+    _result["checkpointUi"] = _checkpoint_ui_records
     _result["inputMap"] = _collect_input_map()
     _result["ui"] = ui_telemetry
     _result["performance"] = _summarize_performance()
