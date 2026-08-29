@@ -112,6 +112,43 @@ def test_clipping_occlusion_and_small_targets_are_reported() -> None:
     }.issubset(codes)
 
 
+def test_interactive_records_are_used_when_control_tree_is_omitted() -> None:
+    result = analyze_ui_layout(
+        {
+            "viewport": {"width": 320, "height": 200},
+            "interactiveControlCount": 2,
+            "retainedInteractiveControlCount": 2,
+            "interactiveControls": [
+                control("/root/Save", 10, 10, 80, 40),
+                control("/root/Cancel", 50, 20, 80, 40),
+            ],
+        }
+    )
+    assert result["interactiveControlCount"] == 2
+    assert result["summary"]["issueCounts"]["interactive-overlap"] == 1
+
+
+def test_source_truncation_and_focus_metadata_are_preserved() -> None:
+    result = analyze_ui_layout(
+        {
+            "viewport": {"width": 320, "height": 200},
+            "visibleControlCount": 700,
+            "interactiveControlCount": 300,
+            "retainedInteractiveControlCount": 192,
+            "focusOwner": "/root/Menu/Play",
+            "controlRecordsTruncated": True,
+            "interactiveRecordsTruncated": True,
+            "pairAnalysisTruncated": False,
+            "interactiveControls": [control("/root/Menu/Play", 10, 10, 80, 40)],
+        }
+    )
+    assert result["source"]["visibleControlCount"] == 700
+    assert result["source"]["reportedInteractiveControlCount"] == 300
+    assert result["source"]["retainedInteractiveControlCount"] == 192
+    assert result["source"]["focusOwner"] == "/root/Menu/Play"
+    assert result["summary"]["truncated"] is True
+
+
 def test_multiple_checkpoint_snapshots_are_indexed() -> None:
     report = {
         "checkpointUi": [
