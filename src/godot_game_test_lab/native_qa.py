@@ -33,10 +33,12 @@ __all__ = [
 
 
 def run_native_qa(args: argparse.Namespace) -> dict[str, object]:
+    from .native_qa_motion_evidence import augment_native_qa_motion_evidence
     from .native_qa_runner import run_native_qa as run
     from .native_qa_visual_review import augment_native_qa_summary
 
-    return augment_native_qa_summary(args, run(args))
+    summary = augment_native_qa_summary(args, run(args))
+    return augment_native_qa_motion_evidence(args, summary)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -99,7 +101,7 @@ def _write_blocked_summary(args: argparse.Namespace, error: Exception) -> None:
         try:
             git_root = Path(_git_text(target, ["rev-parse", "--show-toplevel"])).resolve()
             target_status = _git_text(
-                git_root, ["status", "--porcelain=v1", "--untracked-files=all"]
+                git_root, ["status", "--porcelain=v1", "--untracked-files=all"],
             )
         except NativeQaError:
             pass
