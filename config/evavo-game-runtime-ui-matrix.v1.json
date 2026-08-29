@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "consumer": "EVAVO-STUDIO/evavo-game-runtime",
+  "project_relative_path": "examples/reference_project",
+  "evidence_contract": "contracts/ui-visual-qa-v1.json",
+  "scenarios": [
+    {"id": "retro_16_9", "width": 1280, "height": 720, "layout_preset": "retro_16_9", "minimum_target_px": 24},
+    {"id": "desktop_16_9", "width": 1920, "height": 1080, "layout_preset": "desktop_16_9", "minimum_target_px": 44},
+    {"id": "desktop_ultrawide", "width": 2560, "height": 1080, "layout_preset": "desktop_ultrawide", "minimum_target_px": 44},
+    {"id": "mobile_landscape", "width": 915, "height": 412, "layout_preset": "mobile_landscape", "minimum_target_px": 48},
+    {"id": "mobile_portrait", "width": 412, "height": 915, "layout_preset": "mobile_portrait", "minimum_target_px": 48}
+  ],
+  "required_checks": [
+    "godot_launch",
+    "runtime_flow",
+    "geometry_report",
+    "interactive_overlap",
+    "minimum_target_size",
+    "focus_owner_present",
+    "safe_area_containment",
+    "screenshot_capture"
+  ],
+  "navigation_actions": ["ui_up", "ui_down", "ui_left", "ui_right", "ui_accept", "ui_cancel"]
+}
