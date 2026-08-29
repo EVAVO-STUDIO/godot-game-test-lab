@@ -17,7 +17,7 @@ from .native_qa_common import (
     _safe_relative_path,
 )
 from .native_qa_evidence import _artifact_inventory
-from .native_qa_profile import normalize_profile
+from .native_qa_profile_visual import normalize_profile
 
 __all__ = [
     "NativeQaError",
@@ -33,10 +33,14 @@ __all__ = [
 
 
 def run_native_qa(args: argparse.Namespace) -> dict[str, object]:
-    from .native_qa_runner import run_native_qa as run
+    from . import native_qa_runner
     from .native_qa_visual_review import augment_native_qa_summary
 
-    return augment_native_qa_summary(args, run(args))
+    # native_qa_runner is deliberately kept as the low-level execution module.
+    # Bind the current governed profile normalizer before every public run so
+    # direct CLI execution and tests share the same visual UX contract.
+    native_qa_runner.normalize_profile = normalize_profile
+    return augment_native_qa_summary(args, native_qa_runner.run_native_qa(args))
 
 
 def build_parser() -> argparse.ArgumentParser:
