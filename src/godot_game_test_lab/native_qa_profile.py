@@ -48,17 +48,24 @@ _JOURNEY_KEYS = {
     "width",
 }
 _UX_KEYS = {
+    "blackDurationSeconds",
     "captureControlTree",
+    "captureUiAtCheckpoints",
     "failOnBlackFrame",
     "failOnFrozenVideo",
+    "failOnTruncatedLayoutAnalysis",
     "freezeDurationSeconds",
+    "maximumAncestorClippedInteractive",
+    "maximumCloseInteractivePairs",
+    "maximumOccludedInteractive",
     "maximumOutOfBoundsInteractive",
     "maximumOverlappingInteractivePairs",
+    "maximumPairChecks",
     "maximumSmallInteractiveTargets",
+    "minimumInteractiveGap",
     "minimumInteractiveHeight",
     "minimumInteractiveWidth",
     "minimumVisibleControls",
-    "blackDurationSeconds",
     "requireFocusOwner",
 }
 
@@ -417,11 +424,19 @@ def _normalize_ux(value: Any, label: str) -> dict[str, Any]:
         "captureControlTree": _boolean(
             value.get("captureControlTree", True), f"{label}.captureControlTree"
         ),
+        "captureUiAtCheckpoints": _boolean(
+            value.get("captureUiAtCheckpoints", True),
+            f"{label}.captureUiAtCheckpoints",
+        ),
         "failOnBlackFrame": _boolean(
             value.get("failOnBlackFrame", False), f"{label}.failOnBlackFrame"
         ),
         "failOnFrozenVideo": _boolean(
             value.get("failOnFrozenVideo", False), f"{label}.failOnFrozenVideo"
+        ),
+        "failOnTruncatedLayoutAnalysis": _boolean(
+            value.get("failOnTruncatedLayoutAnalysis", False),
+            f"{label}.failOnTruncatedLayoutAnalysis",
         ),
         "blackDurationSeconds": _finite_number(
             value.get("blackDurationSeconds", 2.0),
@@ -447,11 +462,35 @@ def _normalize_ux(value: Any, label: str) -> dict[str, Any]:
             0,
             192,
         ),
+        "maximumAncestorClippedInteractive": _positive_int(
+            value.get("maximumAncestorClippedInteractive", 0),
+            f"{label}.maximumAncestorClippedInteractive",
+            0,
+            192,
+        ),
+        "maximumOccludedInteractive": _positive_int(
+            value.get("maximumOccludedInteractive", 0),
+            f"{label}.maximumOccludedInteractive",
+            0,
+            192,
+        ),
         "maximumOverlappingInteractivePairs": _positive_int(
             value.get("maximumOverlappingInteractivePairs", 0),
             f"{label}.maximumOverlappingInteractivePairs",
             0,
             1024,
+        ),
+        "maximumCloseInteractivePairs": _positive_int(
+            value.get("maximumCloseInteractivePairs", 32),
+            f"{label}.maximumCloseInteractivePairs",
+            0,
+            1024,
+        ),
+        "maximumPairChecks": _positive_int(
+            value.get("maximumPairChecks", 50_000),
+            f"{label}.maximumPairChecks",
+            0,
+            50_000,
         ),
         "requireFocusOwner": _boolean(
             value.get("requireFocusOwner", False), f"{label}.requireFocusOwner"
@@ -465,6 +504,12 @@ def _normalize_ux(value: Any, label: str) -> dict[str, Any]:
         "minimumInteractiveHeight": _finite_number(
             value.get("minimumInteractiveHeight", 24),
             f"{label}.minimumInteractiveHeight",
+            0.0,
+            4096.0,
+        ),
+        "minimumInteractiveGap": _finite_number(
+            value.get("minimumInteractiveGap", 8),
+            f"{label}.minimumInteractiveGap",
             0.0,
             4096.0,
         ),
