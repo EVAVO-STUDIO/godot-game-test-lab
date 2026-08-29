@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "2.0",
+  "journeys": [
+    {
+      "id": "visual-qa-overlap",
+      "required": true,
+      "scene": "res://main.tscn",
+      "device": "semantic",
+      "settleFrames": 12,
+      "maxFrames": 180,
+      "fps": 30,
+      "width": 640,
+      "height": 360,
+      "renderingMethod": "gl_compatibility",
+      "renderingDriver": "opengl3",
+      "steps": [
+        {
+          "type": "checkpoint",
+          "id": "deliberate-defects"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "scene_loaded"
+        }
+      ],
+      "ux": {
+        "captureControlTree": true,
+        "captureUiAtCheckpoints": true,
+        "minimumVisibleControls": 5,
+        "minimumInteractiveWidth": 24,
+        "minimumInteractiveHeight": 24,
+        "minimumInteractiveGap": 8,
+        "maximumPairChecks": 50000,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumAncestorClippedInteractive": 0,
+        "maximumOccludedInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "maximumCloseInteractivePairs": 0,
+        "maximumSmallInteractiveTargets": 0,
+        "failOnTruncatedLayoutAnalysis": true,
+        "failOnBlackFrame": true,
+        "blackDurationSeconds": 1,
+        "failOnFrozenVideo": false,
+        "freezeDurationSeconds": 2,
+        "requireFocusOwner": false
+      }
+    }
+  ]
+}
