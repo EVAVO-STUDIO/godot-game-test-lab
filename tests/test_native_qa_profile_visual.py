@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from godot_game_test_lab.native_qa_common import NativeQaError
-from godot_game_test_lab.native_qa_profile_visual import normalize_profile
+from godot_game_test_lab.native_qa_profile import normalize_profile
 
 
 def profile(ux: dict[str, object] | None = None) -> dict[str, object]:
@@ -26,7 +26,6 @@ def test_visual_ux_defaults_are_present_in_normalized_journeys() -> None:
     assert ux["maximumAncestorClippedInteractive"] == 0
     assert ux["maximumOccludedInteractive"] == 0
     assert ux["maximumPairChecks"] == 50_000
-    assert ux["maximumIssues"] == 1_024
     assert ux["failOnTruncatedLayoutAnalysis"] is False
 
 
@@ -41,7 +40,6 @@ def test_visual_ux_controls_are_bounded_and_preserved() -> None:
                 "maximumAncestorClippedInteractive": 2,
                 "maximumOccludedInteractive": 1,
                 "maximumPairChecks": 10_000,
-                "maximumIssues": 200,
                 "failOnTruncatedLayoutAnalysis": True,
             }
         )
@@ -54,7 +52,6 @@ def test_visual_ux_controls_are_bounded_and_preserved() -> None:
     assert ux["maximumAncestorClippedInteractive"] == 2
     assert ux["maximumOccludedInteractive"] == 1
     assert ux["maximumPairChecks"] == 10_000
-    assert ux["maximumIssues"] == 200
     assert ux["failOnTruncatedLayoutAnalysis"] is True
 
 
@@ -65,9 +62,8 @@ def test_visual_ux_controls_are_bounded_and_preserved() -> None:
         ("minimumInteractiveGap", -1),
         ("maximumCloseInteractivePairs", 1.5),
         ("maximumAncestorClippedInteractive", -1),
-        ("maximumOccludedInteractive", 513),
+        ("maximumOccludedInteractive", 193),
         ("maximumPairChecks", 50_001),
-        ("maximumIssues", 0),
         ("failOnTruncatedLayoutAnalysis", 1),
     ],
 )
@@ -76,6 +72,6 @@ def test_visual_ux_controls_reject_invalid_values(key: str, value: object) -> No
         normalize_profile(profile({key: value}))
 
 
-def test_unknown_ux_keys_are_still_rejected_by_the_legacy_authority() -> None:
+def test_unknown_ux_keys_are_still_rejected_by_the_canonical_authority() -> None:
     with pytest.raises(NativeQaError, match="unsupported fields"):
         normalize_profile(profile({"inventedVisualPolicy": True}))
