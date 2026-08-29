@@ -169,10 +169,22 @@ def _issue(
     }
 
 
+def _control_source(snapshot: Mapping[str, Any]) -> Sequence[Any]:
+    controls = snapshot.get("controls", [])
+    if (
+        isinstance(controls, Sequence)
+        and not isinstance(controls, (str, bytes))
+        and len(controls) > 0
+    ):
+        return controls
+    interactive = snapshot.get("interactiveControls", [])
+    if isinstance(interactive, Sequence) and not isinstance(interactive, (str, bytes)):
+        return interactive
+    return []
+
+
 def _normalize_controls(snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
-    raw_controls = snapshot.get("controls", [])
-    if not isinstance(raw_controls, Sequence) or isinstance(raw_controls, (str, bytes)):
-        return []
+    raw_controls = _control_source(snapshot)
     controls: list[dict[str, Any]] = []
     for index, raw in enumerate(raw_controls):
         if not isinstance(raw, Mapping):
