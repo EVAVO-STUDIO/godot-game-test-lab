@@ -1,0 +1,102 @@
+[gd_scene format=3]
+
+[node name="VisualQaFixture" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.075, 0.082, 0.102, 1)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 18.0
+offset_right = 430.0
+offset_bottom = 44.0
+mouse_filter = 2
+text = "EVAVO deliberate visual QA defect fixture"
+
+[node name="Primary" type="Button" parent="."]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 70.0
+offset_right = 280.0
+offset_bottom = 122.0
+focus_mode = 2
+text = "Primary action"
+
+[node name="Overlapping" type="Button" parent="."]
+layout_mode = 0
+offset_left = 230.0
+offset_top = 82.0
+offset_right = 440.0
+offset_bottom = 134.0
+focus_mode = 2
+z_index = 2
+text = "Overlapping action"
+
+[node name="Touching" type="Button" parent="."]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 122.0
+offset_right = 280.0
+offset_bottom = 174.0
+focus_mode = 2
+text = "Touching action"
+
+[node name="ClipPanel" type="Panel" parent="."]
+layout_mode = 0
+offset_left = 490.0
+offset_top = 205.0
+offset_right = 590.0
+offset_bottom = 275.0
+clip_contents = true
+mouse_filter = 2
+
+[node name="Clipped" type="Button" parent="ClipPanel"]
+layout_mode = 0
+offset_left = 42.0
+offset_top = 12.0
+offset_right = 176.0
+offset_bottom = 58.0
+focus_mode = 2
+text = "Clipped"
+
+[node name="Covered" type="Button" parent="."]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 230.0
+offset_right = 280.0
+offset_bottom = 282.0
+focus_mode = 2
+text = "Covered action"
+
+[node name="BlockingOverlay" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 132.0
+offset_top = 218.0
+offset_right = 238.0
+offset_bottom = 294.0
+mouse_filter = 0
+z_index = 8
+color = Color(0.9, 0.08, 0.22, 0.82)
+
+[node name="BlockerLabel" type="Label" parent="BlockingOverlay"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 26.0
+offset_right = 98.0
+offset_bottom = 50.0
+mouse_filter = 2
+text = "BLOCKER"
