@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from argparse import Namespace
 from collections.abc import Mapping, Sequence
@@ -9,6 +10,7 @@ from hashlib import sha256
 from math import isfinite
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .native_qa_common import (
     NativeQaError,
@@ -21,6 +23,7 @@ from .native_qa_evidence import _artifact_inventory, _validate_png
 _ADAPTER_ID = "godot-game-test-lab.video-evidence"
 _GIT_SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+_OBSERVATION_ID_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
 _SOURCE_PATHS = (
     "pyproject.toml",
     "scripts/godot_input_journey.gd",
@@ -173,11 +176,48 @@ def _frame_records(artifacts: Path, journey_root: Path) -> list[dict[str, Any]]:
 def _write_create_once(path: Path, value: object) -> None:
     if path.exists() or path.is_symlink():
         raise NativeQaError(f"Refusing to overwrite retained motion evidence: {path}")
-    temporary = path.with_name(f".{path.name}.tmp")
-    if temporary.exists() or temporary.is_symlink():
-        raise NativeQaError(f"Motion evidence temporary path already exists: {temporary}")
-    temporary.write_text(_canonical_json(value), encoding="utf-8")
-    temporary.replace(path)
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        temporary.write_text(_canonical_json(value), encoding="utf-8")
+        try:
+            os.link(temporary, path, follow_symlinks=False)
+        except FileExistsError as error:
+            raise NativeQaError(
+                f"Refusing to overwrite retained motion evidence: {path}"
+            ) from error
+        except OSError as error:
+            raise NativeQaError(
+                f"Could not atomically retain motion evidence: {path}"
+            ) from error
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _motion_observation_id(
+    *,
+    run_id: str,
+    journey_id: str,
+    scene: str,
+    movie_sha256: str,
+    source_identity: str,
+) -> str:
+    if not run_id or len(run_id) > 256 or "\x00" in run_id:
+        raise NativeQaError("Native QA summary runId is missing or outside policy")
+    token = re.sub(r"[^a-z0-9._-]+", "-", journey_id.casefold()).strip("-._")
+    token = token[:40] or "journey"
+    suffix = canonical_sha256(
+        {
+            "journeyId": journey_id,
+            "movieSha256": movie_sha256,
+            "runId": run_id,
+            "scene": scene,
+            "sourceIdentity": source_identity,
+        }
+    )[:24]
+    value = f"godot:{token}:{suffix}"
+    if _OBSERVATION_ID_RE.fullmatch(value) is None:
+        raise NativeQaError("Could not derive a safe Godot motion observation id")
+    return value
 
 
 def _journey_analysis(
@@ -187,27 +227,42 @@ def _journey_analysis(
     journey_root: Path,
     source_identity: str,
     captured_at: datetime,
+    run_id: str,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     movie = journey_root / "gameplay.avi"
     if movie.is_symlink() or not movie.is_file() or movie.stat().st_size <= 0:
         return (None, None)
+    resolved_movie = movie.resolve(strict=True)
+    if not resolved_movie.is_relative_to(artifacts):
+        raise NativeQaError("Godot motion movie escapes the artifact root")
     visual = _mapping(journey.get("visual"))
     diagnostics = _mapping(visual.get("diagnostics"))
     frames = _frame_records(artifacts, journey_root)
     unique_frame_digests = sorted({str(frame["sha256"]) for frame in frames})
-    observation_id = f"godot:{journey.get('id')}:{str(journey.get('scene', 'scene'))[:32]}"
-    observation_id = re.sub(r"[^a-zA-Z0-9._:-]", "-", observation_id)[:128]
+    journey_id = str(journey.get("id", ""))
+    scene = str(journey.get("scene", "configured-main-scene"))
+    movie_sha256 = _sha256_file(resolved_movie)
+    observation_id = _motion_observation_id(
+        run_id=run_id,
+        journey_id=journey_id,
+        scene=scene,
+        movie_sha256=movie_sha256,
+        source_identity=source_identity,
+    )
     temporal_verdict = "pass" if frames and visual.get("status") == "passed" else "needs-review"
     analysis = {
         "schema": "evavo.godot-motion-analysis.v1",
         "observationId": observation_id,
         "capturedAt": captured_at.isoformat(),
         "sourceIdentity": source_identity,
+        "runId": run_id,
+        "journeyId": journey_id,
+        "scene": scene,
         "movie": {
-            "path": movie.relative_to(artifacts).as_posix(),
+            "path": resolved_movie.relative_to(artifacts).as_posix(),
             "mediaType": "video/x-msvideo",
-            "bytes": movie.stat().st_size,
-            "sha256": _sha256_file(movie),
+            "bytes": resolved_movie.stat().st_size,
+            "sha256": movie_sha256,
         },
         "durationSeconds": _duration_seconds(diagnostics),
         "sampledFrames": frames,
@@ -233,6 +288,8 @@ def _journey_analysis(
             "observationId": observation_id,
             "capturedAt": captured_at.isoformat(),
             "sourceIdentity": source_identity,
+            "runId": run_id,
+            "journeyId": journey_id,
             "frameCount": len(frames),
             "frames": frames,
         }
@@ -287,6 +344,9 @@ def augment_native_qa_motion_evidence(
     source_identity = visual_motion_source_identity(lab_root, str(args.expected_lab_sha))
     issued_at = datetime.now(UTC)
     captured_at = _timestamp(summary.get("generatedAt"), issued_at)
+    run_id = summary.get("runId")
+    if not isinstance(run_id, str) or not run_id or len(run_id) > 256 or "\x00" in run_id:
+        raise NativeQaError("Native QA summary runId is missing or outside policy")
     journeys_raw = summary.get("journeys", [])
     if not isinstance(journeys_raw, list):
         raise NativeQaError("Native QA summary journeys must be an array")
@@ -307,6 +367,7 @@ def augment_native_qa_motion_evidence(
             journey_root=journey_root,
             source_identity=source_identity,
             captured_at=captured_at,
+            run_id=run_id,
         )
         if analysis is None:
             continue
@@ -329,6 +390,7 @@ def augment_native_qa_motion_evidence(
     for journey, journey_root, analysis, sequence in staged:
         movie = analysis["movie"]
         assert isinstance(movie, Mapping)
+        analysis_path = journey_root / "motion-analysis.json"
         partial = {
             "schema": "evavo.visual-motion-evidence.v1",
             "captureAdapterId": _ADAPTER_ID,
@@ -339,7 +401,7 @@ def augment_native_qa_motion_evidence(
             "mediaType": movie["mediaType"],
             "videoSha256": movie["sha256"],
             "videoBytes": movie["bytes"],
-            "temporalAnalysisSha256": canonical_sha256(analysis),
+            "temporalAnalysisSha256": _sha256_file(analysis_path),
             "durationSeconds": analysis["durationSeconds"],
             "sampledFrameCount": analysis["sampledFrameCount"],
             "observationIds": [analysis["observationId"]],
@@ -355,7 +417,7 @@ def augment_native_qa_motion_evidence(
         evidence = _string_list(journey.get("evidence"))
         evidence.extend(
             [
-                (journey_root / "motion-analysis.json").relative_to(artifacts).as_posix(),
+                analysis_path.relative_to(artifacts).as_posix(),
                 destination.relative_to(artifacts).as_posix(),
             ]
         )
