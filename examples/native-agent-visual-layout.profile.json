@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "2.0",
+  "journeys": [
+    {
+      "id": "main-menu-layout",
+      "required": true,
+      "scene": "res://main.tscn",
+      "device": "keyboard_mouse",
+      "settleFrames": 30,
+      "maxFrames": 900,
+      "fps": 30,
+      "width": 1280,
+      "height": 720,
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "gpuIndex": 0,
+      "steps": [
+        {
+          "type": "checkpoint",
+          "id": "menu-settled"
+        },
+        {
+          "type": "key_tap",
+          "physicalKeycode": 4194305,
+          "holdFrames": 1
+        },
+        {
+          "type": "checkpoint",
+          "id": "menu-after-navigation"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "scene_loaded"
+        },
+        {
+          "type": "focus_present"
+        }
+      ],
+      "ux": {
+        "captureControlTree": true,
+        "captureUiAtCheckpoints": true,
+        "minimumVisibleControls": 1,
+        "requireFocusOwner": true,
+        "minimumInteractiveWidth": 24,
+        "minimumInteractiveHeight": 24,
+        "minimumInteractiveGap": 8,
+        "maximumOutOfBoundsInteractive": 0,
+        "maximumAncestorClippedInteractive": 0,
+        "maximumOccludedInteractive": 0,
+        "maximumOverlappingInteractivePairs": 0,
+        "maximumCloseInteractivePairs": 8,
+        "maximumSmallInteractiveTargets": 8,
+        "maximumPairChecks": 50000,
+        "failOnTruncatedLayoutAnalysis": true,
+        "failOnBlackFrame": true,
+        "blackDurationSeconds": 2,
+        "failOnFrozenVideo": true,
+        "freezeDurationSeconds": 5
+      }
+    }
+  ]
+}
