@@ -28,6 +28,7 @@ def base_profile() -> dict:
 def test_profile_normalization_is_bounded_and_explicit() -> None:
     value = normalize_profile(base_profile())
     journey = value["journeys"][0]
+    ux = journey["ux"]
     assert value["schemaVersion"] == "2.0"
     assert journey["required"] is True
     assert journey["fps"] == 30
@@ -35,7 +36,55 @@ def test_profile_normalization_is_bounded_and_explicit() -> None:
     assert journey["renderingMethod"] == "forward_plus"
     assert journey["renderingDriver"] == "vulkan"
     assert journey["estimatedFrames"] == 34
-    assert journey["ux"]["failOnBlackFrame"] is False
+    assert ux["captureControlTree"] is True
+    assert ux["captureUiAtCheckpoints"] is True
+    assert ux["failOnBlackFrame"] is False
+    assert ux["failOnTruncatedLayoutAnalysis"] is False
+    assert ux["minimumInteractiveGap"] == 8.0
+    assert ux["maximumAncestorClippedInteractive"] == 0
+    assert ux["maximumOccludedInteractive"] == 0
+    assert ux["maximumCloseInteractivePairs"] == 32
+    assert ux["maximumPairChecks"] == 50_000
+
+
+def test_profile_accepts_semantic_layout_governance() -> None:
+    profile = base_profile()
+    profile["journeys"][0]["ux"] = {
+        "captureUiAtCheckpoints": False,
+        "failOnTruncatedLayoutAnalysis": True,
+        "minimumInteractiveGap": 12.5,
+        "maximumAncestorClippedInteractive": 2,
+        "maximumOccludedInteractive": 3,
+        "maximumCloseInteractivePairs": 4,
+        "maximumPairChecks": 1_024,
+    }
+
+    ux = normalize_profile(profile)["journeys"][0]["ux"]
+
+    assert ux["captureUiAtCheckpoints"] is False
+    assert ux["failOnTruncatedLayoutAnalysis"] is True
+    assert ux["minimumInteractiveGap"] == 12.5
+    assert ux["maximumAncestorClippedInteractive"] == 2
+    assert ux["maximumOccludedInteractive"] == 3
+    assert ux["maximumCloseInteractivePairs"] == 4
+    assert ux["maximumPairChecks"] == 1_024
+
+
+def test_profile_rejects_unbounded_semantic_layout_governance() -> None:
+    cases = (
+        ("minimumInteractiveGap", -0.1),
+        ("maximumAncestorClippedInteractive", 193),
+        ("maximumOccludedInteractive", 193),
+        ("maximumCloseInteractivePairs", 1_025),
+        ("maximumPairChecks", 50_001),
+        ("captureUiAtCheckpoints", "yes"),
+        ("failOnTruncatedLayoutAnalysis", 1),
+    )
+    for key, invalid in cases:
+        profile = base_profile()
+        profile["journeys"][0]["ux"] = {key: invalid}
+        with pytest.raises(NativeQaError, match=key):
+            normalize_profile(profile)
 
 
 def test_profile_rejects_duplicate_journeys_and_lifecycle_arguments() -> None:
