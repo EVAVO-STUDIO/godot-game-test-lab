@@ -625,11 +625,19 @@
           "type": "boolean",
           "default": true
         },
+        "captureUiAtCheckpoints": {
+          "type": "boolean",
+          "default": true
+        },
         "failOnBlackFrame": {
           "type": "boolean",
           "default": false
         },
         "failOnFrozenVideo": {
+          "type": "boolean",
+          "default": false
+        },
+        "failOnTruncatedLayoutAnalysis": {
           "type": "boolean",
           "default": false
         },
@@ -657,11 +665,35 @@
           "maximum": 192,
           "default": 0
         },
+        "maximumAncestorClippedInteractive": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 192,
+          "default": 0
+        },
+        "maximumOccludedInteractive": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 192,
+          "default": 0
+        },
         "maximumOverlappingInteractivePairs": {
           "type": "integer",
           "minimum": 0,
           "maximum": 1024,
           "default": 0
+        },
+        "maximumCloseInteractivePairs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024,
+          "default": 32
+        },
+        "maximumPairChecks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000,
+          "default": 50000
         },
         "requireFocusOwner": {
           "type": "boolean",
@@ -678,6 +710,12 @@
           "minimum": 0,
           "maximum": 4096,
           "default": 24
+        },
+        "minimumInteractiveGap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4096,
+          "default": 8
         },
         "maximumSmallInteractiveTargets": {
           "type": "integer",
