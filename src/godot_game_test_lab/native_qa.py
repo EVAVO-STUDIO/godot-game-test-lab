@@ -34,8 +34,9 @@ __all__ = [
 
 def run_native_qa(args: argparse.Namespace) -> dict[str, object]:
     from .native_qa_runner import run_native_qa as run
+    from .native_qa_visual_review import augment_native_qa_summary
 
-    return run(args)
+    return augment_native_qa_summary(args, run(args))
 
 
 def build_parser() -> argparse.ArgumentParser:
