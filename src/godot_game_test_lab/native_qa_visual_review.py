@@ -16,8 +16,15 @@ from .native_qa_evidence import _artifact_inventory
 from .ui_layout_analysis import analyze_ui_snapshots
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
-_SEVERE = {"major", "critical"}
 _LAYOUT_FILE = "ui-layout-analysis.json"
+_ISSUE_BUDGETS = {
+    "viewport-clipping": ("maximumOutOfBoundsInteractive", 0),
+    "ancestor-clipping": ("maximumAncestorClippedInteractive", 0),
+    "center-occluded": ("maximumOccludedInteractive", 0),
+    "interactive-overlap": ("maximumOverlappingInteractivePairs", 0),
+    "interactive-spacing": ("maximumCloseInteractivePairs", 32),
+    "small-target": ("maximumSmallInteractiveTargets", 8),
+}
 
 
 def _resolve_journey_root(artifacts: Path, journey_id: str) -> Path:
@@ -42,33 +49,89 @@ def _string_list(value: object) -> list[str]:
     return [item for item in value if isinstance(item, str) and item]
 
 
-def _severe_layout_findings(analysis: Mapping[str, Any]) -> list[str]:
+def _bounded_int(config: Mapping[str, Any], key: str, default: int) -> int:
+    value = config.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        return default
+    return max(0, value)
+
+
+def _admission_budgets(ux: Mapping[str, Any]) -> dict[str, Any]:
+    budgets = {
+        code: _bounded_int(ux, key, default)
+        for code, (key, default) in _ISSUE_BUDGETS.items()
+    }
+    budgets["minimumVisibleControls"] = _bounded_int(
+        ux, "minimumVisibleControls", 0
+    )
+    budgets["requireFocusOwner"] = ux.get("requireFocusOwner") is True
+    budgets["failOnTruncatedLayoutAnalysis"] = (
+        ux.get("failOnTruncatedLayoutAnalysis") is True
+    )
+    return budgets
+
+
+def _snapshot_budget_findings(
+    snapshot: Mapping[str, Any], ux: Mapping[str, Any]
+) -> list[str]:
+    snapshot_id = snapshot.get("id")
+    label = snapshot_id if isinstance(snapshot_id, str) and snapshot_id else "unknown"
+    analysis = snapshot.get("analysis")
+    if not isinstance(analysis, Mapping):
+        return [f"layout admission: {label} is missing its analysis object"]
+    summary = analysis.get("summary")
+    source = analysis.get("source")
+    summary_data = summary if isinstance(summary, Mapping) else {}
+    source_data = source if isinstance(source, Mapping) else {}
+    raw_counts = summary_data.get("issueCounts")
+    counts = raw_counts if isinstance(raw_counts, Mapping) else {}
+    budgets = _admission_budgets(ux)
     findings: list[str] = []
+
+    for code, (config_key, default) in _ISSUE_BUDGETS.items():
+        actual = counts.get(code, 0)
+        actual_count = actual if isinstance(actual, int) and not isinstance(actual, bool) else 0
+        allowed = _bounded_int(ux, config_key, default)
+        if actual_count > allowed:
+            findings.append(
+                f"layout admission: {label} has {actual_count} {code} issue(s); "
+                f"the governed maximum is {allowed}"
+            )
+
+    visible = source_data.get("visibleControlCount", 0)
+    visible_count = visible if isinstance(visible, int) and not isinstance(visible, bool) else 0
+    minimum_visible = int(budgets["minimumVisibleControls"])
+    if visible_count < minimum_visible:
+        findings.append(
+            f"layout admission: {label} retained {visible_count} visible control(s); "
+            f"the governed minimum is {minimum_visible}"
+        )
+
+    focus_owner = source_data.get("focusOwner")
+    if budgets["requireFocusOwner"] and not (
+        isinstance(focus_owner, str) and focus_owner.strip()
+    ):
+        findings.append(f"layout admission: {label} has no GUI focus owner")
+
+    if budgets["failOnTruncatedLayoutAnalysis"] and summary_data.get("truncated") is True:
+        findings.append(
+            f"layout admission: {label} reached a semantic layout analysis bound"
+        )
+    return findings
+
+
+def _governed_layout_findings(
+    analysis: Mapping[str, Any], ux: Mapping[str, Any]
+) -> list[str]:
     snapshots = analysis.get("snapshots", [])
     if not isinstance(snapshots, Sequence) or isinstance(snapshots, (str, bytes)):
-        return findings
+        return ["layout admission: snapshot collection is invalid"]
+    findings: list[str] = []
     for snapshot in snapshots:
-        if not isinstance(snapshot, Mapping):
-            continue
-        snapshot_id = snapshot.get("id")
-        label = snapshot_id if isinstance(snapshot_id, str) and snapshot_id else "unknown"
-        result = snapshot.get("analysis")
-        if not isinstance(result, Mapping):
-            continue
-        issues = result.get("issues", [])
-        if not isinstance(issues, Sequence) or isinstance(issues, (str, bytes)):
-            continue
-        counts: dict[str, int] = {}
-        for issue in issues:
-            if not isinstance(issue, Mapping) or issue.get("severity") not in _SEVERE:
-                continue
-            code = issue.get("code")
-            if isinstance(code, str) and code:
-                counts[code] = counts.get(code, 0) + 1
-        for code, count in sorted(counts.items()):
-            findings.append(
-                f"layout analysis: {label} has {count} major or critical {code} issue(s)"
-            )
+        if isinstance(snapshot, Mapping):
+            findings.extend(_snapshot_budget_findings(snapshot, ux))
+        else:
+            findings.append("layout admission: snapshot entry is not an object")
     return findings
 
 
@@ -87,10 +150,17 @@ def _augment_journey(
     profile = _load_json_object(profile_path, "normalized journey profile")
     ux = _mapping(profile.get("ux"))
     analysis = analyze_ui_snapshots(harness, ux)
+    layout_findings = _governed_layout_findings(analysis, ux)
+    analysis["admission"] = {
+        "status": "failed" if layout_findings else "passed",
+        "budgets": _admission_budgets(ux),
+        "findings": sorted(set(layout_findings)),
+    }
     analysis["reviewPending"] = ["visual", "game-feel", "content"]
     analysis["truthBoundary"] = (
-        "Deterministic geometry identifies layout risks but does not replace rendered image, "
-        "motion, accessibility, game-feel or human visual review."
+        "Deterministic geometry identifies and retains layout risks. Admission honours the "
+        "normalized journey budgets, but does not replace rendered image, motion, "
+        "accessibility, game-feel or human visual review."
     )
     destination = journey_root / _LAYOUT_FILE
     temporary = destination.with_suffix(".json.tmp")
@@ -103,7 +173,6 @@ def _augment_journey(
     journey["evidence"] = sorted(set(evidence))
     journey["layoutAnalysis"] = analysis
 
-    layout_findings = _severe_layout_findings(analysis)
     if layout_findings:
         findings = _string_list(journey.get("findings"))
         findings.extend(layout_findings)
@@ -120,12 +189,14 @@ def augment_native_qa_summary(args: Namespace, summary: dict[str, Any]) -> dict[
     if not isinstance(journeys_raw, list):
         raise NativeQaError("Native QA summary journeys must be an array")
 
-    severe_detected = False
+    admission_failure_detected = False
     journeys: list[dict[str, Any]] = []
     for raw in journeys_raw:
         if not isinstance(raw, dict):
             raise NativeQaError("Native QA summary contains a non-object journey")
-        severe_detected = _augment_journey(artifacts, raw) or severe_detected
+        admission_failure_detected = (
+            _augment_journey(artifacts, raw) or admission_failure_detected
+        )
         journeys.append(raw)
     summary["journeys"] = journeys
 
@@ -145,8 +216,8 @@ def augment_native_qa_summary(args: Namespace, summary: dict[str, Any]) -> dict[
         findings.append("one or more required native journeys did not pass")
     if optional_failures:
         findings.append("one or more optional native journeys did not pass")
-    if severe_detected:
-        findings.append("semantic UI layout analysis detected major or critical defects")
+    if admission_failure_detected:
+        findings.append("semantic UI layout evidence exceeded a governed journey budget")
     summary["findings"] = sorted(set(findings))
 
     boundary = str(summary.get("truthBoundary", "")).strip()
