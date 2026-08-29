@@ -17,7 +17,7 @@ from .native_qa_common import (
     _safe_relative_path,
 )
 from .native_qa_evidence import _artifact_inventory
-from .native_qa_profile import normalize_profile
+from .native_qa_profile_visual import normalize_profile
 
 __all__ = [
     "NativeQaError",
