@@ -53,6 +53,10 @@ def _integer(value: object, default: int) -> int:
     return default
 
 
+def _nonnegative_integer(value: object, default: int) -> int:
+    return max(0, _integer(value, default))
+
+
 def _rect(record: Mapping[str, Any]) -> dict[str, float]:
     nested = record.get("rect")
     source = nested if isinstance(nested, Mapping) else record
@@ -86,9 +90,7 @@ def _is_interactive(record: Mapping[str, Any]) -> bool:
 
 
 def _is_disabled(record: Mapping[str, Any]) -> bool:
-    if record.get("disabled") is True or record.get("editable") is False:
-        return True
-    return False
+    return record.get("disabled") is True or record.get("editable") is False
 
 
 def _ancestor_paths(record: Mapping[str, Any]) -> set[str]:
@@ -202,6 +204,32 @@ def _normalize_controls(snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
     return controls
 
 
+def _source_metadata(
+    snapshot: Mapping[str, Any],
+    controls: Sequence[Mapping[str, Any]],
+    interactive: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    focus_owner = snapshot.get("focusOwner")
+    return {
+        "visibleControlCount": _nonnegative_integer(
+            snapshot.get("visibleControlCount"), len(controls)
+        ),
+        "reportedInteractiveControlCount": _nonnegative_integer(
+            snapshot.get("interactiveControlCount"), len(interactive)
+        ),
+        "retainedInteractiveControlCount": _nonnegative_integer(
+            snapshot.get("retainedInteractiveControlCount"), len(interactive)
+        ),
+        "focusOwner": focus_owner
+        if isinstance(focus_owner, str) and focus_owner
+        else None,
+        "controlRecordsTruncated": snapshot.get("controlRecordsTruncated") is True,
+        "interactiveRecordsTruncated": snapshot.get("interactiveRecordsTruncated")
+        is True,
+        "pairAnalysisTruncated": snapshot.get("pairAnalysisTruncated") is True,
+    }
+
+
 def analyze_ui_layout(
     snapshot: Mapping[str, Any], config: Mapping[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -221,13 +249,14 @@ def analyze_ui_layout(
         for control in controls
         if control["interactive"] and not control["disabled"]
     ]
+    source = _source_metadata(snapshot, controls, interactive)
     issues: list[dict[str, Any]] = []
-    truncated = False
+    analysis_truncated = False
 
     def append_issue(value: dict[str, Any]) -> bool:
-        nonlocal truncated
+        nonlocal analysis_truncated
         if len(issues) >= maximum_issues:
-            truncated = True
+            analysis_truncated = True
             return False
         issues.append(value)
         return True
@@ -280,31 +309,31 @@ def analyze_ui_layout(
             )
         ):
             break
-        if (rect["width"] < minimum_width or rect["height"] < minimum_height) and not (
-            append_issue(
-                _issue(
-                    "small-target",
-                    "minor",
-                    [path],
-                    f"{path} is smaller than the governed interactive target size.",
-                    {
-                        "width": rect["width"],
-                        "height": rect["height"],
-                        "minimumWidth": minimum_width,
-                        "minimumHeight": minimum_height,
-                    },
-                )
+        if (
+            rect["width"] < minimum_width or rect["height"] < minimum_height
+        ) and not append_issue(
+            _issue(
+                "small-target",
+                "minor",
+                [path],
+                f"{path} is smaller than the governed interactive target size.",
+                {
+                    "width": rect["width"],
+                    "height": rect["height"],
+                    "minimumWidth": minimum_width,
+                    "minimumHeight": minimum_height,
+                },
             )
         ):
             break
 
     pair_checks = 0
     for left_index, left in enumerate(interactive):
-        if truncated:
+        if analysis_truncated:
             break
         for right in interactive[left_index + 1 :]:
             if pair_checks >= maximum_pair_checks or len(issues) >= maximum_issues:
-                truncated = True
+                analysis_truncated = True
                 break
             pair_checks += 1
             if _related(left, right):
@@ -387,18 +416,29 @@ def analyze_ui_layout(
         key=lambda value: SEVERITY_RANK[value],
         default=None,
     )
+    source_truncated = any(
+        source[key]
+        for key in (
+            "controlRecordsTruncated",
+            "interactiveRecordsTruncated",
+            "pairAnalysisTruncated",
+        )
+    )
     return {
         "schemaVersion": 1,
         "viewport": {"width": viewport_width, "height": viewport_height},
         "controlCount": len(controls),
         "interactiveControlCount": len(interactive),
+        "source": source,
         "issues": issues,
         "summary": {
             "issueCount": len(issues),
             "issueCounts": counts,
             "highestSeverity": highest,
             "pairChecks": pair_checks,
-            "truncated": truncated,
+            "analysisTruncated": analysis_truncated,
+            "sourceTruncated": source_truncated,
+            "truncated": analysis_truncated or source_truncated,
         },
     }
 
