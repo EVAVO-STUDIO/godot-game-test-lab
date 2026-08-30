@@ -44,7 +44,7 @@ _RECEIPT_KEYS = {
     "evidenceSha256",
     "container",
     "mediaType",
-    "durationSeconds",
+    "captureElapsedSeconds",
     "framesPerSecond",
     "startedAt",
     "completedAt",
@@ -316,10 +316,10 @@ def build_movie_adapter_receipt(
     completed = _timestamp(completed_at, label="completed_at")
     if completed < started:
         raise NativeQaError("completed_at may not predate started_at")
-    duration_seconds = (completed - started).total_seconds()
+    capture_elapsed_seconds = (completed - started).total_seconds()
     _bounded_number(
-        duration_seconds,
-        label="duration_seconds",
+        capture_elapsed_seconds,
+        label="capture_elapsed_seconds",
         minimum=0.0,
         maximum=24 * 60 * 60,
     )
@@ -343,7 +343,7 @@ def build_movie_adapter_receipt(
         "evidenceSha256": evidence.sha256,
         "container": evidence.container,
         "mediaType": evidence.container,
-        "durationSeconds": duration_seconds,
+        "captureElapsedSeconds": capture_elapsed_seconds,
         "framesPerSecond": fps,
         "startedAt": started.isoformat(),
         "completedAt": completed.isoformat(),
@@ -353,8 +353,9 @@ def build_movie_adapter_receipt(
         "sourceMutationPerformed": False,
         "truthBoundary": (
             "This receipt proves that a non-headless Godot Movie Maker invocation produced "
-            "digest-bound AVI bytes for one journey command. It does not prove that every frame "
-            "was visually correct, that audio was captured, or that a reviewer inspected the movie."
+            "digest-bound AVI bytes for one journey command. Capture elapsed time is wall-clock "
+            "runtime, not asserted playback duration. It does not prove that every frame was "
+            "visually correct, that audio was captured, or that a reviewer inspected the movie."
         ),
     }
     return {**partial, "receiptDigest": _receipt_digest(partial)}
@@ -448,13 +449,13 @@ def verify_movie_adapter_receipt(
         current = (now or datetime.now(UTC)).astimezone(UTC)
         if issued > current + _MAX_FUTURE_SKEW or expires <= current:
             return False
-        duration = _bounded_number(
-            receipt.get("durationSeconds"),
-            label="durationSeconds",
+        elapsed = _bounded_number(
+            receipt.get("captureElapsedSeconds"),
+            label="captureElapsedSeconds",
             minimum=0.0,
             maximum=24 * 60 * 60,
         )
-        if duration != (completed - started).total_seconds():
+        if elapsed != (completed - started).total_seconds():
             return False
         capabilities = receipt.get("capabilities")
         if not isinstance(capabilities, list) or len(capabilities) != len(set(capabilities)):
