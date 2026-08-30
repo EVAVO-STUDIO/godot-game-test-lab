@@ -38,6 +38,9 @@ godot-lab-localization-plural = "godot_game_test_lab.localization_plural_runtime
 godot-lab-localization-stable-id-bundle = "godot_game_test_lab.localization_stable_id_bundle_cli:main"
 godot-lab-sprite-animation = "godot_game_test_lab.sprite_animation_runtime_cli:main"
 godot-lab-sprite-animation-probe = "godot_game_test_lab.sprite_animation_probe_runner:main"
+godot-lab-movie-evidence = "godot_game_test_lab.movie_evidence_cli:main"
+godot-lab-movie-temporal = "godot_game_test_lab.movie_temporal_cli:main"
+godot-lab-movie-source-identities = "godot_game_test_lab.movie_source_identity_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/godot_game_test_lab"]
