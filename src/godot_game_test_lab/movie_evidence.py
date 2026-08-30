@@ -12,6 +12,8 @@ from typing import Any, Iterable, Sequence
 from .native_qa_common import NativeQaError
 from .visual_path_security import (
     confined_output_file,
+)
+from .visual_path_security import (
     confined_regular_file as _secure_confined_regular_file,
 )
 
