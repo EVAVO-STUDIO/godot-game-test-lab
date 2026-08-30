@@ -417,10 +417,13 @@ foreach ($entry in $selected) {
                 -StdoutPath $videoStdout `
                 -StderrPath $videoStderr `
                 -Timeout $TimeoutSeconds
+            $videoDidNotTimeOut = -not [bool]$videoResult.TimedOut
+            $videoExitedSuccessfully = [int]$videoResult.ExitCode -eq 0
+            $videoExists = Test-Path -LiteralPath $videoPath -PathType Leaf
             $videoCreated = (
-                -not $videoResult.TimedOut
-                -and $videoResult.ExitCode -eq 0
-                -and (Test-Path -LiteralPath $videoPath -PathType Leaf)
+                $videoDidNotTimeOut -and
+                $videoExitedSuccessfully -and
+                $videoExists
             )
             if (-not $videoCreated) {
                 $message = "FFmpeg could not assemble the checkpoint review video."
