@@ -17,6 +17,20 @@ EXPECTED_WORKFLOWS = {
     "verified-toolchain-transport.yml",
     "visual-animation-admission.yml",
 }
+CAPABILITY_AUTHORITY_PATHS = {
+    "evavo.reliability.json",
+    "pyproject.toml",
+    "scripts/check_repository_toolchain.py",
+    "scripts/check_repository_toolchain_core.py",
+    "scripts/_repository_toolchain_core_base.py",
+    "scripts/test_repository_toolchain.py",
+    "scripts/_repository_toolchain_tests_base.py",
+    "tests/test_mcp_dependency_contract.py",
+    "tests/test_workflow_inventory.py",
+}
+CURRENT_CHECKOUT_REFERENCE = (
+    "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2"
+)
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 EXTERNAL_USES = re.compile(r"^\s*uses:\s*([^\s#]+)", flags=re.MULTILINE)
 
@@ -44,6 +58,19 @@ def test_workflows_use_immutable_external_actions() -> None:
             assert action and FULL_SHA.fullmatch(ref), (
                 f"{workflow.name} action is not pinned to a full SHA: {reference}"
             )
+
+
+def test_capability_manifest_workflow_tracks_dependency_authority() -> None:
+    text = (WORKFLOWS / "capability-manifest.yml").read_text(encoding="utf-8")
+    for relative in sorted(CAPABILITY_AUTHORITY_PATHS):
+        entry = f"      - {relative}"
+        assert text.count(entry) == 2, (
+            f"capability workflow must track {relative} for push and pull_request"
+        )
+    assert CURRENT_CHECKOUT_REFERENCE in text
+    assert "actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955" not in text
+    assert "Run capability, dependency and localization regressions" in text
+    assert "tests/test_mcp_dependency_contract.py" in text
 
 
 def test_native_validation_workflow_retains_fail_closed_policy() -> None:
