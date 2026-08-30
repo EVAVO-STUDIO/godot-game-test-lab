@@ -51,6 +51,8 @@ def relative_inside(root: Path, candidate: Path, *, label: str) -> str:
 
 
 def reject_link_components(root: Path, candidate: Path, *, label: str) -> None:
+    if candidate == root:
+        return
     relative = Path(relative_inside(root, candidate, label=label))
     current = root
     for part in relative.parts:
