@@ -54,7 +54,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -89,3 +89,10 @@ extend-safe-fixes = ["UP038"]
 "src/godot_game_test_lab/localization_stable_id_bundle_cli.py" = ["E501"]
 "tests/test_localization_stable_id_bundle.py" = ["E501"]
 "tests/test_localization_stable_id_bundle_contract_surface.py" = ["E501"]
+"src/godot_game_test_lab/movie_evidence.py" = ["UP035", "UP038"]
+"src/godot_game_test_lab/movie_source_identity.py" = ["UP035"]
+"src/godot_game_test_lab/movie_temporal.py" = ["UP035"]
+"src/godot_game_test_lab/native_qa_motion_evidence.py" = ["UP038"]
+"src/godot_game_test_lab/native_qa_visual_review.py" = ["UP038"]
+"src/godot_game_test_lab/ui_layout_analysis.py" = ["UP038"]
+"src/godot_game_test_lab/visual_review_bundle.py" = ["E501", "UP038"]
