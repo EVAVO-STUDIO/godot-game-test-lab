@@ -61,12 +61,25 @@ def reject_link_components(root: Path, candidate: Path, *, label: str) -> None:
             )
 
 
-def _candidate(root: Path, value: Path, *, label: str) -> tuple[Path, str]:
+def _candidate(
+    requested_root: Path,
+    actual_root: Path,
+    value: Path,
+    *,
+    label: str,
+) -> tuple[Path, str]:
     raw = value.expanduser()
     if not raw.is_absolute():
-        raw = root / raw
-    requested = lexical_absolute(raw)
-    relative = relative_inside(root, requested, label=label)
+        requested = lexical_absolute(actual_root / raw)
+    else:
+        lexical = lexical_absolute(raw)
+        try:
+            alias_relative = lexical.relative_to(requested_root)
+        except ValueError:
+            requested = lexical
+        else:
+            requested = lexical_absolute(actual_root / alias_relative)
+    relative = relative_inside(actual_root, requested, label=label)
     return requested, relative
 
 
@@ -109,8 +122,13 @@ def confined_regular_file(
         or maximum_bytes > 64 * 1024 * 1024 * 1024
     ):
         raise NativeQaError("evidence file byte limits are outside policy")
-    _, root = canonical_non_link_directory(root_path, label="artifact root")
-    requested, relative = _candidate(root, candidate_path, label=label)
+    requested_root, root = canonical_non_link_directory(root_path, label="artifact root")
+    requested, relative = _candidate(
+        requested_root,
+        root,
+        candidate_path,
+        label=label,
+    )
     reject_link_components(root, requested, label=label)
     try:
         actual = requested.resolve(strict=True)
@@ -132,8 +150,13 @@ def confined_output_file(
     label: str,
     required_suffix: str | None = None,
 ) -> tuple[Path, str]:
-    _, root = canonical_non_link_directory(root_path, label="artifact root")
-    requested, relative = _candidate(root, candidate_path, label=label)
+    requested_root, root = canonical_non_link_directory(root_path, label="artifact root")
+    requested, relative = _candidate(
+        requested_root,
+        root,
+        candidate_path,
+        label=label,
+    )
     if required_suffix is not None and requested.suffix.lower() != required_suffix.lower():
         raise NativeQaError(f"{label} must use a {required_suffix} suffix")
     _prepare_directory_tree(root, requested.parent, label=f"{label} parent")
