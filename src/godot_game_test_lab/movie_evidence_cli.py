@@ -15,34 +15,15 @@ from .movie_evidence import (
 )
 from .movie_source_identity import capture_movie_source_identity
 from .native_qa_common import NativeQaError
+from .visual_path_security import (
+    canonical_non_link_directory,
+    confined_output_file,
+)
 
 
 def _artifact_root(value: Path) -> Path:
-    root = value.expanduser().resolve(strict=True)
-    if not root.is_dir() or root.is_symlink():
-        raise NativeQaError("artifact root must be a non-symlink directory")
+    _, root = canonical_non_link_directory(value, label="artifact root")
     return root
-
-
-def _relative_inside(root: Path, candidate: Path, *, label: str) -> str:
-    try:
-        relative = candidate.relative_to(root)
-    except ValueError as error:
-        raise NativeQaError(f"{label} escapes the admitted artifact root") from error
-    if relative == Path("."):
-        raise NativeQaError(f"{label} may not be the artifact root itself")
-    return relative.as_posix()
-
-
-def _reject_symlink_components(root: Path, candidate: Path, *, label: str) -> None:
-    if candidate == root:
-        return
-    relative = Path(_relative_inside(root, candidate, label=label))
-    current = root
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise NativeQaError(f"{label} may not traverse symbolic links")
 
 
 def _json_object(
@@ -74,16 +55,11 @@ def _write_json(root: Path, path: Path | None, value: dict[str, Any]) -> None:
     if path is None:
         print(encoded.decode("utf-8"), end="")
         return
-    destination = path.expanduser()
-    if not destination.is_absolute():
-        destination = root / destination
-    destination = destination.resolve(strict=False)
-    _relative_inside(root, destination, label="movie evidence receipt output")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(
+    destination, _ = confined_output_file(
         root,
-        destination.parent,
-        label="movie evidence receipt output parent",
+        path,
+        label="movie evidence receipt",
+        required_suffix=".json",
     )
     try:
         with destination.open("xb") as stream:
