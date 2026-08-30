@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/contracts/evavo-game-runtime-world-streaming-receipt-v1.json",
+  "title": "EVAVO Game Runtime World Streaming Receipt",
+  "type": "object",
+  "required": ["version", "generated_utc", "runtime_repo", "runtime_sha", "godot", "exit_code", "evidence"],
+  "properties": {
+    "version": {"const": 1},
+    "generated_utc": {"type": "string", "minLength": 1},
+    "runtime_repo": {"type": "string", "minLength": 1},
+    "runtime_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "godot": {"type": "string", "minLength": 1},
+    "exit_code": {"type": "integer"},
+    "evidence": {
+      "type": "object",
+      "required": ["version", "packages", "streaming", "handoffs"],
+      "properties": {
+        "version": {"const": 1},
+        "packages": {"type": "object"},
+        "streaming": {"type": "object"},
+        "handoffs": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "stdout_path": {"type": "string"},
+    "issues": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}
