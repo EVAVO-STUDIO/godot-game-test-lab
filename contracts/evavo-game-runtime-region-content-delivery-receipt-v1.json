@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/test-lab/contracts/evavo-game-runtime-region-content-delivery-receipt-v1.json",
+  "title": "EVAVO Game Runtime Region Content Delivery Test Receipt",
+  "type": "object",
+  "required": [
+    "version",
+    "suite_id",
+    "run_id",
+    "generated_at_utc",
+    "status",
+    "runtime_repository",
+    "runtime_sha",
+    "test_lab_repository",
+    "test_lab_sha",
+    "source_validation",
+    "executable_validation",
+    "claims"
+  ],
+  "properties": {
+    "version": {"const": 1},
+    "suite_id": {"const": "evavo_game_runtime_region_content_delivery"},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "generated_at_utc": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["pass", "partial", "fail"]},
+    "runtime_repository": {"const": "EVAVO-STUDIO/evavo-game-runtime"},
+    "runtime_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "test_lab_repository": {"const": "EVAVO-STUDIO/godot-game-test-lab"},
+    "test_lab_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "runtime_branch": {"type": "string", "minLength": 1, "maxLength": 128},
+    "test_lab_branch": {"type": "string", "minLength": 1, "maxLength": 128},
+    "godot_version": {"type": ["string", "null"], "maxLength": 256},
+    "source_validation": {
+      "type": "object",
+      "required": ["content_delivery", "region_package_binding"],
+      "properties": {
+        "content_delivery": {"$ref": "#/$defs/check"},
+        "region_package_binding": {"$ref": "#/$defs/check"}
+      },
+      "additionalProperties": false
+    },
+    "executable_validation": {
+      "type": "object",
+      "required": ["godot_import", "delivery_session_smoke", "region_driver_smoke"],
+      "properties": {
+        "godot_import": {"$ref": "#/$defs/check"},
+        "delivery_session_smoke": {"$ref": "#/$defs/check"},
+        "region_driver_smoke": {"$ref": "#/$defs/check"}
+      },
+      "additionalProperties": false
+    },
+    "claims": {
+      "type": "object",
+      "required": [
+        "real_storefront_install_verified",
+        "real_network_transfer_verified",
+        "measured_byte_progress_verified",
+        "threaded_load_hard_cancel_verified",
+        "resource_completion_grants_authority",
+        "declared_bytes_are_measured_bytes"
+      ],
+      "properties": {
+        "real_storefront_install_verified": {"const": false},
+        "real_network_transfer_verified": {"const": false},
+        "measured_byte_progress_verified": {"const": false},
+        "threaded_load_hard_cancel_verified": {"const": false},
+        "resource_completion_grants_authority": {"const": false},
+        "declared_bytes_are_measured_bytes": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "evidence_root": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "notes": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {"type": "string", "minLength": 1, "maxLength": 1024}
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "required": ["status", "exit_code", "log_path"],
+      "properties": {
+        "status": {"enum": ["pass", "fail", "skipped", "unverified"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "log_path": {"type": "string", "maxLength": 2048},
+        "marker": {"type": "string", "maxLength": 512},
+        "reason": {"type": "string", "maxLength": 1024},
+        "started_at_utc": {"type": "string", "format": "date-time"},
+        "finished_at_utc": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
