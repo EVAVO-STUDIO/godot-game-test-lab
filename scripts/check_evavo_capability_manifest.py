@@ -87,6 +87,11 @@ EXPECTED_SCRIPTS = {
     "godot-lab-sprite-animation-probe": (
         "godot_game_test_lab.sprite_animation_probe_runner:main"
     ),
+    "godot-lab-movie-evidence": "godot_game_test_lab.movie_evidence_cli:main",
+    "godot-lab-movie-temporal": "godot_game_test_lab.movie_temporal_cli:main",
+    "godot-lab-movie-source-identities": (
+        "godot_game_test_lab.movie_source_identity_cli:main"
+    ),
 }
 
 
