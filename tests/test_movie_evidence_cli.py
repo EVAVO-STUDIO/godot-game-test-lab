@@ -53,7 +53,8 @@ def test_receipt_and_doctor_round_trip_exact_movie_bytes(
     assert created["evidenceSha256"] == created["movieSha256"]
     assert created["sourceIdentity"] == source_identity
     assert created["workerAdmitted"] is False
-    assert created["durationSeconds"] == 5
+    assert created["captureElapsedSeconds"] == 5
+    assert "durationSeconds" not in created
 
     assert main([
         "doctor",
@@ -69,6 +70,8 @@ def test_receipt_and_doctor_round_trip_exact_movie_bytes(
     assert result["ready"] is True
     assert result["exactMovieBytesVerified"] is True
     assert result["currentSourceIdentityVerified"] is True
+    assert result["captureElapsedSeconds"] == 5
+    assert "durationSeconds" not in result
     assert result["movieSha256"] == hashlib.sha256(content).hexdigest()
 
 
