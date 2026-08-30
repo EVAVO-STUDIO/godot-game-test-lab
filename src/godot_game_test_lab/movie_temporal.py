@@ -21,12 +21,46 @@ _MAX_SEQUENCE_BYTES = 8 * 1024 * 1024
 _MAX_FRAME_BYTES = 25 * 1024 * 1024
 _MAX_FRAMES = 10_000
 _MAX_DURATION_MS = 24 * 60 * 60 * 1000
+_MAX_FINDINGS = 1024
 _RECEIPT_LIFETIME = timedelta(minutes=30)
+_MAX_FUTURE_SKEW = timedelta(minutes=5)
 _REQUIRED_CAPABILITIES = {
     "temporal-analysis",
     "sampled-frame-sequence",
     "exact-frame-bytes",
 }
+_BASE_RECEIPT_KEYS = {
+    "schema",
+    "adapterId",
+    "sourceIdentity",
+    "issuedAt",
+    "expiresAt",
+    "status",
+    "ready",
+    "workerAdmitted",
+    "capabilities",
+    "inputMovieSha256",
+    "sequenceManifestRelativePath",
+    "sequenceManifestSha256",
+    "sequenceDigest",
+    "extractionSourceIdentity",
+    "extractionCommandSha256",
+    "sampledFrameCount",
+    "observedChange",
+    "temporalVerdict",
+    "temporalAnalysisSha256",
+    "evidenceSha256",
+    "findings",
+    "arbitraryShellAccepted",
+    "sourceMutationPerformed",
+    "truthBoundary",
+    "receiptDigest",
+}
+_REPORT_BINDING_KEYS = {
+    "temporalReportRelativePath",
+    "temporalReportFileSha256",
+}
+_FINDING_KEYS = {"code", "severity", "detail", "frameIds"}
 
 
 @dataclass(frozen=True)
@@ -94,6 +128,19 @@ def _allowed_keys(value: Mapping[str, Any], allowed: set[str], *, label: str) ->
     unknown = sorted(set(value) - allowed)
     if unknown:
         raise NativeQaError(f"{label} contains unsupported fields: {', '.join(unknown)}")
+
+
+def _exact_keys(value: Mapping[str, Any], expected: set[str], *, label: str) -> None:
+    actual = set(value)
+    missing = sorted(expected - actual)
+    unknown = sorted(actual - expected)
+    if missing or unknown:
+        detail = []
+        if missing:
+            detail.append(f"missing: {', '.join(missing)}")
+        if unknown:
+            detail.append(f"unsupported: {', '.join(unknown)}")
+        raise NativeQaError(f"{label} fields are invalid ({'; '.join(detail)})")
 
 
 def _token(value: Any, *, label: str) -> str:
@@ -190,6 +237,56 @@ def _verify_png(path: Path, *, expected_bytes: int, expected_sha256: str, label:
         raise NativeQaError(f"{label} is not a PNG file")
     if _sha256_file(path) != expected_sha256:
         raise NativeQaError(f"{label} digest does not match the sequence manifest")
+
+
+def _validated_findings(value: Any, *, label: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > _MAX_FINDINGS:
+        raise NativeQaError(f"{label} must be an array of at most {_MAX_FINDINGS} findings")
+    result: list[dict[str, Any]] = []
+    for index, raw in enumerate(value):
+        finding = _object(raw, label=f"{label}[{index}]")
+        _exact_keys(finding, _FINDING_KEYS, label=f"{label}[{index}]")
+        code = _token(finding.get("code"), label=f"{label}[{index}].code")
+        severity = finding.get("severity")
+        if severity not in {"warning", "error"}:
+            raise NativeQaError(f"{label}[{index}].severity is unsupported")
+        detail = finding.get("detail")
+        if (
+            not isinstance(detail, str)
+            or not detail.strip()
+            or len(detail) > 4096
+            or "\0" in detail
+            or "\r" in detail
+            or "\n" in detail
+        ):
+            raise NativeQaError(f"{label}[{index}].detail must be bounded single-line text")
+        raw_frame_ids = finding.get("frameIds")
+        if (
+            not isinstance(raw_frame_ids, list)
+            or not 1 <= len(raw_frame_ids) <= _MAX_FRAMES
+        ):
+            raise NativeQaError(f"{label}[{index}].frameIds is outside policy")
+        frame_ids = [
+            _token(item, label=f"{label}[{index}].frameIds[{item_index}]")
+            for item_index, item in enumerate(raw_frame_ids)
+        ]
+        if len(frame_ids) != len(set(frame_ids)):
+            raise NativeQaError(f"{label}[{index}].frameIds contains duplicates")
+        result.append(
+            {
+                "code": code,
+                "severity": severity,
+                "detail": detail.strip(),
+                "frameIds": frame_ids,
+            }
+        )
+    return result
+
+
+def _verdict_for_findings(findings: Sequence[Mapping[str, Any]]) -> str:
+    if any(finding.get("severity") == "error" for finding in findings):
+        return "fail"
+    return "needs-review" if findings else "pass"
 
 
 def load_verified_movie_frame_sequence(
@@ -602,10 +699,14 @@ def build_temporal_adapter_receipt(
         raise NativeQaError("temporal report manifest digest does not match")
     if report.get("sampledFrameCount") != len(sequence.frames):
         raise NativeQaError("temporal report frame count does not match")
-    if report.get("temporalVerdict") not in {"pass", "fail", "needs-review"}:
-        raise NativeQaError("temporal report verdict is invalid")
-    if not isinstance(report.get("observedChange"), bool):
-        raise NativeQaError("temporal report observedChange must be boolean")
+    observed_change = _boolean(
+        report.get("observedChange"),
+        label="report.observedChange",
+    )
+    findings = _validated_findings(report.get("findings"), label="report.findings")
+    verdict = report.get("temporalVerdict")
+    if verdict != _verdict_for_findings(findings):
+        raise NativeQaError("temporal report verdict is inconsistent with its findings")
 
     partial: dict[str, Any] = {
         "schema": _ADAPTER_SCHEMA,
@@ -624,11 +725,11 @@ def build_temporal_adapter_receipt(
         "extractionSourceIdentity": sequence.extraction_source_identity,
         "extractionCommandSha256": sequence.extraction_command_sha256,
         "sampledFrameCount": len(sequence.frames),
-        "observedChange": report["observedChange"],
-        "temporalVerdict": report["temporalVerdict"],
+        "observedChange": observed_change,
+        "temporalVerdict": verdict,
         "temporalAnalysisSha256": report_digest,
         "evidenceSha256": report_digest,
-        "findings": report.get("findings", []),
+        "findings": findings,
         "arbitraryShellAccepted": False,
         "sourceMutationPerformed": False,
         "truthBoundary": (
@@ -646,9 +747,16 @@ def verify_temporal_adapter_receipt(
     receipt: Any,
     *,
     now: datetime | None = None,
+    expected_source_identity: str | None = None,
 ) -> bool:
     try:
         value = _object(receipt, label="temporal adapter receipt")
+        keys = set(value)
+        if keys not in {
+            frozenset(_BASE_RECEIPT_KEYS),
+            frozenset(_BASE_RECEIPT_KEYS | _REPORT_BINDING_KEYS),
+        }:
+            return False
         expected = _sha256(value.get("receiptDigest"), label="receiptDigest")
         partial = dict(value)
         partial.pop("receiptDigest", None)
@@ -658,10 +766,18 @@ def verify_temporal_adapter_receipt(
             return False
         if value.get("ready") is not True:
             return False
-        if not isinstance(value.get("workerAdmitted"), bool):
+        admitted = _boolean(value.get("workerAdmitted"), label="workerAdmitted")
+        expected_status = "worker-admitted" if admitted else "locally-verified"
+        if value.get("status") != expected_status:
             return False
+        source = _sha256(value.get("sourceIdentity"), label="sourceIdentity")
+        if expected_source_identity is not None:
+            if source != _sha256(
+                expected_source_identity,
+                label="expected_source_identity",
+            ):
+                return False
         for field in (
-            "sourceIdentity",
             "inputMovieSha256",
             "sequenceManifestSha256",
             "sequenceDigest",
@@ -677,31 +793,50 @@ def verify_temporal_adapter_receipt(
             value.get("sequenceManifestRelativePath"),
             label="sequenceManifestRelativePath",
         )
+        if _REPORT_BINDING_KEYS.issubset(keys):
+            _safe_relative_path(
+                value.get("temporalReportRelativePath"),
+                label="temporalReportRelativePath",
+            )
+            _sha256(
+                value.get("temporalReportFileSha256"),
+                label="temporalReportFileSha256",
+            )
         _integer(
             value.get("sampledFrameCount"),
             label="sampledFrameCount",
             minimum=1,
             maximum=_MAX_FRAMES,
         )
-        if not isinstance(value.get("observedChange"), bool):
-            return False
-        if value.get("temporalVerdict") not in {"pass", "fail", "needs-review"}:
+        _boolean(value.get("observedChange"), label="observedChange")
+        findings = _validated_findings(value.get("findings"), label="findings")
+        if value.get("temporalVerdict") != _verdict_for_findings(findings):
             return False
         issued = _timestamp(value.get("issuedAt"), label="issuedAt")
         expires = _timestamp(value.get("expiresAt"), label="expiresAt")
         if expires <= issued or expires - issued > _RECEIPT_LIFETIME:
             return False
         current = (now or datetime.now(UTC)).astimezone(UTC)
-        if expires <= current:
+        if issued > current + _MAX_FUTURE_SKEW or expires <= current:
             return False
         capabilities = value.get("capabilities")
-        if not isinstance(capabilities, list):
-            return False
-        if not _REQUIRED_CAPABILITIES.issubset({str(item) for item in capabilities}):
+        if (
+            not isinstance(capabilities, list)
+            or len(capabilities) != len(set(capabilities))
+            or set(capabilities) != _REQUIRED_CAPABILITIES
+        ):
             return False
         if value.get("arbitraryShellAccepted") is not False:
             return False
         if value.get("sourceMutationPerformed") is not False:
+            return False
+        truth_boundary = value.get("truthBoundary")
+        if (
+            not isinstance(truth_boundary, str)
+            or not truth_boundary.strip()
+            or len(truth_boundary) > 4096
+            or "\0" in truth_boundary
+        ):
             return False
         return True
     except (NativeQaError, OSError, TypeError, ValueError):
@@ -709,17 +844,25 @@ def verify_temporal_adapter_receipt(
 
 
 def source_identity(paths: Iterable[Path], *, root: Path) -> str:
-    root_resolved = root.expanduser().resolve(strict=True)
+    values = tuple(paths)
+    if not 1 <= len(values) <= 256:
+        raise NativeQaError("temporal source path list is outside policy")
+    verified: dict[str, Path] = {}
+    for raw_path in values:
+        actual, relative, _ = confined_regular_file(
+            root,
+            raw_path,
+            label="temporal source file",
+            maximum_bytes=8 * 1024 * 1024,
+        )
+        if relative in verified:
+            raise NativeQaError("temporal source path list contains duplicates")
+        verified[relative] = actual
     digest = hashlib.sha256()
-    for raw_path in sorted(paths, key=lambda path: path.as_posix()):
-        path = raw_path.expanduser().resolve(strict=True)
-        try:
-            relative = path.relative_to(root_resolved).as_posix()
-        except ValueError as error:
-            raise NativeQaError("temporal source path escapes the repository root") from error
+    for relative in sorted(verified):
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")
-        with path.open("rb") as stream:
+        with verified[relative].open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
         digest.update(b"\0")
