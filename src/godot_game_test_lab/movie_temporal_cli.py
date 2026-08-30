@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +14,10 @@ from .movie_evidence import (
     confined_regular_file,
     validate_avi_movie,
     verify_movie_adapter_receipt,
+)
+from .movie_source_identity import (
+    capture_movie_source_identity,
+    temporal_movie_source_identity,
 )
 from .movie_temporal import (
     analyse_movie_frame_sequence,
@@ -26,6 +31,7 @@ from .native_qa_common import NativeQaError
 _MAX_JSON_BYTES = 8 * 1024 * 1024
 _MAX_FRAME_BYTES = 25 * 1024 * 1024
 _PNG_SIGNATURE = bytes((137, 80, 78, 71, 13, 10, 26, 10))
+_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 
 
 def _canonical_digest(value: object) -> str:
@@ -40,6 +46,14 @@ def _canonical_digest(value: object) -> str:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _artifact_root(value: Path) -> Path:
@@ -60,6 +74,8 @@ def _relative_inside(root: Path, candidate: Path, *, label: str) -> str:
 
 
 def _reject_symlink_components(root: Path, candidate: Path, *, label: str) -> None:
+    if candidate == root:
+        return
     relative = Path(_relative_inside(root, candidate, label=label))
     current = root
     for part in relative.parts:
@@ -129,6 +145,15 @@ def _boolean(value: str) -> bool:
     raise argparse.ArgumentTypeError("boolean values must be true or false")
 
 
+def _current_temporal_source_identity(requested: str | None) -> str:
+    actual = temporal_movie_source_identity()
+    if requested is not None and requested != actual:
+        raise NativeQaError(
+            "requested temporal source identity does not match the current implementation"
+        )
+    return actual
+
+
 def _frame_records(root: Path, descriptor: Mapping[str, Any]) -> list[dict[str, Any]]:
     if descriptor.get("schema") != "evavo.godot-sampled-frame-input.v1":
         raise NativeQaError("sampled frame descriptor schema is unsupported")
@@ -150,7 +175,7 @@ def _frame_records(root: Path, descriptor: Mapping[str, Any]) -> list[dict[str, 
                 f"frames[{index}] contains unsupported fields: {', '.join(unknown_frame)}"
             )
         frame_id = raw.get("id")
-        if not isinstance(frame_id, str) or not frame_id or len(frame_id) > 255:
+        if not isinstance(frame_id, str) or _TOKEN.fullmatch(frame_id) is None:
             raise NativeQaError(f"frames[{index}].id must be a bounded stable token")
         timestamp_ms = raw.get("timestampMs")
         if (
@@ -176,7 +201,7 @@ def _frame_records(root: Path, descriptor: Mapping[str, Any]) -> list[dict[str, 
                 "id": frame_id,
                 "timestampMs": timestamp_ms,
                 "relativePath": canonical,
-                "sha256": hashlib.sha256(actual.read_bytes()).hexdigest(),
+                "sha256": _sha256_file(actual),
                 "bytes": size,
             }
         )
@@ -185,18 +210,31 @@ def _frame_records(root: Path, descriptor: Mapping[str, Any]) -> list[dict[str, 
 
 def _manifest(args: argparse.Namespace) -> dict[str, Any]:
     root = _artifact_root(args.artifact_root)
+    capture_source_identity = capture_movie_source_identity()
     capture, _, _, _ = _read_json(
         root,
         args.movie_receipt,
         label="Godot movie capture receipt",
         maximum_bytes=1024 * 1024,
     )
-    if not verify_movie_adapter_receipt(capture):
-        raise NativeQaError("Godot movie capture receipt failed validation")
+    if not verify_movie_adapter_receipt(
+        capture,
+        expected_source_identity=capture_source_identity,
+    ):
+        raise NativeQaError(
+            "Godot movie capture receipt failed its current-source, digest, schema or expiry validation"
+        )
     movie = validate_avi_movie(root, Path(str(capture.get("movieRelativePath", ""))))
-    if movie.sha256 != capture.get("movieSha256"):
+    if not (
+        movie.sha256
+        == capture.get("movieSha256")
+        == capture.get("videoSha256")
+        == capture.get("evidenceSha256")
+    ):
         raise NativeQaError("Godot movie bytes no longer match the capture receipt digest")
-    if movie.size_bytes != capture.get("movieBytes"):
+    if movie.size_bytes != capture.get("movieBytes") or movie.size_bytes != capture.get(
+        "videoBytes"
+    ):
         raise NativeQaError("Godot movie bytes no longer match the capture receipt size")
     descriptor, _, _, _ = _read_json(
         root,
@@ -221,6 +259,7 @@ def _manifest(args: argparse.Namespace) -> dict[str, Any]:
 
 def _analyse(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     root = _artifact_root(args.artifact_root)
+    source_identity = _current_temporal_source_identity(args.source_identity)
     sequence = load_verified_movie_frame_sequence(root, args.sequence)
     report = analyse_movie_frame_sequence(
         sequence,
@@ -244,7 +283,7 @@ def _analyse(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     receipt = build_temporal_adapter_receipt(
         sequence=sequence,
         report=report,
-        source_identity=args.source_identity,
+        source_identity=source_identity,
         issued_at=datetime.now(UTC).isoformat(),
         worker_admitted=False,
     )
@@ -272,6 +311,7 @@ def _analyse(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
 
 def _doctor(args: argparse.Namespace) -> dict[str, Any]:
     root = _artifact_root(args.artifact_root)
+    source_identity = _current_temporal_source_identity(args.expected_source_identity)
     receipt, _, _, _ = _read_json(
         root,
         args.receipt,
@@ -280,11 +320,8 @@ def _doctor(args: argparse.Namespace) -> dict[str, Any]:
     )
     if not verify_temporal_adapter_receipt(receipt):
         raise NativeQaError("temporal adapter receipt failed digest, schema or expiry validation")
-    if (
-        args.expected_source_identity is not None
-        and receipt.get("sourceIdentity") != args.expected_source_identity
-    ):
-        raise NativeQaError("temporal adapter receipt source identity does not match")
+    if receipt.get("sourceIdentity") != source_identity:
+        raise NativeQaError("temporal adapter receipt source identity is not current")
     sequence = load_verified_movie_frame_sequence(
         root,
         Path(str(receipt.get("sequenceManifestRelativePath", ""))),
@@ -329,12 +366,12 @@ def _doctor(args: argparse.Namespace) -> dict[str, Any]:
     if receipt.get("temporalVerdict") != report.get("temporalVerdict"):
         raise NativeQaError("temporal adapter receipt verdict does not match")
     result = {
-        "schema": "evavo.godot-movie-temporal-doctor.v1",
+        "schema": "evavo.godot-movie-temporal-doctor.v2",
         "adapterId": "godot-game-test-lab.movie-temporal",
         "status": receipt.get("status"),
         "ready": True,
         "workerAdmitted": receipt.get("workerAdmitted") is True,
-        "sourceIdentity": receipt.get("sourceIdentity"),
+        "sourceIdentity": source_identity,
         "inputMovieSha256": sequence.movie_sha256,
         "sequenceManifestRelativePath": sequence.manifest_relative_path,
         "sequenceManifestSha256": sequence.manifest_sha256,
@@ -345,9 +382,11 @@ def _doctor(args: argparse.Namespace) -> dict[str, Any]:
         "observedChange": report.get("observedChange"),
         "temporalVerdict": report.get("temporalVerdict"),
         "exactFrameBytesVerified": True,
+        "currentSourceIdentityVerified": True,
         "truthBoundary": (
-            "The doctor reopened every sampled PNG, recomputed the temporal report and verified "
-            "the report file binding. It does not prove unsampled frames or human visual approval."
+            "The doctor reopened every sampled PNG, recomputed the temporal report, verified the "
+            "report file binding and checked the current temporal-provider source identity. It does "
+            "not prove unsampled frames or human visual approval."
         ),
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
@@ -374,7 +413,10 @@ def build_parser() -> argparse.ArgumentParser:
     analyse = commands.add_parser("analyse", help="Analyse one verified sampled frame sequence.")
     analyse.add_argument("--artifact-root", type=Path, required=True)
     analyse.add_argument("--sequence", type=Path, required=True)
-    analyse.add_argument("--source-identity", required=True)
+    analyse.add_argument(
+        "--source-identity",
+        help="Optional assertion; it must equal the current temporal-provider source identity.",
+    )
     analyse.add_argument("--expected-change", type=_boolean, required=True)
     analyse.add_argument("--minimum-samples", type=int, default=3)
     analyse.add_argument("--maximum-gap-ms", type=int, default=2000)
@@ -383,10 +425,16 @@ def build_parser() -> argparse.ArgumentParser:
     analyse.add_argument("--report-output", type=Path, required=True)
     analyse.add_argument("--receipt-output", type=Path, required=True)
 
-    doctor = commands.add_parser("doctor", help="Reopen and independently verify temporal evidence.")
+    doctor = commands.add_parser(
+        "doctor",
+        help="Reopen and independently verify current-source temporal evidence.",
+    )
     doctor.add_argument("--artifact-root", type=Path, required=True)
     doctor.add_argument("--receipt", type=Path, required=True)
-    doctor.add_argument("--expected-source-identity")
+    doctor.add_argument(
+        "--expected-source-identity",
+        help="Optional assertion; it must equal the current temporal-provider source identity.",
+    )
     return parser
 
 
@@ -403,7 +451,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             json.dumps(
                 {
-                    "schema": "evavo.godot-movie-temporal-doctor.v1",
+                    "schema": "evavo.godot-movie-temporal-doctor.v2",
                     "status": "source-present",
                     "ready": False,
                     "error": str(error),
