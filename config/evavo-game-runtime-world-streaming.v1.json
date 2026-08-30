@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "consumer": "EVAVO-STUDIO/evavo-game-runtime",
+  "runtime_script": "tests/world_streaming_smoke.gd",
+  "receipt_contract": "contracts/evavo-game-runtime-world-streaming-receipt-v1.json",
+  "timeout_seconds": 60,
+  "required_marker": "EVAVO_WORLD_STREAMING_SMOKE=",
+  "required_checks": [
+    "source_validation",
+    "godot_import",
+    "package_dependency_order",
+    "bounded_delivery_concurrency",
+    "package_verification",
+    "region_dependency_order",
+    "memory_admission",
+    "activation_fences",
+    "authority_handoff",
+    "unload_hysteresis",
+    "terminal_receipt"
+  ]
+}
