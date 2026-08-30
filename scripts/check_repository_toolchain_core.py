@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the stable repository checker with current CLI and Godot channel authority."""
+"""Run the stable repository checker with current CLI, runtime and dependency authority."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import runpy
 import sys
 import tomllib
 from collections.abc import Callable
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +17,17 @@ ROOT = Path.cwd().resolve(strict=True)
 BASE_PATH = ROOT / "scripts" / "_repository_toolchain_core_base.py"
 ENGINE_LOCK_PATH = "src/godot_game_test_lab/godot-engine-lock.json"
 RELIABILITY_PATH = "evavo.reliability.json"
+PYPROJECT_PATH = "pyproject.toml"
 CURRENT_GODOT_47 = "4.7.2"
 BASE_GODOT_47 = "4.7.1"
+CURRENT_MCP_VERSION = "1.29.1"
+BASE_MCP_VERSION = "1.28.1"
+CURRENT_MCP_REQUIREMENT = f"mcp=={CURRENT_MCP_VERSION}"
+BASE_MCP_REQUIREMENT = f"mcp=={BASE_MCP_VERSION}"
+CURRENT_MCP_NOTE = (
+    f"The optional agent extra pins {CURRENT_MCP_REQUIREMENT}; the core Godot "
+    "validation and media runtime remains dependency-free."
+)
 EXPECTED_SCRIPTS = {
     "godot-lab": "godot_game_test_lab.cli:main",
     "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
@@ -91,9 +101,17 @@ def _authority_errors() -> list[str]:
         if "def main() -> int:" not in base_source:
             errors.append("stable repository toolchain base does not expose main")
 
-        pyproject = tomllib.loads(_read_regular(ROOT / "pyproject.toml", 128_000))
-        if pyproject.get("project", {}).get("scripts") != EXPECTED_SCRIPTS:
+        pyproject = tomllib.loads(_read_regular(ROOT / PYPROJECT_PATH, 128_000))
+        project = pyproject.get("project", {})
+        if project.get("scripts") != EXPECTED_SCRIPTS:
             errors.append("Godot Lab command entrypoints changed")
+        optional = project.get("optional-dependencies", {})
+        if not isinstance(optional, dict) or optional.get("agent") != [
+            CURRENT_MCP_REQUIREMENT
+        ]:
+            errors.append(
+                f"agent bridge dependency must be {CURRENT_MCP_REQUIREMENT}"
+            )
 
         engine_lock = _canonical_json(ENGINE_LOCK_PATH)
         channels = engine_lock.get("channels")
@@ -103,6 +121,20 @@ def _authority_errors() -> list[str]:
             )
 
         reliability = _canonical_json(RELIABILITY_PATH)
+        package_manager = reliability.get("packageManager")
+        agent_dependencies = (
+            package_manager.get("agentDependencies")
+            if isinstance(package_manager, dict)
+            else None
+        )
+        if agent_dependencies != [CURRENT_MCP_REQUIREMENT]:
+            errors.append(
+                f"reliability agent dependency must be {CURRENT_MCP_REQUIREMENT}"
+            )
+        notes = reliability.get("notes")
+        if not isinstance(notes, list) or CURRENT_MCP_NOTE not in notes:
+            errors.append("reliability MCP dependency note is not current")
+
         runtime = reliability.get("runtime")
         managed = runtime.get("managedGodotChannels") if isinstance(runtime, dict) else None
         if not isinstance(managed, dict) or managed.get("4.7") != CURRENT_GODOT_47:
@@ -120,6 +152,22 @@ def _authority_errors() -> list[str]:
     return errors
 
 
+def _compatible_text_loader(
+    original: Callable[[str, int], str],
+) -> Callable[[str, int], str]:
+    def load(relative: str, maximum_bytes: int = 4_000_000) -> str:
+        source = original(relative, maximum_bytes)
+        if relative == PYPROJECT_PATH:
+            source = source.replace(
+                f'"{CURRENT_MCP_REQUIREMENT}"',
+                f'"{BASE_MCP_REQUIREMENT}"',
+                1,
+            )
+        return source
+
+    return load
+
+
 def _compatible_json_loader(
     original: Callable[[str], dict[str, Any]],
 ) -> Callable[[str], dict[str, Any]]:
@@ -130,6 +178,11 @@ def _compatible_json_loader(
             if isinstance(channels, dict) and channels.get("4.7") == CURRENT_GODOT_47:
                 channels["4.7"] = BASE_GODOT_47
         elif relative == RELIABILITY_PATH:
+            package_manager = value.get("packageManager")
+            if isinstance(package_manager, dict):
+                dependencies = package_manager.get("agentDependencies")
+                if dependencies == [CURRENT_MCP_REQUIREMENT]:
+                    package_manager["agentDependencies"] = [BASE_MCP_REQUIREMENT]
             runtime = value.get("runtime")
             managed = runtime.get("managedGodotChannels") if isinstance(runtime, dict) else None
             if isinstance(managed, dict) and managed.get("4.7") == CURRENT_GODOT_47:
@@ -137,6 +190,27 @@ def _compatible_json_loader(
         return value
 
     return load
+
+
+def _current_agent_installed_validator(
+    fail: Callable[[str], None],
+) -> Callable[[], None]:
+    def validate() -> None:
+        try:
+            observed = metadata.version("mcp")
+        except metadata.PackageNotFoundError:
+            fail(
+                "agent-installed validation requires "
+                f"{CURRENT_MCP_REQUIREMENT}"
+            )
+            return
+        if observed != CURRENT_MCP_VERSION:
+            fail(
+                f"installed mcp must be {CURRENT_MCP_VERSION}; "
+                f"observed {observed}"
+            )
+
+    return validate
 
 
 def main() -> int:
@@ -156,20 +230,31 @@ def main() -> int:
         raise RuntimeError("stable repository toolchain base does not expose callable main")
     globals_ = base_main.__globals__
     base_scripts = globals_.get("EXPECTED_SCRIPTS")
+    original_text = globals_.get("read_text")
     original_json = globals_.get("canonical_json")
-    if not isinstance(base_scripts, dict) or not callable(original_json):
+    base_fail = globals_.get("fail")
+    if (
+        not isinstance(base_scripts, dict)
+        or not callable(original_text)
+        or not callable(original_json)
+        or not callable(base_fail)
+    ):
         raise RuntimeError("stable repository toolchain base contract changed")
     base_scripts.clear()
     base_scripts.update(EXPECTED_SCRIPTS)
+    globals_["read_text"] = _compatible_text_loader(original_text)
     globals_["canonical_json"] = _compatible_json_loader(original_json)
+    globals_["validate_agent_installed_state"] = _current_agent_installed_validator(
+        base_fail
+    )
 
     result = base_main()
     if not isinstance(result, int):
         raise RuntimeError("stable repository toolchain base must return an integer")
     if result == 0:
         print(
-            f"- all {len(EXPECTED_SCRIPTS)} package entrypoints and Godot "
-            f"4.7 channel {CURRENT_GODOT_47} agree"
+            f"- all {len(EXPECTED_SCRIPTS)} package entrypoints, MCP "
+            f"{CURRENT_MCP_VERSION} and Godot 4.7 channel {CURRENT_GODOT_47} agree"
         )
     return result
 
