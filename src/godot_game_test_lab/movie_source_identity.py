@@ -1,57 +1,45 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 from typing import Final, Iterable
 
 from .native_qa_common import NativeQaError
+from .visual_path_security import (
+    canonical_non_link_directory,
+    is_link_or_reparse,
+    lexical_absolute,
+    reject_link_components,
+    relative_inside,
+)
 
-_REPOSITORY_ROOT_REQUESTED: Final[Path] = Path(
-    os.path.abspath(os.fspath(Path(__file__).absolute().parents[2]))
+_REPOSITORY_ROOT_REQUESTED: Final[Path] = lexical_absolute(
+    Path(__file__).absolute().parents[2]
 )
 _REPOSITORY_ROOT: Final[Path] = _REPOSITORY_ROOT_REQUESTED.resolve(strict=True)
 _CAPTURE_SOURCE_PATHS: Final[tuple[str, ...]] = (
     "src/godot_game_test_lab/movie_evidence.py",
     "src/godot_game_test_lab/movie_evidence_cli.py",
     "src/godot_game_test_lab/movie_source_identity.py",
+    "src/godot_game_test_lab/visual_path_security.py",
 )
 _TEMPORAL_SOURCE_PATHS: Final[tuple[str, ...]] = (
     "src/godot_game_test_lab/movie_evidence.py",
     "src/godot_game_test_lab/movie_temporal.py",
     "src/godot_game_test_lab/movie_temporal_cli.py",
     "src/godot_game_test_lab/movie_source_identity.py",
+    "src/godot_game_test_lab/visual_path_security.py",
 )
 
 
-def _ensure_source_root() -> None:
-    if (
-        _REPOSITORY_ROOT_REQUESTED.is_symlink()
-        or not _REPOSITORY_ROOT_REQUESTED.is_dir()
-        or _REPOSITORY_ROOT_REQUESTED != _REPOSITORY_ROOT
-    ):
-        raise NativeQaError(
-            "movie provider repository root must be a canonical non-symlink directory"
-        )
-
-
-def _relative_inside(root: Path, candidate: Path, *, label: str) -> str:
-    try:
-        relative = candidate.relative_to(root)
-    except ValueError as error:
-        raise NativeQaError(f"{label} escapes the repository root") from error
-    if relative == Path("."):
-        raise NativeQaError(f"{label} may not be the repository root itself")
-    return relative.as_posix()
-
-
-def _reject_symlink_components(root: Path, candidate: Path, *, label: str) -> None:
-    relative = Path(_relative_inside(root, candidate, label=label))
-    current = root
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise NativeQaError(f"{label} may not traverse symbolic links")
+def _ensure_source_root() -> tuple[Path, Path]:
+    requested, actual = canonical_non_link_directory(
+        _REPOSITORY_ROOT_REQUESTED,
+        label="movie provider repository root",
+    )
+    if requested != _REPOSITORY_ROOT_REQUESTED or actual != _REPOSITORY_ROOT:
+        raise NativeQaError("movie provider repository root changed after import")
+    return requested, actual
 
 
 def _canonical_source_paths(paths: Iterable[str]) -> tuple[str, ...]:
@@ -78,23 +66,30 @@ def _canonical_source_paths(paths: Iterable[str]) -> tuple[str, ...]:
 
 
 def _source_identity(paths: Iterable[str]) -> str:
-    _ensure_source_root()
+    requested_root, actual_root = _ensure_source_root()
     digest = hashlib.sha256()
     for relative_path in _canonical_source_paths(paths):
-        requested = _REPOSITORY_ROOT_REQUESTED.joinpath(*relative_path.split("/"))
-        _relative_inside(
-            _REPOSITORY_ROOT_REQUESTED,
+        requested = requested_root.joinpath(*relative_path.split("/"))
+        expected_relative = relative_inside(
+            requested_root,
             requested,
             label="movie provider source path",
         )
-        _reject_symlink_components(
-            _REPOSITORY_ROOT_REQUESTED,
+        if expected_relative != relative_path:
+            raise NativeQaError(
+                f"movie provider source path is not canonical: {relative_path}"
+            )
+        reject_link_components(
             requested,
             label=f"movie provider source path {relative_path}",
         )
+        if is_link_or_reparse(requested):
+            raise NativeQaError(
+                f"movie provider source path may not be a link: {relative_path}"
+            )
         actual = requested.resolve(strict=True)
         try:
-            canonical = actual.relative_to(_REPOSITORY_ROOT).as_posix()
+            canonical = actual.relative_to(actual_root).as_posix()
         except ValueError as error:
             raise NativeQaError(
                 f"movie provider source path escapes the repository: {relative_path}"
