@@ -19,7 +19,7 @@
     ],
     "agentInstall": "python -m pip install --disable-pip-version-check \".[agent]\"",
     "agentDependencies": [
-      "mcp==1.28.1"
+      "mcp==1.29.1"
     ]
   },
   "runtime": {
@@ -72,7 +72,7 @@
     "bash -n scripts/*.sh containers/**/*.sh",
     "python -m pytest",
     "python -m pip wheel --no-deps --wheel-dir dist .",
-    "rm -rf dist && git diff --exit-code && test -z \"$(git status --porcelain)\""
+    "rm -rf dist .pytest_cache .ruff_cache src/*.egg-info && git diff --exit-code && test -z \"$(git status --porcelain)\""
   ],
   "providerConfirmation": {
     "workflow": ".github/workflows/evavo-mainline-confirmation.yml",
@@ -287,7 +287,7 @@
     "Python 3.11.15 is exact for hosted Linux self-validation; native Windows Python remains a freshly probed 3.11.x runner capability.",
     "Direct build and development dependencies are pinned, but their transitive graph is review-first until requirements.lock is separately generated and validated.",
     "No source-only validation result authorises target mutation, deployment, store publication, credential change or a physical-controller or human-UX pass claim.",
-    "The optional agent extra pins mcp==1.28.1; the core Godot validation and media runtime remains dependency-free.",
+    "The optional agent extra pins mcp==1.29.1; the core Godot validation and media runtime remains dependency-free.",
     "Docker is optional for native Windows testing but required for local no-network Linux sandbox runs.",
     "The canonical plural-localization command is godot-lab-localization-plural, routed to the guarded localization_plural_runtime_cli facade; older direct modules are compatibility surfaces and not publication authority."
   ]
