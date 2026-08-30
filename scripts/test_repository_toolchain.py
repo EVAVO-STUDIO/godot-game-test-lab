@@ -63,6 +63,37 @@ def _current_command_count() -> int:
     return len(expected_scripts)
 
 
+def _compatible_mutate_text(
+    original: Callable[[Path, str, Callable[[str], str]], None],
+) -> Callable[[Path, str, Callable[[str], str]], None]:
+    def mutate(
+        root: Path,
+        relative: str,
+        operation: Callable[[str], str],
+    ) -> None:
+        try:
+            original(root, relative, operation)
+            return
+        except AssertionError as error:
+            if relative != "pyproject.toml":
+                raise
+            path = root / relative
+            source = path.read_text(encoding="utf-8")
+            if CURRENT_MCP_REQUIREMENT not in source:
+                raise
+            retained_source = source.replace(
+                CURRENT_MCP_REQUIREMENT,
+                ROLLBACK_MCP_REQUIREMENT,
+                1,
+            )
+            changed = operation(retained_source)
+            if changed == retained_source:
+                raise error
+            path.write_text(changed, encoding="utf-8")
+
+    return mutate
+
+
 def main() -> int:
     _read_base()
     namespace = runpy.run_path(
@@ -74,10 +105,12 @@ def main() -> int:
         raise RuntimeError("stable repository adversarial test base has no main")
     globals_ = base_main.__globals__
     core_files = globals_.get("CORE_FILES")
-    if not isinstance(core_files, tuple):
-        raise RuntimeError("stable repository adversarial file inventory changed")
+    original_mutate_text = globals_.get("mutate_text")
+    if not isinstance(core_files, tuple) or not callable(original_mutate_text):
+        raise RuntimeError("stable repository adversarial fixture contract changed")
     if CORE_BASE_RELATIVE not in core_files:
         globals_["CORE_FILES"] = (*core_files, CORE_BASE_RELATIVE)
+    globals_["mutate_text"] = _compatible_mutate_text(original_mutate_text)
 
     result = base_main()
     if not isinstance(result, int) or result != 0:
