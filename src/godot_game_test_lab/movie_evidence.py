@@ -3,10 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -18,6 +17,44 @@ _MAX_COMMAND_ARGUMENTS = 512
 _MAX_ARGUMENT_LENGTH = 4096
 _DEFAULT_MAX_MOVIE_BYTES = 8 * 1024 * 1024 * 1024
 _MIN_AVI_BYTES = 64
+_RECEIPT_LIFETIME = timedelta(minutes=30)
+_MAX_FUTURE_SKEW = timedelta(minutes=5)
+_REQUIRED_CAPABILITIES = {
+    "screen-recording",
+    "native-godot-movie",
+    "exact-movie-bytes",
+}
+_RECEIPT_KEYS = {
+    "schema",
+    "adapterId",
+    "sourceIdentity",
+    "issuedAt",
+    "expiresAt",
+    "capturedAt",
+    "status",
+    "ready",
+    "workerAdmitted",
+    "journeyId",
+    "commandSha256",
+    "movieRelativePath",
+    "movieSha256",
+    "movieBytes",
+    "videoSha256",
+    "videoBytes",
+    "evidenceSha256",
+    "container",
+    "mediaType",
+    "durationSeconds",
+    "framesPerSecond",
+    "startedAt",
+    "completedAt",
+    "capabilities",
+    "headless",
+    "arbitraryShellAccepted",
+    "sourceMutationPerformed",
+    "truthBoundary",
+    "receiptDigest",
+}
 
 
 @dataclass(frozen=True)
@@ -39,6 +76,21 @@ def _bounded_integer(
     if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
         raise NativeQaError(f"{label} must be an integer between {minimum} and {maximum}")
     return value
+
+
+def _bounded_number(
+    value: Any,
+    *,
+    label: str,
+    minimum: float,
+    maximum: float,
+) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise NativeQaError(f"{label} must be a finite number")
+    candidate = float(value)
+    if not math.isfinite(candidate) or not minimum <= candidate <= maximum:
+        raise NativeQaError(f"{label} must be between {minimum} and {maximum}")
+    return candidate
 
 
 def _bounded_text(value: Any, *, label: str, maximum: int) -> str:
@@ -68,6 +120,14 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _receipt_digest(value: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
 
 
 def _relative_inside(root: Path, candidate: Path, *, label: str) -> str:
@@ -136,7 +196,8 @@ def normalize_movie_output_path(
     if requested.suffix.lower() != ".avi":
         raise NativeQaError("Godot native movie evidence must use a .avi output")
     requested.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(root, requested.parent, label="movie output parent")
+    if requested.parent != root:
+        _reject_symlink_components(root, requested.parent, label="movie output parent")
     if requested.exists():
         raise NativeQaError("refusing to overwrite existing Godot movie evidence")
     return requested, relative
@@ -231,6 +292,8 @@ def build_movie_adapter_receipt(
     frames_per_second: int,
     worker_admitted: bool = False,
 ) -> dict[str, Any]:
+    if not isinstance(evidence, MovieEvidence):
+        raise NativeQaError("evidence must be validated MovieEvidence")
     journey = _bounded_text(journey_id, label="journey_id", maximum=255)
     if _TOKEN.fullmatch(journey) is None:
         raise NativeQaError("journey_id must be a bounded stable token")
@@ -239,7 +302,7 @@ def build_movie_adapter_receipt(
         (command_sha256, "command_sha256"),
         (evidence.sha256, "evidence.sha256"),
     ):
-        if _SHA256.fullmatch(value) is None:
+        if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
             raise NativeQaError(f"{label} must be a lowercase SHA-256 digest")
     if not isinstance(worker_admitted, bool):
         raise NativeQaError("worker_admitted must be boolean")
@@ -253,11 +316,20 @@ def build_movie_adapter_receipt(
     completed = _timestamp(completed_at, label="completed_at")
     if completed < started:
         raise NativeQaError("completed_at may not predate started_at")
+    duration_seconds = (completed - started).total_seconds()
+    _bounded_number(
+        duration_seconds,
+        label="duration_seconds",
+        minimum=0.0,
+        maximum=24 * 60 * 60,
+    )
     partial: dict[str, Any] = {
         "schema": "evavo.godot-movie-adapter-receipt.v1",
         "adapterId": "godot-game-test-lab.video-evidence",
         "sourceIdentity": source_identity,
         "issuedAt": completed.isoformat(),
+        "expiresAt": (completed + _RECEIPT_LIFETIME).isoformat(),
+        "capturedAt": completed.isoformat(),
         "status": "worker-admitted" if worker_admitted else "locally-verified",
         "ready": True,
         "workerAdmitted": worker_admitted,
@@ -266,11 +338,16 @@ def build_movie_adapter_receipt(
         "movieRelativePath": evidence.relative_path,
         "movieSha256": evidence.sha256,
         "movieBytes": evidence.size_bytes,
+        "videoSha256": evidence.sha256,
+        "videoBytes": evidence.size_bytes,
+        "evidenceSha256": evidence.sha256,
         "container": evidence.container,
+        "mediaType": evidence.container,
+        "durationSeconds": duration_seconds,
         "framesPerSecond": fps,
         "startedAt": started.isoformat(),
         "completedAt": completed.isoformat(),
-        "capabilities": ["screen-recording", "native-godot-movie", "exact-movie-bytes"],
+        "capabilities": sorted(_REQUIRED_CAPABILITIES),
         "headless": False,
         "arbitraryShellAccepted": False,
         "sourceMutationPerformed": False,
@@ -280,31 +357,37 @@ def build_movie_adapter_receipt(
             "was visually correct, that audio was captured, or that a reviewer inspected the movie."
         ),
     }
-    partial["receiptDigest"] = hashlib.sha256(
-        json.dumps(partial, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
-    return partial
+    return {**partial, "receiptDigest": _receipt_digest(partial)}
 
 
-def verify_movie_adapter_receipt(receipt: Any) -> bool:
+def verify_movie_adapter_receipt(
+    receipt: Any,
+    *,
+    now: datetime | None = None,
+    expected_source_identity: str | None = None,
+) -> bool:
     try:
         if not isinstance(receipt, dict):
+            return False
+        if set(receipt) != _RECEIPT_KEYS:
             return False
         expected = receipt.get("receiptDigest")
         if not isinstance(expected, str) or _SHA256.fullmatch(expected) is None:
             return False
         partial = dict(receipt)
         partial.pop("receiptDigest", None)
-        actual = hashlib.sha256(
-            json.dumps(partial, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        if actual != expected:
+        if _receipt_digest(partial) != expected:
             return False
         if receipt.get("schema") != "evavo.godot-movie-adapter-receipt.v1":
             return False
         if receipt.get("adapterId") != "godot-game-test-lab.video-evidence":
             return False
         if receipt.get("ready") is not True:
+            return False
+        if not isinstance(receipt.get("workerAdmitted"), bool):
+            return False
+        expected_status = "worker-admitted" if receipt["workerAdmitted"] else "locally-verified"
+        if receipt.get("status") != expected_status:
             return False
         if receipt.get("headless") is not False:
             return False
@@ -314,16 +397,37 @@ def verify_movie_adapter_receipt(receipt: Any) -> bool:
             return False
         if receipt.get("container") != "video/x-msvideo":
             return False
-        for field in ("sourceIdentity", "commandSha256", "movieSha256"):
+        if receipt.get("mediaType") != receipt.get("container"):
+            return False
+        for field in (
+            "sourceIdentity",
+            "commandSha256",
+            "movieSha256",
+            "videoSha256",
+            "evidenceSha256",
+        ):
             value = receipt.get(field)
             if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
                 return False
-        _bounded_integer(
+        if expected_source_identity is not None:
+            if _SHA256.fullmatch(expected_source_identity) is None:
+                return False
+            if receipt.get("sourceIdentity") != expected_source_identity:
+                return False
+        if not (
+            receipt.get("movieSha256")
+            == receipt.get("videoSha256")
+            == receipt.get("evidenceSha256")
+        ):
+            return False
+        movie_bytes = _bounded_integer(
             receipt.get("movieBytes"),
             label="movieBytes",
             minimum=_MIN_AVI_BYTES,
             maximum=_DEFAULT_MAX_MOVIE_BYTES,
         )
+        if receipt.get("videoBytes") != movie_bytes:
+            return False
         _bounded_integer(
             receipt.get("framesPerSecond"),
             label="framesPerSecond",
@@ -334,12 +438,29 @@ def verify_movie_adapter_receipt(receipt: Any) -> bool:
             return False
         started = _timestamp(receipt.get("startedAt"), label="startedAt")
         completed = _timestamp(receipt.get("completedAt"), label="completedAt")
-        if completed < started:
+        issued = _timestamp(receipt.get("issuedAt"), label="issuedAt")
+        captured = _timestamp(receipt.get("capturedAt"), label="capturedAt")
+        expires = _timestamp(receipt.get("expiresAt"), label="expiresAt")
+        if completed < started or issued != completed or captured != completed:
+            return False
+        if expires <= issued or expires - issued > _RECEIPT_LIFETIME:
+            return False
+        current = (now or datetime.now(UTC)).astimezone(UTC)
+        if issued > current + _MAX_FUTURE_SKEW or expires <= current:
+            return False
+        duration = _bounded_number(
+            receipt.get("durationSeconds"),
+            label="durationSeconds",
+            minimum=0.0,
+            maximum=24 * 60 * 60,
+        )
+        if duration != (completed - started).total_seconds():
             return False
         capabilities = receipt.get("capabilities")
-        if not isinstance(capabilities, list):
+        if not isinstance(capabilities, list) or len(capabilities) != len(set(capabilities)):
             return False
-        required = {"screen-recording", "native-godot-movie", "exact-movie-bytes"}
-        return required.issubset({str(value) for value in capabilities})
+        if set(capabilities) != _REQUIRED_CAPABILITIES:
+            return False
+        return True
     except (NativeQaError, OSError, TypeError, ValueError):
         return False
