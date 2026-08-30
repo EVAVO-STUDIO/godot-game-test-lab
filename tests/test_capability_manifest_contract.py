@@ -94,6 +94,15 @@ def test_console_aliases_use_guarded_specialist_clis() -> None:
     assert scripts["godot-lab-localization-stable-id-bundle"] == (
         "godot_game_test_lab.localization_stable_id_bundle_cli:main"
     )
+    assert scripts["godot-lab-movie-evidence"] == (
+        "godot_game_test_lab.movie_evidence_cli:main"
+    )
+    assert scripts["godot-lab-movie-temporal"] == (
+        "godot_game_test_lab.movie_temporal_cli:main"
+    )
+    assert scripts["godot-lab-movie-source-identities"] == (
+        "godot_game_test_lab.movie_source_identity_cli:main"
+    )
 
 
 def test_request_and_report_schemas_retain_false_authority() -> None:
@@ -164,4 +173,4 @@ def test_dependency_free_capability_checker_passes() -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "PASS 15 Godot Test Lab capabilities and 16 commands" in result.stdout
+    assert "PASS 15 Godot Test Lab capabilities and 19 commands" in result.stdout
