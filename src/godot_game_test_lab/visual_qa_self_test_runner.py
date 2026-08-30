@@ -17,10 +17,62 @@ from .native_qa_profile_visual import normalize_profile
 
 
 def _exact_source_digest(lab_root: Path) -> str:
+    entries = (
+        (
+            "src/godot_game_test_lab/visual_qa_self_test.py",
+            Path(base.__file__).resolve(strict=True),
+        ),
+        (
+            "src/godot_game_test_lab/visual_qa_self_test_runner.py",
+            Path(__file__).resolve(strict=True),
+        ),
+        (
+            "scripts/godot_input_journey.gd",
+            lab_root / "scripts" / "godot_input_journey.gd",
+        ),
+        (
+            "schemas/native-agent-qa-profile.schema.json",
+            lab_root / "schemas" / "native-agent-qa-profile.schema.json",
+        ),
+        (
+            "src/godot_game_test_lab/native_qa_profile_visual.py",
+            lab_root
+            / "src"
+            / "godot_game_test_lab"
+            / "native_qa_profile_visual.py",
+        ),
+        (
+            "src/godot_game_test_lab/ui_layout_analysis.py",
+            lab_root / "src" / "godot_game_test_lab" / "ui_layout_analysis.py",
+        ),
+        (
+            "fixtures/visual-qa-overlap/project.godot",
+            lab_root / "fixtures" / "visual-qa-overlap" / "project.godot",
+        ),
+        (
+            "fixtures/visual-qa-overlap/main.tscn",
+            lab_root / "fixtures" / "visual-qa-overlap" / "main.tscn",
+        ),
+        (
+            "fixtures/visual-qa-overlap/native-agent-qa.profile.json",
+            lab_root
+            / "fixtures"
+            / "visual-qa-overlap"
+            / "native-agent-qa.profile.json",
+        ),
+    )
     digest = hashlib.sha256()
-    digest.update(base._source_digest(lab_root).encode("ascii"))
-    digest.update(b"\0")
-    digest.update(Path(__file__).read_bytes())
+    for logical_path, path in entries:
+        if not path.is_file():
+            raise base.VisualQaSelfTestError(
+                f"Required self-test source is missing: {logical_path}"
+            )
+        digest.update(logical_path.encode("utf-8"))
+        digest.update(b"\0")
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
     return digest.hexdigest()
 
 
