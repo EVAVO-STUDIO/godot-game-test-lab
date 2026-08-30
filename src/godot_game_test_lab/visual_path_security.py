@@ -27,34 +27,16 @@ def is_link_or_reparse(path: Path) -> bool:
     return bool(attributes & reparse_flag)
 
 
-def _absolute_components(path: Path) -> tuple[Path, ...]:
-    absolute = lexical_absolute(path)
-    anchor = Path(absolute.anchor)
-    current = anchor
-    components: list[Path] = []
-    for part in absolute.parts[1:]:
-        current = current / part
-        components.append(current)
-    return tuple(components)
-
-
-def reject_link_components(path: Path, *, label: str) -> None:
-    for component in _absolute_components(path):
-        if is_link_or_reparse(component):
-            raise NativeQaError(f"{label} may not traverse symbolic links or reparse points")
-
-
 def canonical_non_link_directory(path: Path, *, label: str) -> tuple[Path, Path]:
     requested = lexical_absolute(path)
-    reject_link_components(requested, label=label)
+    if is_link_or_reparse(requested):
+        raise NativeQaError(f"{label} may not itself be a symbolic link or reparse point")
     try:
         actual = requested.resolve(strict=True)
     except OSError as error:
         raise NativeQaError(f"{label} does not exist") from error
     if not actual.is_dir():
         raise NativeQaError(f"{label} must be a directory")
-    if os.path.normcase(os.fspath(requested)) != os.path.normcase(os.fspath(actual)):
-        raise NativeQaError(f"{label} must be a canonical non-link directory")
     return requested, actual
 
 
@@ -66,6 +48,17 @@ def relative_inside(root: Path, candidate: Path, *, label: str) -> str:
     if relative == Path("."):
         raise NativeQaError(f"{label} may not be the admitted root itself")
     return relative.as_posix()
+
+
+def reject_link_components(root: Path, candidate: Path, *, label: str) -> None:
+    relative = Path(relative_inside(root, candidate, label=label))
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if os.path.lexists(current) and is_link_or_reparse(current):
+            raise NativeQaError(
+                f"{label} may not traverse symbolic links or reparse points"
+            )
 
 
 def _candidate(root: Path, value: Path, *, label: str) -> tuple[Path, str]:
@@ -116,14 +109,14 @@ def confined_regular_file(
         or maximum_bytes > 64 * 1024 * 1024 * 1024
     ):
         raise NativeQaError("evidence file byte limits are outside policy")
-    root, actual_root = canonical_non_link_directory(root_path, label="artifact root")
+    _, root = canonical_non_link_directory(root_path, label="artifact root")
     requested, relative = _candidate(root, candidate_path, label=label)
-    reject_link_components(requested, label=label)
+    reject_link_components(root, requested, label=label)
     try:
         actual = requested.resolve(strict=True)
     except OSError as error:
         raise NativeQaError(f"{label} does not exist") from error
-    actual_relative = relative_inside(actual_root, actual, label=label)
+    actual_relative = relative_inside(root, actual, label=label)
     if actual_relative != relative or not actual.is_file():
         raise NativeQaError(f"{label} is not a canonical regular file")
     size = actual.stat().st_size
@@ -139,16 +132,16 @@ def confined_output_file(
     label: str,
     required_suffix: str | None = None,
 ) -> tuple[Path, str]:
-    root, actual_root = canonical_non_link_directory(root_path, label="artifact root")
+    _, root = canonical_non_link_directory(root_path, label="artifact root")
     requested, relative = _candidate(root, candidate_path, label=label)
     if required_suffix is not None and requested.suffix.lower() != required_suffix.lower():
         raise NativeQaError(f"{label} must use a {required_suffix} suffix")
     _prepare_directory_tree(root, requested.parent, label=f"{label} parent")
-    reject_link_components(requested.parent, label=f"{label} parent")
+    reject_link_components(root, requested.parent, label=f"{label} parent")
     actual_parent = requested.parent.resolve(strict=True)
     parent_relative = (
-        relative_inside(actual_root, actual_parent, label=f"{label} parent")
-        if actual_parent != actual_root
+        relative_inside(root, actual_parent, label=f"{label} parent")
+        if actual_parent != root
         else ""
     )
     expected_parent = (
