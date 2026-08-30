@@ -679,6 +679,8 @@ def build_temporal_adapter_receipt(
     issued_at: str,
     worker_admitted: bool = False,
 ) -> dict[str, Any]:
+    if not isinstance(sequence, VerifiedMovieFrameSequence):
+        raise NativeQaError("sequence must be verified before receipt creation")
     source = _sha256(source_identity, label="source_identity")
     issued = _timestamp(issued_at, label="issued_at")
     admitted = _boolean(worker_admitted, label="worker_admitted")
@@ -704,6 +706,10 @@ def build_temporal_adapter_receipt(
         label="report.observedChange",
     )
     findings = _validated_findings(report.get("findings"), label="report.findings")
+    frame_ids = {frame.frame_id for frame in sequence.frames}
+    for finding in findings:
+        if any(frame_id not in frame_ids for frame_id in finding["frameIds"]):
+            raise NativeQaError("temporal report finding references an unknown sampled frame")
     verdict = report.get("temporalVerdict")
     if verdict != _verdict_for_findings(findings):
         raise NativeQaError("temporal report verdict is inconsistent with its findings")
@@ -751,7 +757,7 @@ def verify_temporal_adapter_receipt(
 ) -> bool:
     try:
         value = _object(receipt, label="temporal adapter receipt")
-        keys = set(value)
+        keys = frozenset(value)
         if keys not in {
             frozenset(_BASE_RECEIPT_KEYS),
             frozenset(_BASE_RECEIPT_KEYS | _REPORT_BINDING_KEYS),
