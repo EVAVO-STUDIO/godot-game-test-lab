@@ -54,4 +54,5 @@ def test_canonical_runtime_descriptor_fixture_detects_asset_tampering(
 
     assert report.status == "failed"
     assert "web.asset_hash_mismatch" in _finding_codes(report)
+    assert "web.asset_size_mismatch" in _finding_codes(report)
     assert report.assets_verified == 2
