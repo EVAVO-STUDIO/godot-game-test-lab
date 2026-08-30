@@ -1,24 +1,79 @@
 {
   "version": 1,
   "consumer": "EVAVO-STUDIO/evavo-game-runtime",
-  "project_relative_path": "examples/reference_project",
+  "project_relative_path": ".",
   "evidence_contract": "contracts/ui-visual-qa-v1.json",
+  "receipt_contract": "contracts/evavo-game-runtime-ui-receipt-v1.json",
+  "default_evidence_root_windows": "C:\\GodotLabEvidence\\evavo-game-runtime-ui",
+  "default_timeout_seconds": 90,
+  "minimum_checkpoint_count": 10,
+  "video_fps": 2,
   "scenarios": [
-    {"id": "retro_16_9", "width": 1280, "height": 720, "layout_preset": "retro_16_9", "minimum_target_px": 24},
-    {"id": "desktop_16_9", "width": 1920, "height": 1080, "layout_preset": "desktop_16_9", "minimum_target_px": 44},
-    {"id": "desktop_ultrawide", "width": 2560, "height": 1080, "layout_preset": "desktop_ultrawide", "minimum_target_px": 44},
-    {"id": "mobile_landscape", "width": 915, "height": 412, "layout_preset": "mobile_landscape", "minimum_target_px": 48},
-    {"id": "mobile_portrait", "width": 412, "height": 915, "layout_preset": "mobile_portrait", "minimum_target_px": 48}
+    {
+      "id": "retro_16_9",
+      "width": 1280,
+      "height": 720,
+      "layout_preset": "retro_16_9",
+      "minimum_target_px": 24,
+      "safe_insets": [24, 24, 24, 24]
+    },
+    {
+      "id": "desktop_16_9",
+      "width": 1920,
+      "height": 1080,
+      "layout_preset": "desktop_16_9",
+      "minimum_target_px": 44,
+      "safe_insets": [24, 24, 24, 24]
+    },
+    {
+      "id": "desktop_ultrawide",
+      "width": 2560,
+      "height": 1080,
+      "layout_preset": "desktop_ultrawide",
+      "minimum_target_px": 44,
+      "safe_insets": [24, 24, 24, 24]
+    },
+    {
+      "id": "mobile_landscape",
+      "width": 915,
+      "height": 412,
+      "layout_preset": "mobile_landscape",
+      "minimum_target_px": 44,
+      "safe_insets": [24, 24, 24, 24]
+    },
+    {
+      "id": "mobile_portrait",
+      "width": 412,
+      "height": 915,
+      "layout_preset": "mobile_portrait",
+      "minimum_target_px": 44,
+      "safe_insets": [24, 24, 24, 24]
+    }
   ],
   "required_checks": [
+    "godot_import",
     "godot_launch",
     "runtime_flow",
+    "deterministic_navigation",
+    "focus_owner_present",
+    "focus_transitions",
     "geometry_report",
     "interactive_overlap",
     "minimum_target_size",
-    "focus_owner_present",
+    "offscreen_interactive",
+    "ancestor_clipping",
     "safe_area_containment",
-    "screenshot_capture"
+    "screenshot_capture",
+    "screenshot_hash",
+    "screenshot_dimensions",
+    "exact_source_identity"
   ],
-  "navigation_actions": ["ui_up", "ui_down", "ui_left", "ui_right", "ui_accept", "ui_cancel"]
+  "navigation_actions": [
+    "ui_up",
+    "ui_down",
+    "ui_left",
+    "ui_right",
+    "ui_accept",
+    "ui_cancel"
+  ]
 }

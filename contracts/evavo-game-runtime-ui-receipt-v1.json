@@ -1,24 +1,89 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "evavo-game-runtime-ui-receipt-v1",
-  "title": "EVAVO Game Runtime UI Test Receipt",
+  "$id": "https://evavo.local/contracts/evavo-game-runtime-ui-receipt-v1.json",
+  "title": "EVAVO Game Runtime UI Matrix Receipt",
   "type": "object",
-  "required": ["version", "scenario", "layout_preset", "requested_resolution", "godot_exit_code", "evidence"],
+  "required": [
+    "version",
+    "run_id",
+    "scenario_id",
+    "status",
+    "runtime_sha",
+    "test_lab_sha",
+    "viewport",
+    "safe_insets",
+    "minimum_target_px",
+    "godot",
+    "checkpoints",
+    "navigation",
+    "final_evidence",
+    "logs",
+    "artifacts",
+    "failures"
+  ],
   "properties": {
     "version": {"const": 1},
-    "scenario": {"type": "string", "minLength": 1},
-    "layout_preset": {"type": "string", "minLength": 1},
-    "requested_resolution": {
-      "type": "array",
-      "prefixItems": [{"type": "integer", "minimum": 1}, {"type": "integer", "minimum": 1}],
-      "minItems": 2,
-      "maxItems": 2
-    },
-    "godot_exit_code": {"type": "integer"},
-    "evidence": {
+    "run_id": {"type": "string", "minLength": 1},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["passed", "failed"]},
+    "runtime_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "test_lab_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "runtime_dirty": {"type": "boolean"},
+    "test_lab_dirty": {"type": "boolean"},
+    "viewport": {
       "type": "object",
-      "required": ["schema_version", "scenario_id", "layout_preset", "viewport", "geometry", "focus_owner"]
-    }
+      "required": ["width", "height", "layout_preset"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "layout_preset": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "safe_insets": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "number"},
+        {"type": "number"},
+        {"type": "number"},
+        {"type": "number"}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "minimum_target_px": {"type": "number", "exclusiveMinimum": 0},
+    "minimum_checkpoint_count": {"type": "integer", "minimum": 1},
+    "godot": {
+      "type": "object",
+      "required": ["path", "exit_code", "timed_out", "duration_ms", "import_exit_code"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "exit_code": {"type": "integer"},
+        "timed_out": {"type": "boolean"},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "import_exit_code": {"type": "integer"}
+      },
+      "additionalProperties": true
+    },
+    "checkpoints": {"type": "array"},
+    "navigation": {"type": "object"},
+    "final_evidence": {"type": "object"},
+    "logs": {
+      "type": "object",
+      "required": [
+        "stdout_path",
+        "stderr_path",
+        "import_stdout_path",
+        "import_stderr_path"
+      ],
+      "additionalProperties": true
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["scenario_directory", "screenshots", "video_path", "video_created"],
+      "additionalProperties": true
+    },
+    "failures": {"type": "array"}
   },
   "additionalProperties": true
 }
