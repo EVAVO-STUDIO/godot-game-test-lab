@@ -38,6 +38,7 @@ def test_source_identity_paths_cover_each_provider_trust_boundary() -> None:
         "src/godot_game_test_lab/movie_evidence.py",
         "src/godot_game_test_lab/movie_evidence_cli.py",
         "src/godot_game_test_lab/movie_source_identity.py",
+        "src/godot_game_test_lab/visual_path_security.py",
     ):
         assert path in CAPTURE_MOVIE_SOURCE_PATHS
     for path in (
@@ -45,8 +46,21 @@ def test_source_identity_paths_cover_each_provider_trust_boundary() -> None:
         "src/godot_game_test_lab/movie_temporal.py",
         "src/godot_game_test_lab/movie_temporal_cli.py",
         "src/godot_game_test_lab/movie_source_identity.py",
+        "src/godot_game_test_lab/visual_path_security.py",
     ):
         assert path in TEMPORAL_MOVIE_SOURCE_PATHS
+
+
+def test_source_identity_paths_are_unique_and_canonical() -> None:
+    for paths in (CAPTURE_MOVIE_SOURCE_PATHS, TEMPORAL_MOVIE_SOURCE_PATHS):
+        assert len(paths) == len(set(paths))
+        assert all("\\" not in path for path in paths)
+        assert all(not path.startswith("/") for path in paths)
+        assert all(
+            part not in {"", ".", ".."}
+            for path in paths
+            for part in path.split("/")
+        )
 
 
 def test_all_identity_result_is_source_only_not_runtime_or_worker_proof() -> None:
