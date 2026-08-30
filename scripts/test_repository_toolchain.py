@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run stable adversarial fixtures plus current command and engine regressions."""
+"""Run stable adversarial fixtures plus current command, dependency and engine regressions."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ ROOT = Path.cwd().resolve(strict=True)
 BASE_PATH = ROOT / "scripts" / "_repository_toolchain_tests_base.py"
 CORE_BASE_RELATIVE = "scripts/_repository_toolchain_core_base.py"
 CORE_CHECKER_PATH = ROOT / "scripts" / "check_repository_toolchain_core.py"
+CURRENT_MCP_REQUIREMENT = "mcp==1.29.1"
+ROLLBACK_MCP_REQUIREMENT = "mcp==1.28.1"
 ENTRYPOINT_DRIFT_CASES = (
     (
         "godot_game_test_lab.sprite_animation_probe_runner:main",
@@ -101,6 +103,27 @@ def main() -> int:
             label,
         )
     exercise(
+        lambda root: mutate_text(
+            root,
+            "pyproject.toml",
+            lambda value: value.replace(
+                CURRENT_MCP_REQUIREMENT,
+                ROLLBACK_MCP_REQUIREMENT,
+            ),
+        ),
+        "agent MCP dependency rollback",
+    )
+    exercise(
+        lambda root: mutate_json(
+            root,
+            "evavo.reliability.json",
+            lambda value: value["packageManager"].update(
+                {"agentDependencies": [ROLLBACK_MCP_REQUIREMENT]}
+            ),
+        ),
+        "reliability MCP dependency rollback",
+    )
+    exercise(
         lambda root: mutate_json(
             root,
             "src/godot_game_test_lab/godot-engine-lock.json",
@@ -121,8 +144,8 @@ def main() -> int:
 
     print("Godot lab current authority adversarial tests passed.")
     print(
-        f"- all {_current_command_count()} commands and both Godot 4.7 authorities "
-        "fail closed on drift"
+        f"- all {_current_command_count()} commands, MCP dependency authority and both "
+        "Godot 4.7 authorities fail closed on drift"
     )
     return 0
 
