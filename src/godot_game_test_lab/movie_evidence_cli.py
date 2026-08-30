@@ -202,14 +202,15 @@ def _doctor(args: argparse.Namespace) -> dict[str, Any]:
         "videoBytes": evidence.size_bytes,
         "container": evidence.container,
         "mediaType": evidence.container,
-        "durationSeconds": receipt.get("durationSeconds"),
+        "captureElapsedSeconds": receipt.get("captureElapsedSeconds"),
         "exactMovieBytesVerified": True,
         "currentSourceIdentityVerified": True,
         "capabilities": receipt.get("capabilities"),
         "truthBoundary": (
             "The doctor reopened and verified the exact AVI bytes, expiring receipt and current "
-            "capture-provider source identity. It does not claim that a reviewer inspected every "
-            "frame or that the journey is defect-free."
+            "capture-provider source identity. Capture elapsed time is not asserted playback "
+            "duration. It does not claim that a reviewer inspected every frame or that the "
+            "journey is defect-free."
         ),
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
