@@ -11,6 +11,10 @@ from godot_game_test_lab.movie_evidence import (
     command_digest,
     validate_avi_movie,
 )
+from godot_game_test_lab.movie_source_identity import (
+    capture_movie_source_identity,
+    temporal_movie_source_identity,
+)
 from godot_game_test_lab.movie_temporal_cli import main
 
 _PNG_A = base64.b64decode(
@@ -35,7 +39,7 @@ def _capture_receipt(root: Path) -> Path:
     receipt = build_movie_adapter_receipt(
         evidence=evidence,
         journey_id="main-menu",
-        source_identity="a" * 64,
+        source_identity=capture_movie_source_identity(),
         command_sha256=command_digest(["godot", "--path", "game"]),
         started_at=started.isoformat(),
         completed_at=(started + timedelta(seconds=2)).isoformat(),
@@ -100,6 +104,7 @@ def _build_chain(root: Path) -> tuple[Path, Path, Path]:
             str(sequence),
         ]
     ) == 0
+    temporal_identity = temporal_movie_source_identity()
     assert main(
         [
             "analyse",
@@ -108,7 +113,7 @@ def _build_chain(root: Path) -> tuple[Path, Path, Path]:
             "--sequence",
             str(sequence),
             "--source-identity",
-            "d" * 64,
+            temporal_identity,
             "--expected-change",
             "true",
             "--boundary-tolerance-ms",
@@ -133,6 +138,7 @@ def test_manifest_analysis_and_doctor_round_trip(tmp_path: Path, capsys) -> None
     assert report_value["temporalVerdict"] == "pass"
     assert report_value["observedChange"] is True
     assert receipt_value["adapterId"] == "godot-game-test-lab.movie-temporal"
+    assert receipt_value["sourceIdentity"] == temporal_movie_source_identity()
     assert receipt_value["temporalAnalysisSha256"] == report_value["reportDigest"]
     assert receipt_value["temporalReportFileSha256"] == hashlib.sha256(
         report.read_bytes()
@@ -146,15 +152,64 @@ def test_manifest_analysis_and_doctor_round_trip(tmp_path: Path, capsys) -> None
             "--receipt",
             str(receipt),
             "--expected-source-identity",
-            "d" * 64,
+            temporal_movie_source_identity(),
         ]
     ) == 0
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     result = json.loads(lines[-1])
     assert result["ready"] is True
     assert result["exactFrameBytesVerified"] is True
+    assert result["currentSourceIdentityVerified"] is True
     assert result["temporalVerdict"] == "pass"
     assert result["sampledFrameCount"] == 3
+
+
+def test_analysis_rejects_a_fabricated_temporal_source_identity(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    capture = _capture_receipt(root)
+    frames = _frames(root)
+    sequence = root / "sequence.json"
+    assert main([
+        "manifest",
+        "--artifact-root",
+        str(root),
+        "--movie-receipt",
+        str(capture),
+        "--frames",
+        str(frames),
+        "--duration-ms",
+        "2000",
+        "--frames-per-second",
+        "30",
+        "--extraction-source-identity",
+        "b" * 64,
+        "--extraction-command-sha256",
+        "c" * 64,
+        "--output",
+        str(sequence),
+    ]) == 0
+    assert main([
+        "analyse",
+        "--artifact-root",
+        str(root),
+        "--sequence",
+        str(sequence),
+        "--source-identity",
+        "0" * 64,
+        "--expected-change",
+        "true",
+        "--report-output",
+        str(root / "report.json"),
+        "--receipt-output",
+        str(root / "receipt.json"),
+    ]) == 2
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert result["ready"] is False
+    assert "does not match the current implementation" in result["error"]
 
 
 def test_doctor_rejects_report_tampering(tmp_path: Path, capsys) -> None:
