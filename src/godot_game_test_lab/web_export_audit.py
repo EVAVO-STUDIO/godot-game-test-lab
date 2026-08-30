@@ -536,7 +536,9 @@ def _verify_assets(
         except OSError as error:
             _finding(findings, "web.asset_unreadable", "error", str(error), relative)
             continue
-        if observed != raw_digest:
+
+        hash_matches = observed == raw_digest
+        if not hash_matches:
             _finding(
                 findings,
                 "web.asset_hash_mismatch",
@@ -544,7 +546,8 @@ def _verify_assets(
                 "Asset SHA-256 does not match the descriptor.",
                 relative,
             )
-            continue
+
+        size_matches = True
         if sizes is not None:
             expected_size = sizes.get(relative)
             if expected_size is None:
@@ -555,8 +558,8 @@ def _verify_assets(
                     "fileSizes lacks an integrity-bound asset.",
                     relative,
                 )
-                continue
-            if expected_size != item.size:
+                size_matches = False
+            elif expected_size != item.size:
                 _finding(
                     findings,
                     "web.asset_size_mismatch",
@@ -564,8 +567,9 @@ def _verify_assets(
                     "Asset size does not match the descriptor.",
                     relative,
                 )
-                continue
-        verified += 1
+                size_matches = False
+        if hash_matches and size_matches:
+            verified += 1
 
     if executable is not None:
         stem = executable.removesuffix(".js")
