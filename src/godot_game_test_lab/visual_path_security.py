@@ -146,8 +146,16 @@ def confined_output_file(
     _prepare_directory_tree(root, requested.parent, label=f"{label} parent")
     reject_link_components(requested.parent, label=f"{label} parent")
     actual_parent = requested.parent.resolve(strict=True)
-    parent_relative = relative_inside(actual_root, actual_parent, label=f"{label} parent") if actual_parent != actual_root else ""
-    expected_parent = requested.parent.relative_to(root).as_posix()
+    parent_relative = (
+        relative_inside(actual_root, actual_parent, label=f"{label} parent")
+        if actual_parent != actual_root
+        else ""
+    )
+    expected_parent = (
+        requested.parent.relative_to(root).as_posix()
+        if requested.parent != root
+        else ""
+    )
     if parent_relative != expected_parent:
         raise NativeQaError(f"{label} parent is not canonical")
     if os.path.lexists(requested):
