@@ -80,6 +80,7 @@ def _source_identity(paths: Iterable[str]) -> str:
                 f"movie provider source path is not canonical: {relative_path}"
             )
         reject_link_components(
+            requested_root,
             requested,
             label=f"movie provider source path {relative_path}",
         )
