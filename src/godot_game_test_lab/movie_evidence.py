@@ -10,12 +10,16 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from .native_qa_common import NativeQaError
+from .visual_path_security import (
+    confined_output_file,
+    confined_regular_file as _secure_confined_regular_file,
+)
 
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 _MAX_COMMAND_ARGUMENTS = 512
 _MAX_ARGUMENT_LENGTH = 4096
-_DEFAULT_MAX_MOVIE_BYTES = 8 * 1024 * 1024 * 1024
+_DEFAULT_MAX_MOVIE_BYTES = 20 * 1024 * 1024 * 1024
 _MIN_AVI_BYTES = 64
 _RECEIPT_LIFETIME = timedelta(minutes=30)
 _MAX_FUTURE_SKEW = timedelta(minutes=5)
@@ -130,27 +134,6 @@ def _receipt_digest(value: dict[str, Any]) -> str:
     ).hexdigest()
 
 
-def _relative_inside(root: Path, candidate: Path, *, label: str) -> str:
-    try:
-        relative = candidate.relative_to(root)
-    except ValueError as error:
-        raise NativeQaError(f"{label} escapes the admitted artifact root") from error
-    if relative == Path("."):
-        raise NativeQaError(f"{label} may not be the artifact root itself")
-    return relative.as_posix()
-
-
-def _reject_symlink_components(root: Path, candidate: Path, *, label: str) -> None:
-    if root.is_symlink() or not root.is_dir():
-        raise NativeQaError("artifact root must be a non-symlink directory")
-    relative = Path(_relative_inside(root, candidate, label=label))
-    current = root
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise NativeQaError(f"{label} may not traverse symbolic links")
-
-
 def confined_regular_file(
     artifact_root: Path,
     candidate: Path,
@@ -164,43 +147,25 @@ def confined_regular_file(
         minimum=1,
         maximum=64 * 1024 * 1024 * 1024,
     )
-    root_requested = artifact_root.expanduser().resolve(strict=True)
-    candidate_requested = candidate.expanduser()
-    if not candidate_requested.is_absolute():
-        candidate_requested = root_requested / candidate_requested
-    candidate_requested = candidate_requested.resolve(strict=False)
-    _relative_inside(root_requested, candidate_requested, label=label)
-    _reject_symlink_components(root_requested, candidate_requested, label=label)
-    actual = candidate_requested.resolve(strict=True)
-    relative = _relative_inside(root_requested, actual, label=label)
-    if not actual.is_file():
-        raise NativeQaError(f"{label} is not a regular file")
-    size = actual.stat().st_size
-    if not 1 <= size <= maximum:
-        raise NativeQaError(f"{label} size is outside policy")
-    return actual, relative, size
+    return _secure_confined_regular_file(
+        artifact_root,
+        candidate,
+        label=label,
+        minimum_bytes=1,
+        maximum_bytes=maximum,
+    )
 
 
 def normalize_movie_output_path(
     artifact_root: Path,
     output: Path,
 ) -> tuple[Path, str]:
-    root = artifact_root.expanduser().resolve(strict=True)
-    if root.is_symlink() or not root.is_dir():
-        raise NativeQaError("artifact root must be a non-symlink directory")
-    requested = output.expanduser()
-    if not requested.is_absolute():
-        requested = root / requested
-    requested = requested.resolve(strict=False)
-    relative = _relative_inside(root, requested, label="movie output")
-    if requested.suffix.lower() != ".avi":
-        raise NativeQaError("Godot native movie evidence must use a .avi output")
-    requested.parent.mkdir(parents=True, exist_ok=True)
-    if requested.parent != root:
-        _reject_symlink_components(root, requested.parent, label="movie output parent")
-    if requested.exists():
-        raise NativeQaError("refusing to overwrite existing Godot movie evidence")
-    return requested, relative
+    return confined_output_file(
+        artifact_root,
+        output,
+        label="Godot movie evidence",
+        required_suffix=".avi",
+    )
 
 
 def inject_movie_maker_arguments(
