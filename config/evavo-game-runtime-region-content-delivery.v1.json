@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "suite_id": "evavo_game_runtime_region_content_delivery",
+  "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
+  "runtime_branch": "main",
+  "runtime_paths": {
+    "source_validator": "tests/validate_region_content_delivery.py",
+    "binding_validator": "tests/validate_region_package_binding.py",
+    "delivery_smoke": "tests/godot/test_content_delivery_session.gd",
+    "region_driver_smoke": "tests/godot/test_region_content_driver.gd",
+    "catalog": "examples/reference_project/content/reference_packages.catalog.json",
+    "world_manifest": "examples/reference_project/world/reference_delivery_world.world.json"
+  },
+  "required_markers": {
+    "source": "EVAVO region content delivery validation passed",
+    "binding": "EVAVO region package binding validation passed",
+    "delivery_smoke": "EVAVO_CONTENT_DELIVERY_SESSION_TEST=PASS",
+    "region_driver_smoke": "EVAVO_REGION_CONTENT_DRIVER_TEST=PASS"
+  },
+  "claims_policy": {
+    "real_storefront_install_verified": false,
+    "real_network_transfer_verified": false,
+    "measured_byte_progress_verified": false,
+    "threaded_load_hard_cancel_verified": false,
+    "resource_completion_grants_authority": false,
+    "declared_bytes_are_measured_bytes": false
+  },
+  "execution": {
+    "local_only": true,
+    "requires_paid_ci": false,
+    "requires_vercel": false,
+    "requires_github_actions": false,
+    "godot_minimum": "4.6.2",
+    "default_runtime_path_windows": "C:\\GitRepos\\evavo-game-runtime"
+  }
+}
