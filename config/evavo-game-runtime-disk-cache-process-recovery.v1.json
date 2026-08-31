@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "suite_id": "evavo_game_runtime_disk_cache_process_recovery",
+  "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
+  "required_runtime_paths": [
+    "addons/evavo_game_runtime/world/disk_content_package_cache_host.gd",
+    "addons/evavo_game_runtime/world/content_package_cache_host_factory.gd",
+    "contracts/disk-cache-process-recovery-v1.json",
+    "tests/validate_disk_content_package_cache_host.py",
+    "tests/validate_disk_cache_process_recovery.py",
+    "tests/godot/test_disk_content_package_cache_host.gd",
+    "tests/godot/disk_cache_process_recovery_worker.gd",
+    "tests/run_disk_cache_process_recovery.py",
+    "scripts/run-disk-content-package-cache-smoke.ps1",
+    "scripts/run-disk-cache-process-recovery-smoke.ps1"
+  ],
+  "scenarios": [
+    {
+      "id": "dependency_free_validators",
+      "kind": "python_validators"
+    },
+    {
+      "id": "headless_import_parse",
+      "kind": "godot_import"
+    },
+    {
+      "id": "disk_host_behavior",
+      "kind": "godot_script",
+      "script": "tests/godot/test_disk_content_package_cache_host.gd",
+      "pass_marker": "EVAVO_DISK_CONTENT_PACKAGE_CACHE_TEST=PASS"
+    },
+    {
+      "id": "actual_process_kill_matrix",
+      "kind": "python_process_matrix",
+      "script": "tests/run_disk_cache_process_recovery.py",
+      "pass_marker": "EVAVO_DISK_CACHE_PROCESS_MATRIX=PASS"
+    }
+  ],
+  "required_false_claims": [
+    "checkpoint_marker_is_process_termination",
+    "process_restart_grants_content_availability",
+    "process_restart_grants_scene_activation",
+    "process_restart_grants_simulation_authority",
+    "headless_process_test_is_exported_device_test"
+  ]
+}
