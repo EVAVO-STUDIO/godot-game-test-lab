@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "suite_id": "evavo_game_runtime_native_provider_transfer",
+  "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
+  "required_runtime_paths": [
+    "addons/evavo_game_runtime/world/content_native_provider_event.gd",
+    "addons/evavo_game_runtime/world/content_native_provider_event_journal.gd",
+    "addons/evavo_game_runtime/world/content_native_provider_bridge.gd",
+    "addons/evavo_game_runtime/world/delegated_content_native_provider_bridge.gd",
+    "addons/evavo_game_runtime/world/in_memory_content_native_provider_bridge.gd",
+    "addons/evavo_game_runtime/world/native_callback_content_provider_state.gd",
+    "addons/evavo_game_runtime/world/native_callback_content_package_transfer_provider.gd",
+    "addons/evavo_game_runtime/world/native_callback_content_package_transfer_runtime.gd",
+    "contracts/content-native-provider-event-v1.json",
+    "contracts/content-native-provider-transfer-v1.json",
+    "tests/validate_content_native_provider_transfer.py",
+    "tests/godot/test_content_native_provider_transfer.gd"
+  ],
+  "scenarios": [
+    {
+      "id": "dependency_free_validator",
+      "kind": "python_validator"
+    },
+    {
+      "id": "headless_import_parse",
+      "kind": "godot_import"
+    },
+    {
+      "id": "native_provider_transfer_behavior",
+      "kind": "godot_script",
+      "script": "tests/godot/test_content_native_provider_transfer.gd",
+      "pass_marker": "EVAVO_CONTENT_NATIVE_PROVIDER_TRANSFER_TEST=PASS"
+    }
+  ],
+  "required_false_claims": [
+    "native_dispatch_is_transfer_completion",
+    "chunk_handle_is_chunk_bytes",
+    "provider_completion_is_cache_verification",
+    "cancel_request_is_terminal_cancellation",
+    "transfer_provider_ready_grants_content_availability",
+    "transfer_provider_ready_grants_scene_activation",
+    "transfer_provider_ready_grants_simulation_authority",
+    "portable_resume_contains_native_request_id",
+    "portable_resume_contains_chunk_handles",
+    "platform_mapping_proves_native_sdk_available"
+  ]
+}

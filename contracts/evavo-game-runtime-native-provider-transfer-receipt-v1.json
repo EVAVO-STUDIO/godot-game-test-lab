@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.com.au/contracts/evavo-game-runtime-native-provider-transfer-receipt-v1.json",
+  "title": "EVAVO Game Runtime Native Provider Transfer Test Receipt v1",
+  "type": "object",
+  "required": [
+    "version",
+    "suite_id",
+    "runtime_sha",
+    "test_lab_sha",
+    "godot_version",
+    "runtime_clean",
+    "test_lab_clean",
+    "scenarios",
+    "passed",
+    "claims"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "suite_id": {
+      "const": "evavo_game_runtime_native_provider_transfer"
+    },
+    "runtime_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "test_lab_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "godot_version": { "type": "string", "minLength": 1 },
+    "runtime_clean": { "type": "boolean" },
+    "test_lab_clean": { "type": "boolean" },
+    "scenarios": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "passed",
+          "exit_code",
+          "log_path",
+          "pass_marker_observed"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "passed": { "type": "boolean" },
+          "exit_code": { "type": "integer" },
+          "log_path": { "type": "string", "minLength": 1 },
+          "pass_marker_observed": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "passed": { "type": "boolean" },
+    "claims": {
+      "type": "object",
+      "required": [
+        "native_dispatch_is_transfer_completion",
+        "chunk_handle_is_chunk_bytes",
+        "provider_completion_is_cache_verification",
+        "cancel_request_is_terminal_cancellation",
+        "transfer_provider_ready_grants_content_availability",
+        "transfer_provider_ready_grants_scene_activation",
+        "transfer_provider_ready_grants_simulation_authority",
+        "portable_resume_contains_native_request_id",
+        "portable_resume_contains_chunk_handles",
+        "platform_mapping_proves_native_sdk_available"
+      ],
+      "properties": {
+        "native_dispatch_is_transfer_completion": { "const": false },
+        "chunk_handle_is_chunk_bytes": { "const": false },
+        "provider_completion_is_cache_verification": { "const": false },
+        "cancel_request_is_terminal_cancellation": { "const": false },
+        "transfer_provider_ready_grants_content_availability": { "const": false },
+        "transfer_provider_ready_grants_scene_activation": { "const": false },
+        "transfer_provider_ready_grants_simulation_authority": { "const": false },
+        "portable_resume_contains_native_request_id": { "const": false },
+        "portable_resume_contains_chunk_handles": { "const": false },
+        "platform_mapping_proves_native_sdk_available": { "const": false }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
