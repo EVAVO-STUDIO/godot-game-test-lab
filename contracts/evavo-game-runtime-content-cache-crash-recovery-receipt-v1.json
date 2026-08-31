@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/contracts/evavo-game-runtime-content-cache-crash-recovery-receipt-v1.json",
+  "title": "EVAVO Game Runtime Content Cache Crash Recovery Receipt",
+  "type": "object",
+  "required": [
+    "version",
+    "suite_id",
+    "runtime_sha",
+    "test_lab_sha",
+    "godot_version",
+    "scenarios",
+    "passed",
+    "claims"
+  ],
+  "properties": {
+    "version": {"const": 1},
+    "suite_id": {"const": "evavo_game_runtime_content_cache_crash_recovery"},
+    "runtime_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "test_lab_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "godot_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runtime_clean": {"type": "boolean"},
+    "test_lab_clean": {"type": "boolean"},
+    "scenarios": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["id", "passed", "exit_code", "log_path"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "passed": {"type": "boolean"},
+          "exit_code": {"type": "integer"},
+          "log_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "pass_marker_observed": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "passed": {"type": "boolean"},
+    "claims": {
+      "type": "object",
+      "required": [
+        "simulated_interrupt_is_process_crash",
+        "restart_receipt_grants_content_availability",
+        "reconciliation_grants_scene_activation",
+        "reconciliation_grants_simulation_authority"
+      ],
+      "properties": {
+        "simulated_interrupt_is_process_crash": {"const": false},
+        "restart_receipt_grants_content_availability": {"const": false},
+        "reconciliation_grants_scene_activation": {"const": false},
+        "reconciliation_grants_simulation_authority": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
