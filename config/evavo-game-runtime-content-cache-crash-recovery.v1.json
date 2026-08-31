@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "suite_id": "evavo_game_runtime_content_cache_crash_recovery",
+  "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
+  "required_runtime_paths": [
+    "addons/evavo_game_runtime/world/content_cache_fault_plan.gd",
+    "addons/evavo_game_runtime/world/content_cache_crash_recovery_harness.gd",
+    "contracts/content-cache-fault-plan-v1.json",
+    "tests/validate_content_cache_crash_recovery.py",
+    "tests/godot/test_content_cache_crash_recovery.gd"
+  ],
+  "scenarios": [
+    {
+      "id": "dependency_free_validator",
+      "kind": "python_validator"
+    },
+    {
+      "id": "headless_import_parse",
+      "kind": "godot_import"
+    },
+    {
+      "id": "fault_plan_behavior",
+      "kind": "godot_script",
+      "script": "tests/godot/test_content_cache_crash_recovery.gd",
+      "pass_marker": "EVAVO_CONTENT_CACHE_CRASH_RECOVERY_TEST=PASS"
+    }
+  ],
+  "required_false_claims": [
+    "simulated_interrupt_is_process_crash",
+    "restart_receipt_grants_content_availability",
+    "reconciliation_grants_scene_activation",
+    "reconciliation_grants_simulation_authority"
+  ]
+}
