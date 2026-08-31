@@ -1,6 +1,6 @@
 # EVAVO Game Runtime Content Cache Process Recovery
 
-This Test Lab suite validates EVAVO Game Runtime's persistent disk-backed package cache across actual child-process termination boundaries.
+This Test Lab suite validates EVAVO Game Runtime's persistent, content-addressed disk package cache across actual child-process termination boundaries.
 
 ## What is tested
 
@@ -23,11 +23,39 @@ The required checkpoints are:
 ```text
 after_chunk_promote
 after_staged_payload_flush
-after_rotate_known_good
-after_promote_before_cleanup
+after_ready_promote_before_index
+after_index_write_before_candidate_cleanup
 ```
 
-Expected recovery is intentionally different at the final checkpoint. The first three retain or restore the prior known-good package. Once the complete new package has been atomically promoted, a process death before cleanup must retain the verified new generation.
+## Content-addressed expectations
+
+Package cache keys include package ID, package version and complete SHA-256. The old and new package versions therefore remain separate immutable entries.
+
+The matrix expects:
+
+```text
+after_chunk_promote
+    old entry ready
+    new entry not ready
+    new candidate resumable
+
+after_staged_payload_flush
+    old entry ready
+    verified new staged entry recovered to ready
+    stale candidate removed
+
+after_ready_promote_before_index
+    old entry ready
+    new entry ready
+    derivative index rebuilt
+
+after_index_write_before_candidate_cleanup
+    old entry ready
+    new entry ready
+    stale candidate removed during restart reconciliation
+```
+
+The cache does not select the active release and does not perform release rollback. Those decisions remain in the trusted release ledger and transactional release-activation layer.
 
 ## Evidence
 
@@ -40,7 +68,9 @@ The Test Lab receipt records:
 - every scenario's exit code and log path;
 - the nested runtime process-matrix receipt;
 - every force-killed child PID;
-- expected and selected package versions;
+- old-entry readiness;
+- expected and observed new-entry readiness;
+- expected and observed candidate-resume state;
 - all required truth-boundary claims.
 
 ## Truth boundaries
@@ -54,6 +84,10 @@ Restart reconciliation does not grant content availability.
 Restart reconciliation does not grant scene activation.
 
 Restart reconciliation does not grant simulation authority.
+
+Cache reconciliation does not select the active release.
+
+Cache reconciliation does not perform release rollback.
 
 This suite does not claim storefront SDK, browser service-worker, Android lifecycle, iOS lifecycle, physical-device, sudden-power-loss or storage-controller durability evidence.
 
