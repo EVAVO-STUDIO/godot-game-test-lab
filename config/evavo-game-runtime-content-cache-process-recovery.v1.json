@@ -37,14 +37,16 @@
   "required_checkpoints": [
     "after_chunk_promote",
     "after_staged_payload_flush",
-    "after_rotate_known_good",
-    "after_promote_before_cleanup"
+    "after_ready_promote_before_index",
+    "after_index_write_before_candidate_cleanup"
   ],
   "required_false_claims": [
     "process_kill_is_simulated",
     "headless_editor_process_is_exported_build",
     "reconciliation_grants_content_availability",
     "reconciliation_grants_scene_activation",
-    "reconciliation_grants_simulation_authority"
+    "reconciliation_grants_simulation_authority",
+    "cache_reconciliation_selects_active_release",
+    "cache_reconciliation_performs_release_rollback"
   ]
 }
