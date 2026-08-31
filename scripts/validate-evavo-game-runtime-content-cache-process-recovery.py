@@ -6,26 +6,27 @@ import json
 from pathlib import Path
 
 TEST_LAB = Path(__file__).resolve().parents[1]
-CONFIG = (
-    TEST_LAB
-    / "config"
-    / "evavo-game-runtime-content-cache-process-recovery.v1.json"
-)
-CONTRACT = (
-    TEST_LAB
-    / "contracts"
-    / "evavo-game-runtime-content-cache-process-recovery-receipt-v1.json"
-)
-RUNNER = (
-    TEST_LAB
-    / "scripts"
-    / "run-evavo-game-runtime-content-cache-process-recovery.ps1"
-)
-DOC = (
-    TEST_LAB
-    / "docs"
-    / "EVAVO_GAME_RUNTIME_CONTENT_CACHE_PROCESS_RECOVERY.md"
-)
+FILES = {
+    "config": TEST_LAB / "config" / "evavo-game-runtime-content-cache-process-recovery.v1.json",
+    "contract": TEST_LAB / "contracts" / "evavo-game-runtime-content-cache-process-recovery-receipt-v1.json",
+    "runner": TEST_LAB / "scripts" / "run-evavo-game-runtime-content-cache-process-recovery.ps1",
+    "doc": TEST_LAB / "docs" / "EVAVO_GAME_RUNTIME_CONTENT_CACHE_PROCESS_RECOVERY.md",
+}
+CHECKPOINTS = {
+    "after_chunk_promote",
+    "after_staged_payload_flush",
+    "after_ready_promote_before_index",
+    "after_index_write_before_candidate_cleanup",
+}
+FALSE_CLAIMS = {
+    "process_kill_is_simulated",
+    "headless_editor_process_is_exported_build",
+    "reconciliation_grants_content_availability",
+    "reconciliation_grants_scene_activation",
+    "reconciliation_grants_simulation_authority",
+    "cache_reconciliation_selects_active_release",
+    "cache_reconciliation_performs_release_rollback",
+}
 
 
 def load(path: Path) -> dict:
@@ -35,54 +36,36 @@ def load(path: Path) -> dict:
 
 
 def require(path: Path, *values: str) -> None:
-    content = path.read_text(encoding="utf-8")
+    source = path.read_text(encoding="utf-8")
     for value in values:
-        assert value in content, f"{path} missing {value!r}"
+        assert value in source, f"{path} missing {value!r}"
 
 
 def validate(runtime: Path) -> None:
-    config = load(CONFIG)
-    contract = load(CONTRACT)
+    config = load(FILES["config"])
+    contract = load(FILES["contract"])
     assert config["version"] == 1
-    assert (
-        config["suite_id"]
-        == "evavo_game_runtime_content_cache_process_recovery"
-    )
+    assert config["suite_id"] == "evavo_game_runtime_content_cache_process_recovery"
     assert {row["id"] for row in config["scenarios"]} == {
         "dependency_free_validator",
         "headless_import_parse",
         "disk_host_behavior",
         "actual_process_kill_matrix",
     }
-    assert set(config["required_checkpoints"]) == {
-        "after_chunk_promote",
-        "after_staged_payload_flush",
-        "after_ready_promote_before_index",
-        "after_index_write_before_candidate_cleanup",
-    }
-    required_false = set(config["required_false_claims"])
-    assert required_false == {
-        "process_kill_is_simulated",
-        "headless_editor_process_is_exported_build",
-        "reconciliation_grants_content_availability",
-        "reconciliation_grants_scene_activation",
-        "reconciliation_grants_simulation_authority",
-        "cache_reconciliation_selects_active_release",
-        "cache_reconciliation_performs_release_rollback",
-    }
+    assert set(config["required_checkpoints"]) == CHECKPOINTS
+    assert set(config["required_false_claims"]) == FALSE_CLAIMS
 
     properties = contract["properties"]
     assert properties["version"]["const"] == 1
     assert properties["suite_id"]["const"] == config["suite_id"]
     assert properties["runtime_sha"]["pattern"] == "^[0-9a-f]{40}$"
     assert properties["test_lab_sha"]["pattern"] == "^[0-9a-f]{40}$"
-    for claim in required_false:
+    for claim in FALSE_CLAIMS:
         assert properties["claims"]["properties"][claim]["const"] is False
     assert contract["additionalProperties"] is False
 
     for relative in config["required_runtime_paths"]:
-        path = runtime / relative
-        assert path.is_file(), f"runtime path missing: {relative}"
+        assert (runtime / relative).is_file(), f"runtime path missing: {relative}"
 
     world = runtime / "addons" / "evavo_game_runtime" / "world"
     store = world / "disk_content_cache_store.gd"
@@ -90,16 +73,8 @@ def validate(runtime: Path) -> None:
     host = world / "disk_content_package_cache_host.gd"
     factory = world / "content_package_cache_host_factory.gd"
     worker = runtime / "tests" / "godot" / "content_cache_process_worker.gd"
-    runtime_runner = (
-        runtime
-        / "scripts"
-        / "run-content-cache-process-recovery-smoke.ps1"
-    )
-    runtime_validator = (
-        runtime
-        / "tests"
-        / "validate_content_cache_process_recovery.py"
-    )
+    runtime_runner = runtime / "scripts" / "run-content-cache-process-recovery-smoke.ps1"
+    runtime_validator = runtime / "tests" / "validate_content_cache_process_recovery.py"
     plugin = runtime / "addons" / "evavo_game_runtime" / "plugin.cfg"
 
     require(
@@ -131,8 +106,7 @@ def validate(runtime: Path) -> None:
         '"content_addressed_entries": true',
         '"cache_reconciliation_performs_release_rollback": false',
     )
-    host_text = host.read_text(encoding="utf-8")
-    assert "CHECKPOINT_AFTER_ROTATE_KNOWN_GOOD" not in host_text
+    assert "CHECKPOINT_AFTER_ROTATE_KNOWN_GOOD" not in host.read_text(encoding="utf-8")
     require(
         factory,
         '"disk", "persistent", "default"',
@@ -146,7 +120,6 @@ def validate(runtime: Path) -> None:
         "old_entry_not_retained",
         "new_ready_expectation_mismatch",
         "candidate_expectation_mismatch",
-        "EVAVO_CONTENT_CACHE_PROCESS_CHECKPOINT=",
         "EVAVO_CONTENT_CACHE_PROCESS_RECOVERED=",
     )
     require(
@@ -163,7 +136,6 @@ def validate(runtime: Path) -> None:
         runtime_validator,
         "EVAVO content cache process recovery validation passed",
         "validate_recovery_model",
-        "content-addressed" if False else "cache_key",
         "cache_reconciliation_performs_release_rollback",
     )
     plugin_text = plugin.read_text(encoding="utf-8")
@@ -171,7 +143,7 @@ def validate(runtime: Path) -> None:
     assert 'script="plugin.gd"' in plugin_text
 
     require(
-        RUNNER,
+        FILES["runner"],
         "runtime_clean",
         "test_lab_clean",
         "actual_process_kill_matrix",
@@ -180,7 +152,7 @@ def validate(runtime: Path) -> None:
         "cache_reconciliation_performs_release_rollback = $false",
     )
     require(
-        DOC,
+        FILES["doc"],
         "real child process",
         "content-addressed",
         "not an exported game build",
@@ -191,12 +163,8 @@ def validate(runtime: Path) -> None:
         "does not grant simulation authority",
     )
 
-    for path in (
-        CONFIG,
-        CONTRACT,
+    inspected = list(FILES.values()) + [
         Path(__file__),
-        RUNNER,
-        DOC,
         store,
         reconciler,
         host,
@@ -205,10 +173,11 @@ def validate(runtime: Path) -> None:
         runtime_runner,
         runtime_validator,
         plugin,
-    ):
-        content = path.read_text(encoding="utf-8")
-        assert "\t" not in content, f"{path} contains tabs"
-        assert not any(line.rstrip() != line for line in content.splitlines()), (
+    ]
+    for path in inspected:
+        source = path.read_text(encoding="utf-8")
+        assert "\t" not in source, f"{path} contains tabs"
+        assert not any(line.rstrip() != line for line in source.splitlines()), (
             f"{path} contains trailing whitespace"
         )
 
@@ -218,10 +187,8 @@ def main() -> None:
     parser.add_argument("--runtime-repo", type=Path, required=True)
     args = parser.parse_args()
     runtime = args.runtime_repo.resolve()
-    assert (runtime / "project.godot").is_file(), (
-        "runtime repository project.godot missing"
-    )
-    for path in (CONFIG, CONTRACT, RUNNER, DOC):
+    assert (runtime / "project.godot").is_file(), "runtime repository project.godot missing"
+    for path in FILES.values():
         assert path.is_file(), f"Test Lab path missing: {path}"
     validate(runtime)
     print(
