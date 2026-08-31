@@ -56,14 +56,18 @@
         "headless_editor_process_is_exported_build",
         "reconciliation_grants_content_availability",
         "reconciliation_grants_scene_activation",
-        "reconciliation_grants_simulation_authority"
+        "reconciliation_grants_simulation_authority",
+        "cache_reconciliation_selects_active_release",
+        "cache_reconciliation_performs_release_rollback"
       ],
       "properties": {
         "process_kill_is_simulated": { "const": false },
         "headless_editor_process_is_exported_build": { "const": false },
         "reconciliation_grants_content_availability": { "const": false },
         "reconciliation_grants_scene_activation": { "const": false },
-        "reconciliation_grants_simulation_authority": { "const": false }
+        "reconciliation_grants_simulation_authority": { "const": false },
+        "cache_reconciliation_selects_active_release": { "const": false },
+        "cache_reconciliation_performs_release_rollback": { "const": false }
       },
       "additionalProperties": false
     }
