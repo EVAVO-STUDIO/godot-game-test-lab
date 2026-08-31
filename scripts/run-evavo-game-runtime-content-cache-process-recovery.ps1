@@ -114,11 +114,47 @@ if (-not [bool]$RuntimeReceipt.passed) {
 if ([string]$RuntimeReceipt.runtime_sha -ne $RuntimeSha) {
     throw "Runtime process-recovery receipt SHA did not match the tested checkout."
 }
-if ([bool]$RuntimeReceipt.claims.process_kill_is_simulated) {
-    throw "Runtime process-recovery receipt incorrectly described process kill as simulated."
+
+$ExpectedCheckpoints = @(
+    "after_chunk_promote",
+    "after_staged_payload_flush",
+    "after_ready_promote_before_index",
+    "after_index_write_before_candidate_cleanup"
+) | Sort-Object
+$ObservedCheckpoints = @(
+    $RuntimeReceipt.scenarios | ForEach-Object { [string]$_.checkpoint }
+) | Sort-Object
+if (@(Compare-Object -ReferenceObject $ExpectedCheckpoints -DifferenceObject $ObservedCheckpoints).Count -ne 0) {
+    throw "Runtime process-recovery receipt did not cover the required checkpoints."
 }
-if ([bool]$RuntimeReceipt.claims.headless_editor_process_is_exported_build) {
-    throw "Runtime process-recovery receipt incorrectly claimed exported-build evidence."
+foreach ($Scenario in $RuntimeReceipt.scenarios) {
+    if (-not [bool]$Scenario.force_killed) {
+        throw "Runtime scenario $($Scenario.id) did not record a force-killed process."
+    }
+    if (-not [bool]$Scenario.old_entry_ready) {
+        throw "Runtime scenario $($Scenario.id) did not retain the old content-addressed entry."
+    }
+    if ([bool]$Scenario.new_entry_ready -ne [bool]$Scenario.expected_new_ready) {
+        throw "Runtime scenario $($Scenario.id) reported the wrong new-entry readiness."
+    }
+    if ([bool]$Scenario.candidate_resumable -ne [bool]$Scenario.expected_candidate_resumable) {
+        throw "Runtime scenario $($Scenario.id) reported the wrong candidate-resume state."
+    }
+}
+
+$FalseClaimNames = @(
+    "process_kill_is_simulated",
+    "headless_editor_process_is_exported_build",
+    "reconciliation_grants_content_availability",
+    "reconciliation_grants_scene_activation",
+    "reconciliation_grants_simulation_authority",
+    "cache_reconciliation_selects_active_release",
+    "cache_reconciliation_performs_release_rollback"
+)
+foreach ($ClaimName in $FalseClaimNames) {
+    if ([bool]$RuntimeReceipt.claims.$ClaimName) {
+        throw "Runtime process-recovery receipt incorrectly set $ClaimName to true."
+    }
 }
 
 $Passed = (
@@ -142,6 +178,8 @@ $Receipt = [ordered]@{
         reconciliation_grants_content_availability = $false
         reconciliation_grants_scene_activation = $false
         reconciliation_grants_simulation_authority = $false
+        cache_reconciliation_selects_active_release = $false
+        cache_reconciliation_performs_release_rollback = $false
     }
 }
 $ReceiptPath = Join-Path $ArtifactRoot "receipt.json"
