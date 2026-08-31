@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.com.au/contracts/test-lab/evavo-game-runtime-disk-cache-process-recovery-receipt-v1.json",
+  "title": "EVAVO Game Runtime disk cache process recovery Test Lab receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "suite_id",
+    "runtime_sha",
+    "test_lab_sha",
+    "godot_version",
+    "runtime_clean",
+    "test_lab_clean",
+    "scenarios",
+    "passed",
+    "claims"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "suite_id": {
+      "const": "evavo_game_runtime_disk_cache_process_recovery"
+    },
+    "runtime_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "test_lab_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "godot_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "runtime_clean": {
+      "type": "boolean"
+    },
+    "test_lab_clean": {
+      "type": "boolean"
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "passed",
+          "exit_code",
+          "log_path",
+          "pass_marker_observed"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "dependency_free_validators",
+              "headless_import_parse",
+              "disk_host_behavior",
+              "actual_process_kill_matrix"
+            ]
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "log_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "pass_marker_observed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkpoint_marker_is_process_termination",
+        "process_restart_grants_content_availability",
+        "process_restart_grants_scene_activation",
+        "process_restart_grants_simulation_authority",
+        "headless_process_test_is_exported_device_test"
+      ],
+      "properties": {
+        "checkpoint_marker_is_process_termination": {
+          "const": false
+        },
+        "process_restart_grants_content_availability": {
+          "const": false
+        },
+        "process_restart_grants_scene_activation": {
+          "const": false
+        },
+        "process_restart_grants_simulation_authority": {
+          "const": false
+        },
+        "headless_process_test_is_exported_device_test": {
+          "const": false
+        }
+      }
+    }
+  }
+}
