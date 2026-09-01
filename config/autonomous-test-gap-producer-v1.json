@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "kind": "evavo-godot-test-lab-autonomous-test-gap-producer-v1",
+  "owner": "EVAVO-STUDIO/godot-game-test-lab",
+  "purpose": "Translate exact-SHA Godot import, boot, journey, controller, UI-state, visual, audio and native-lane evidence into the canonical Development Studio test-gap envelope or an explicit NO_ACTION result.",
+  "acceptedEvidenceKinds": [
+    "godot-import-evidence",
+    "godot-boot-evidence",
+    "godot-journey-evidence",
+    "godot-controller-evidence",
+    "godot-ui-state-evidence",
+    "godot-visual-evidence",
+    "godot-audio-evidence",
+    "godot-native-lane-evidence"
+  ],
+  "categoryMap": {
+    "import-or-boot-regression": "regression-test-gap",
+    "controller-or-focus-transition": "state-transition-test-gap",
+    "viewport-or-safe-area-boundary": "boundary-test-gap",
+    "native-vs-sandbox-divergence": "cross-platform-test-gap",
+    "failure-recovery-path": "failure-path-test-gap",
+    "runtime-contract": "contract-test-gap"
+  },
+  "requirements": {
+    "exactRepositorySha": true,
+    "minimumEvidenceCount": 1,
+    "testOnlyAllowedPaths": true,
+    "minimumConfidence": 0.75,
+    "maximumRisk": 35,
+    "creativeRiskMustEqual": 0,
+    "noActionAccepted": true
+  },
+  "nonAuthorities": {
+    "targetMutation": true,
+    "testGeneration": true,
+    "workItemCompilation": true,
+    "queueMutation": true,
+    "modelExecution": true,
+    "creativeApproval": true,
+    "publication": true
+  }
+}
