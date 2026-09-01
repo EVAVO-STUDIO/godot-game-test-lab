@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "evavo-autonomous-spark-task-registry-v1",
+  "owner": "EVAVO-STUDIO/godot-game-test-lab",
+  "purpose": "Expose exact-SHA Godot QA evidence translation into canonical Test Builder findings or NO_ACTION without target mutation, model execution or publication.",
+  "tasks": {
+    "autonomous-godot-test-gap-producer-certify": {
+      "runtime": "node-script",
+      "entry": "scripts/test-autonomous-godot-test-gap-producer.mjs",
+      "network": "disabled",
+      "timeoutSeconds": 300,
+      "effect": "read-only-tests"
+    },
+    "autonomous-godot-test-gap-finding-compile": {
+      "runtime": "node-script",
+      "entry": "scripts/compile-autonomous-godot-test-gap-finding.mjs",
+      "network": "disabled",
+      "timeoutSeconds": 120,
+      "effect": "read-only-compiler",
+      "arguments": ["brainReplenishmentPlanPath", "godotEvidencePath"]
+    }
+  },
+  "targetMutationAuthority": false,
+  "testGenerationAuthority": false,
+  "workItemCompilationAuthority": false,
+  "queueMutationAuthority": false,
+  "modelExecutionAuthority": false,
+  "creativeApprovalAuthority": false,
+  "publicationAuthority": false,
+  "paidFallbackAllowed": false
+}
