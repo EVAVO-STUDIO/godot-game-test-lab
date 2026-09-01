@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "suite_id": "evavo_game_runtime_http_range_content_transfer",
+  "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
+  "required_runtime_paths": [
+    "addons/evavo_game_runtime/world/content_http_range_source_policy.gd",
+    "addons/evavo_game_runtime/world/godot_http_range_native_provider_bridge.gd",
+    "addons/evavo_game_runtime/world/http_range_content_package_transfer_runtime.gd",
+    "addons/evavo_game_runtime/world/content_native_provider_bridge_factory.gd",
+    "contracts/content-http-range-source-v1.json",
+    "examples/reference_project/world/content-http-range-source-v1.json",
+    "tests/http_range_fixture_server.py",
+    "tests/validate_content_http_range_transfer.py",
+    "tests/godot/test_content_http_range_transfer.gd",
+    "scripts/run-content-http-range-transfer-smoke.py",
+    "scripts/run-content-http-range-transfer-smoke.ps1",
+    "scripts/run-content-http-range-transfer-smoke.sh",
+    "scripts/validate-runtime-0.10.ps1",
+    "scripts/validate-runtime-0.10.sh",
+    "docs/CONTENT_HTTP_RANGE_TRANSFER.md"
+  ],
+  "scenarios": [
+    {
+      "id": "integration_validator",
+      "kind": "python_validator"
+    },
+    {
+      "id": "exact_godot_4_6_2_import",
+      "kind": "godot_import"
+    },
+    {
+      "id": "http_range_behavior",
+      "kind": "godot_script",
+      "script": "tests/godot/test_content_http_range_transfer.gd",
+      "pass_marker": "EVAVO_CONTENT_HTTP_RANGE_TRANSFER_TEST=PASS"
+    },
+    {
+      "id": "range_server_evidence",
+      "kind": "receipt_assertion"
+    }
+  ],
+  "required_false_claims": [
+    "http_dispatch_is_transfer_completion",
+    "range_response_is_cache_verification",
+    "provider_completion_is_cache_verification",
+    "cancel_request_is_terminal_cancellation",
+    "runtime_ready_grants_content_availability",
+    "runtime_ready_grants_scene_activation",
+    "runtime_ready_grants_simulation_authority",
+    "web_cors_configuration_is_verified",
+    "process_local_handles_are_portable"
+  ],
+  "expected_ranges": [
+    "bytes=0-11",
+    "bytes=12-23",
+    "bytes=24-35",
+    "bytes=36-47"
+  ]
+}
