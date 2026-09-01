@@ -45,7 +45,6 @@ def validate(runtime: Path) -> None:
     assert config["version"] == 1
     assert config["suite_id"] == "evavo_game_runtime_native_provider_transfer"
     assert config["runtime_repository"] == "EVAVO-STUDIO/evavo-game-runtime"
-    assert len(config["scenarios"]) == 3
     assert {row["id"] for row in config["scenarios"]} == {
         "dependency_free_validator",
         "headless_import_parse",
@@ -60,13 +59,11 @@ def validate(runtime: Path) -> None:
     assert props["test_lab_sha"]["pattern"] == "^[0-9a-f]{40}$"
     claims = props["claims"]
     assert set(claims["required"]) == FALSE_CLAIMS
-    for claim in FALSE_CLAIMS:
-        assert claims["properties"][claim]["const"] is False
+    assert all(claims["properties"][claim]["const"] is False for claim in FALSE_CLAIMS)
     assert contract["additionalProperties"] is False
 
     for relative in config["required_runtime_paths"]:
-        path = runtime / relative
-        assert path.is_file(), f"runtime path missing: {relative}"
+        assert (runtime / relative).is_file(), f"runtime path missing: {relative}"
 
     world = runtime / "addons" / "evavo_game_runtime" / "world"
     state = world / "native_callback_content_provider_state.gd"
@@ -80,27 +77,33 @@ def validate(runtime: Path) -> None:
 
     require(
         state,
-        "class_name EVAVONativeCallbackContentProviderState",
-        "func accept_events(",
-        "func protected_receipt(",
-        "func restore(",
+        "func validate_protected_receipt(",
+        "native_callback_protected_pending_index_duplicate",
+        "native_callback_protected_pending_handle_duplicate",
+        "native_callback_protected_pending_sequence_unproven",
+        "native_callback_protected_terminal_event_unexpected",
+        "func prepend_pending(",
     )
     require(
         provider,
+        "DEFAULT_EVENT_BATCH_LIMIT := 1",
+        "released_pending_count",
+        "preserved_pending_count",
+        "tail_restore_ok",
+        "func _release_existing_request_best_effort()",
+        "STATE_COMPLETED",
         "native_callback_chunk_event_digest_mismatch",
         "native_callback_chunk_manifest_digest_mismatch",
-        '"read_chunk"',
-        '"release_chunk"',
-        "func protected_resume_receipt()",
-        '"portable_resume_contains_chunk_handles": false',
     )
     provider_source = provider.read_text(encoding="utf-8")
-    read = provider_source.split("func _read_verified_chunk(", 1)[1].split(
-        "func _release_pending_handles(", 1
+    cancel = provider_source.split("func cancel_request(", 1)[1].split(
+        "func release_request(", 1
     )[0]
-    assert read.index('"read_chunk"') < read.index("_sha256(data)") < read.index(
-        '"release_chunk"'
-    )
+    assert cancel.index("_release_pending_handles()") < cancel.index('"cancel_request"')
+    drain = provider_source.split("func drain_chunks(", 1)[1].split(
+        "func cancel_request(", 1
+    )[0]
+    assert "prepend_pending" in drain and "range(index + 1, batch.size())" in drain
 
     require(
         bridge,
@@ -114,6 +117,9 @@ def validate(runtime: Path) -> None:
         "native_provider_journal_sequence_conflict",
         "native_provider_journal_sequence_gap",
         "native_provider_journal_event_after_terminal",
+        "native_provider_journal_receipt_hash_invalid",
+        "native_provider_journal_receipt_hash_duplicate",
+        "native_provider_journal_receipt_last_hash_missing",
     )
     require(
         wrapper,
@@ -124,16 +130,22 @@ def validate(runtime: Path) -> None:
     require(
         smoke,
         "EVAVO_CONTENT_NATIVE_PROVIDER_TRANSFER_TEST=PASS",
-        "corrupt_native_chunk_was_accepted",
-        "native_event_sequence_gap_was_accepted",
-        "native_protected_resume_did_not_finish",
+        "_test_provider_reuse",
+        "_test_cancel_with_pending_handle",
+        "_test_batch_failure_preserves_tail",
+        "_test_protected_receipt_validation",
+        "duplicate_pending_resume_row_was_accepted",
+        "unproven_terminal_resume_event_was_accepted",
+        "non_hex_resume_event_hash_was_accepted",
+        "var _failed := false",
+        "if _failed:",
     )
     require(
         validator,
         "EVAVO native provider transfer validation passed",
         "validate_contracts",
-        "validate_model",
         "validate_sources",
+        "validate_receipt_model",
     )
     require(plugin, 'version="0.9.0"')
 
@@ -160,20 +172,8 @@ def validate(runtime: Path) -> None:
     )
 
     paths = [
-        CONFIG,
-        CONTRACT,
-        RUNNER,
-        POWERSHELL,
-        DOC,
-        Path(__file__),
-        state,
-        provider,
-        bridge,
-        journal,
-        wrapper,
-        smoke,
-        validator,
-        plugin,
+        CONFIG, CONTRACT, RUNNER, POWERSHELL, DOC, Path(__file__),
+        state, provider, bridge, journal, wrapper, smoke, validator, plugin,
     ]
     for path in paths:
         source = path.read_text(encoding="utf-8")
