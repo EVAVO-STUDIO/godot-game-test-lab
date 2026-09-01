@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,7 @@ TEST_LAB_SHA = "2" * 40
 
 
 def timestamp() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def write_log(root: Path, name: str, marker: str) -> str:
