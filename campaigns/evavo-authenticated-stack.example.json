@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "campaignId": "evavo-authenticated-lobby-refresh-reconnect",
+  "gameServicesRepo": "C:\\GitRepos\\evavo-game-services",
+  "gameId": "reference-rts",
+  "buildHash": "reference-build-2026-09-02",
+  "protocolVersion": 1,
+  "players": [
+    {
+      "playerId": "test_player_one",
+      "displayName": "Test Player One",
+      "deviceId": "testlab-device-one"
+    },
+    {
+      "playerId": "test_player_two",
+      "displayName": "Test Player Two",
+      "deviceId": "testlab-device-two"
+    }
+  ],
+  "lobby": {
+    "lobbyId": "authenticated-campaign-lobby",
+    "visibility": "public",
+    "maxPlayers": 2,
+    "region": "local",
+    "mode": "conformance"
+  },
+  "timeouts": {
+    "buildSeconds": 300,
+    "startupSeconds": 30,
+    "commandSeconds": 15,
+    "shutdownSeconds": 5
+  },
+  "evidenceDirectory": "../artifacts/multiplayer/authenticated-stack",
+  "buildBeforeRun": true
+}
