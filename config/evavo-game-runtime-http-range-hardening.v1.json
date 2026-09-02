@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "suite_id": "evavo_game_runtime_http_range_hardening",
+  "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
+  "required_runtime_paths": [
+    "addons/evavo_game_runtime/world/content_http_range_source_policy.gd",
+    "contracts/content-http-range-source-v1.json",
+    "tests/validate_content_http_range_hardening.py",
+    "tests/godot/test_content_http_range_hardening.gd",
+    "scripts/run-content-http-range-hardening-smoke.ps1",
+    "scripts/run-content-http-range-hardening-smoke.sh",
+    "docs/CONTENT_HTTP_RANGE_HARDENING.md"
+  ],
+  "scenarios": [
+    {
+      "id": "integration_validator",
+      "kind": "python_validator"
+    },
+    {
+      "id": "exact_godot_4_6_2_import",
+      "kind": "godot_import"
+    },
+    {
+      "id": "http_range_hardening_behavior",
+      "kind": "godot_script",
+      "script": "tests/godot/test_content_http_range_hardening.gd",
+      "pass_marker": "EVAVO_CONTENT_HTTP_RANGE_HARDENING_TEST=PASS"
+    }
+  ],
+  "required_false_claims": [
+    "declared_bytes_are_measured_network_bytes",
+    "range_response_is_verified_cache_chunk",
+    "https_origin_proves_content_trust",
+    "cors_configuration_is_verified",
+    "source_policy_grants_content_availability",
+    "source_policy_grants_scene_activation",
+    "source_policy_grants_simulation_authority",
+    "https_without_strong_validator_is_production_ready"
+  ]
+}
