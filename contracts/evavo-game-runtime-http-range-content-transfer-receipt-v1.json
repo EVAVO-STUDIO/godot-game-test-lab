@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/contracts/evavo-game-runtime-http-range-transfer-receipt-v1.json",
+  "title": "EVAVO Game Runtime HTTP Range Transfer Test Lab Receipt",
+  "type": "object",
+  "required": [
+    "version",
+    "suite_id",
+    "run_id",
+    "generated_at_utc",
+    "status",
+    "runtime_repository",
+    "runtime_sha",
+    "runtime_branch",
+    "runtime_clean",
+    "test_lab_repository",
+    "test_lab_sha",
+    "test_lab_branch",
+    "test_lab_clean",
+    "godot_version",
+    "scenarios",
+    "runtime_receipt_path",
+    "range_server",
+    "claims",
+    "evidence_root",
+    "notes"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "suite_id": {
+      "const": "evavo_game_runtime_http_range_content_transfer"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "status": {
+      "enum": ["pass", "fail"]
+    },
+    "runtime_repository": {
+      "const": "EVAVO-STUDIO/evavo-game-runtime"
+    },
+    "runtime_sha": {
+      "$ref": "#/$defs/git_sha"
+    },
+    "runtime_branch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runtime_clean": {
+      "type": "boolean"
+    },
+    "test_lab_repository": {
+      "const": "EVAVO-STUDIO/godot-game-test-lab"
+    },
+    "test_lab_sha": {
+      "$ref": "#/$defs/git_sha"
+    },
+    "test_lab_branch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "test_lab_clean": {
+      "type": "boolean"
+    },
+    "godot_version": {
+      "type": "string",
+      "pattern": "^4\\.6\\.2(?:\\.|$)"
+    },
+    "scenarios": {
+      "type": "object",
+      "required": [
+        "integration_validator",
+        "exact_godot_4_6_2_import",
+        "http_range_behavior",
+        "range_server_evidence"
+      ],
+      "properties": {
+        "integration_validator": {
+          "$ref": "#/$defs/check"
+        },
+        "exact_godot_4_6_2_import": {
+          "$ref": "#/$defs/check"
+        },
+        "http_range_behavior": {
+          "$ref": "#/$defs/check"
+        },
+        "range_server_evidence": {
+          "$ref": "#/$defs/check"
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime_receipt_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "range_server": {
+      "type": "object",
+      "required": [
+        "request_count",
+        "good_ranges",
+        "retry_ranges",
+        "retry_503_count",
+        "ignore_range_200_count",
+        "bad_content_range_count",
+        "corrupt_range_attempt_count",
+        "ranges_are_bounded"
+      ],
+      "properties": {
+        "request_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "good_ranges": {
+          "$ref": "#/$defs/ranges"
+        },
+        "retry_ranges": {
+          "$ref": "#/$defs/ranges"
+        },
+        "retry_503_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ignore_range_200_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bad_content_range_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "corrupt_range_attempt_count": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "ranges_are_bounded": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "claims": {
+      "type": "object",
+      "required": [
+        "http_dispatch_is_transfer_completion",
+        "range_response_is_cache_verification",
+        "provider_completion_is_cache_verification",
+        "cancel_request_is_terminal_cancellation",
+        "runtime_ready_grants_content_availability",
+        "runtime_ready_grants_scene_activation",
+        "runtime_ready_grants_simulation_authority",
+        "web_cors_configuration_is_verified",
+        "process_local_handles_are_portable"
+      ],
+      "properties": {
+        "http_dispatch_is_transfer_completion": {
+          "const": false
+        },
+        "range_response_is_cache_verification": {
+          "const": false
+        },
+        "provider_completion_is_cache_verification": {
+          "const": false
+        },
+        "cancel_request_is_terminal_cancellation": {
+          "const": false
+        },
+        "runtime_ready_grants_content_availability": {
+          "const": false
+        },
+        "runtime_ready_grants_scene_activation": {
+          "const": false
+        },
+        "runtime_ready_grants_simulation_authority": {
+          "const": false
+        },
+        "web_cors_configuration_is_verified": {
+          "const": false
+        },
+        "process_local_handles_are_portable": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence_root": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "notes": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      }
+    }
+  },
+  "$defs": {
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "check": {
+      "type": "object",
+      "required": [
+        "status",
+        "exit_code",
+        "log_path",
+        "marker",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "enum": ["pass", "fail"]
+        },
+        "exit_code": {
+          "type": ["integer", "null"]
+        },
+        "log_path": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "marker": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "additionalProperties": false
+    },
+    "ranges": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "bytes=0-11",
+          "bytes=12-23",
+          "bytes=24-35",
+          "bytes=36-47"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}
