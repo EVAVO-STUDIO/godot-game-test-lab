@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "evavo.repo-manifest.v1",
+  "identity": {
+    "key": "godot-game-test-lab",
+    "name": "EVAVO Godot Game Test Lab",
+    "owner": "EVAVO-STUDIO",
+    "category": "godot-native-qa-worker",
+    "status": "active"
+  },
+  "runtime": {
+    "language": "python-powershell-shell",
+    "localFirst": true,
+    "requiresPaidHostedControlPlane": false
+  },
+  "summary": "Canonical reusable Godot build, native-runtime, sandbox, interaction, visual, audio and QA worker for external game repositories. Target repair and publication remain outside the Lab.",
+  "defaultBranch": "main",
+  "providerPosture": {
+    "observedRepositoryVisibility": "public",
+    "trackedSourceMustRemainPublicSafe": true,
+    "visibilityIntentReviewRequired": true
+  },
+  "authority": {
+    "readOnly": [
+      "inspect-external-godot-repository",
+      "audit-source-and-resource-integrity",
+      "validate-managed-engine-identity",
+      "inspect-retained-runtime-evidence"
+    ],
+    "reversible": [
+      "provision-governed-godot-editor",
+      "run-native-or-sandbox-game-validation",
+      "drive-declared-input-journey",
+      "capture-screenshot-video-audio-and-log-evidence"
+    ],
+    "consequential": [],
+    "neverImplicit": [
+      "edit-target-game",
+      "commit-push-sign-deploy-or-publish-target-game",
+      "treat-linux-software-render-pass-as-native-windows-gpu-pass",
+      "treat-synthetic-gamepad-input-as-physical-controller-certification",
+      "treat-static-audit-as-godot-parser-authority",
+      "store-managed-engines-or-retained-evidence-in-source-git"
+    ]
+  },
+  "integrations": [
+    "automated-testing",
+    "evavo-development-studio",
+    "GodotGameFoundationKit",
+    "localization-manager",
+    "evavo-local-compute",
+    "evavo-storage"
+  ],
+  "responsibilityBoundary": {
+    "owns": [
+      "godot-editor-and-import-validation",
+      "native-and-sandbox-game-execution",
+      "declared-input-journey-driving",
+      "godot-visual-audio-runtime-evidence"
+    ],
+    "delegatesTargetRepairTo": "EVAVO-STUDIO/evavo-development-studio",
+    "delegatesPortfolioAndGameCreationPolicyTo": "EVAVO-STUDIO/GodotGameFoundationKit"
+  },
+  "reviewedAt": "2026-09-05"
+}
