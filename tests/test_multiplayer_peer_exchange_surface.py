@@ -15,7 +15,8 @@ def test_multiplayer_launcher_cannot_drop_peer_exchange_verification() -> None:
         '"--summary", $SummaryPath',
         '"--artifacts", $ArtifactPath',
         "$PeerExchangeExitCode -ne 0",
-        "Multiplayer peer-exchange verification failed",
+        "Configured multiplayer peer-exchange evidence did not prove reciprocal session participation.",
+        "Multiplayer peer-exchange verifier did not emit exactly one admissible evidence marker.",
     ):
         assert marker in text
 
@@ -32,7 +33,7 @@ def test_peer_exchange_reserved_contract_remains_narrow_and_explicit() -> None:
         "EVAVO_MULTIPLAYER_PEER_EXCHANGE=NOT_CONFIGURED",
         "EVAVO_MULTIPLAYER_PEER_EXCHANGE=PASS",
         "EVAVO_MULTIPLAYER_PEER_EXCHANGE=FAIL",
-        "reciprocal peer observation",
+        "required_remote_ids.issubset(observed)",
         "transport causality",
     ):
         assert marker in text
