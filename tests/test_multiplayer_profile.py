@@ -16,6 +16,16 @@ def _journey() -> dict[str, object]:
     }
 
 
+def _profile_with_host_journey(host_journey: dict[str, object]) -> dict[str, object]:
+    return {
+        "schemaVersion": "1.0",
+        "roles": [
+            {"id": "host", "journey": host_journey},
+            {"id": "guest", "journey": _journey()},
+        ],
+    }
+
+
 def test_normalizes_two_roles_through_native_journey_contract() -> None:
     profile = normalize_multiplayer_profile(
         {
@@ -45,6 +55,78 @@ def test_normalizes_two_roles_through_native_journey_contract() -> None:
     assert profile["roles"][1]["journey"]["required"] is True
     assert profile["roles"][1]["startDelayMs"] == 750
     assert "human judgement" in profile["truthBoundary"]
+
+
+def test_preserves_bounded_metadata_capture_without_fake_expected_value() -> None:
+    host_journey = {
+        **_journey(),
+        "assertions": [
+            {"type": "scene_loaded"},
+            {
+                "type": "metadata_capture",
+                "path": "/root/PeerExchangeEvidence",
+                "key": "evavo_local_peer_id",
+            },
+        ],
+    }
+    profile = normalize_multiplayer_profile(_profile_with_host_journey(host_journey))
+    assertion = profile["roles"][0]["journey"]["assertions"][1]
+    assert assertion == {
+        "type": "metadata_capture",
+        "path": "/root/PeerExchangeEvidence",
+        "key": "evavo_local_peer_id",
+    }
+    assert "value" not in assertion
+
+
+def test_metadata_capture_reuses_native_path_and_count_validation() -> None:
+    too_long_path = "/root/" + ("x" * 600)
+    host_journey = {
+        **_journey(),
+        "assertions": [
+            {
+                "type": "metadata_capture",
+                "path": too_long_path,
+                "key": "evavo_local_peer_id",
+            }
+        ],
+    }
+    with pytest.raises(NativeQaError, match="between 1 and 512 UTF-8 bytes"):
+        normalize_multiplayer_profile(_profile_with_host_journey(host_journey))
+
+
+def test_metadata_capture_rejects_extra_fields_and_missing_key() -> None:
+    with pytest.raises(NativeQaError, match="unsupported fields"):
+        normalize_multiplayer_profile(
+            _profile_with_host_journey(
+                {
+                    **_journey(),
+                    "assertions": [
+                        {
+                            "type": "metadata_capture",
+                            "path": "/root/PeerExchangeEvidence",
+                            "key": "evavo_local_peer_id",
+                            "value": 1,
+                        }
+                    ],
+                }
+            )
+        )
+
+    with pytest.raises(NativeQaError, match="must be a string"):
+        normalize_multiplayer_profile(
+            _profile_with_host_journey(
+                {
+                    **_journey(),
+                    "assertions": [
+                        {
+                            "type": "metadata_capture",
+                            "path": "/root/PeerExchangeEvidence",
+                        }
+                    ],
+                }
+            )
+        )
 
 
 def test_rejects_single_role_and_duplicate_role_ids() -> None:
