@@ -13,6 +13,13 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+if ($SkipWebRuntime -and -not $SourceOnly) {
+    throw "-SkipWebRuntime is only permitted with -SourceOnly; a full acceptance pass must exercise the web runtime."
+}
+if ($AllowDirty -and -not $SourceOnly) {
+    throw "-AllowDirty is only permitted with -SourceOnly; dirty checkouts cannot produce full acceptance evidence."
+}
+
 $LabRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $WorkspaceRoot = Split-Path -Parent $LabRoot
 if (-not $GameRuntimePath) { $GameRuntimePath = Join-Path $WorkspaceRoot "evavo-game-runtime" }
@@ -228,6 +235,21 @@ $Receipt = [ordered]@{
 }
 $ReceiptPath = Join-Path $RunRoot "receipt.json"
 $Receipt | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $ReceiptPath -Encoding utf8
+
+$Python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $Python) { $Python = Get-Command python3 -ErrorAction SilentlyContinue }
+if (-not $Python -or -not $Python.Source) {
+    throw "Python 3 is required to validate the shared runtime acceptance receipt. Receipt: $ReceiptPath"
+}
+$ReceiptValidator = Join-Path $LabRoot "scripts\validate-evavo-shared-runtime-acceptance.py"
+if (-not (Test-Path -LiteralPath $ReceiptValidator -PathType Leaf)) {
+    throw "Shared runtime receipt validator is missing: $ReceiptValidator"
+}
+$ValidationLines = @(& $Python.Source $ReceiptValidator $ReceiptPath 2>&1 | ForEach-Object { [string]$_ })
+$ValidationLines | ForEach-Object { Write-Host $_ }
+if ($LASTEXITCODE -ne 0 -or -not ($ValidationLines | Where-Object { $_ -eq "EVAVO_SHARED_RUNTIME_ACCEPTANCE_RECEIPT=VALID" })) {
+    throw "Shared runtime acceptance receipt validation failed. Receipt: $ReceiptPath"
+}
 
 Write-Host "EVAVO_SHARED_RUNTIME_ACCEPTANCE_STATUS=$Status"
 Write-Host "EVAVO_SHARED_RUNTIME_ACCEPTANCE_RECEIPT=$ReceiptPath"
