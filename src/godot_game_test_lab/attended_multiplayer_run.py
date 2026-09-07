@@ -135,6 +135,126 @@ def _verify_role_result(role: object, artifact_paths: set[str]) -> dict[str, Any
     }
 
 
+def _verify_retained_source_receipts(
+    summary: dict[str, Any], root: Path
+) -> dict[str, Any]:
+    run_context, run_context_bytes, _ = load_json_bytes(
+        root / "run-context.json", "RUN_CONTEXT"
+    )
+    exact_fields(
+        run_context,
+        {
+            "schemaVersion",
+            "runId",
+            "labSha",
+            "targetSha",
+            "targetGitRoot",
+            "projectSubpath",
+            "profile",
+            "profileSha256",
+            "sessionLabel",
+            "roleCount",
+            "maximumTotalSeconds",
+            "maximumArtifactBytes",
+        },
+        "ATTENDED_MULTIPLAYER_RUN_CONTEXT_FIELDS_INVALID",
+    )
+    if run_context.get("schemaVersion") != "1.0":
+        fail("ATTENDED_MULTIPLAYER_RUN_CONTEXT_SCHEMA_INVALID")
+
+    target_git_root = bounded_line(
+        summary.get("targetGitRoot"), "ATTENDED_MULTIPLAYER_TARGET_GIT_ROOT_INVALID", 4096
+    )
+    project_subpath = bounded_line(
+        summary.get("projectSubpath"), "ATTENDED_MULTIPLAYER_PROJECT_SUBPATH_INVALID", 1024
+    )
+    profile = safe_relative_path(
+        summary.get("profile"), "ATTENDED_MULTIPLAYER_PROFILE_PATH_INVALID"
+    )
+    profile_sha = digest(
+        summary.get("profileSha256"), "ATTENDED_MULTIPLAYER_PROFILE_DIGEST_INVALID"
+    )
+    summary_bindings = {
+        "runId": summary.get("runId"),
+        "labSha": summary.get("labSha"),
+        "targetSha": summary.get("targetSha"),
+        "targetGitRoot": target_git_root,
+        "projectSubpath": project_subpath,
+        "profile": profile,
+        "profileSha256": profile_sha,
+        "sessionLabel": summary.get("sessionLabel"),
+    }
+    for field, expected in summary_bindings.items():
+        if run_context.get(field) != expected:
+            fail("ATTENDED_MULTIPLAYER_RUN_CONTEXT_SUMMARY_MISMATCH")
+
+    role_count = positive_int(
+        run_context.get("roleCount"), "ATTENDED_MULTIPLAYER_RUN_CONTEXT_ROLE_COUNT_INVALID", 8
+    )
+    maximum_total_seconds = positive_int(
+        run_context.get("maximumTotalSeconds"),
+        "ATTENDED_MULTIPLAYER_RUN_CONTEXT_TIME_BUDGET_INVALID",
+        14_400,
+    )
+    maximum_artifact_bytes = positive_int(
+        run_context.get("maximumArtifactBytes"),
+        "ATTENDED_MULTIPLAYER_RUN_CONTEXT_ARTIFACT_BUDGET_INVALID",
+        MAX_ARTIFACT_BYTES,
+    )
+
+    hardware, hardware_bytes, _ = load_json_bytes(root / "hardware.json", "HARDWARE")
+    if hardware != summary.get("hardware"):
+        fail("ATTENDED_MULTIPLAYER_HARDWARE_SUMMARY_MISMATCH")
+
+    validation, validation_bytes, _ = load_json_bytes(
+        root / "validation" / "report.json", "VALIDATION_REPORT"
+    )
+    if validation.get("status") != "passed":
+        fail("ATTENDED_MULTIPLAYER_RETAINED_VALIDATION_REPORT_FAILED")
+
+    archive, archive_bytes, _ = load_json_bytes(
+        root / "source-archive.json", "SOURCE_ARCHIVE"
+    )
+    exact_fields(
+        archive,
+        {"members", "files", "bytes"},
+        "ATTENDED_MULTIPLAYER_SOURCE_ARCHIVE_FIELDS_INVALID",
+    )
+    members = positive_int(
+        archive.get("members"), "ATTENDED_MULTIPLAYER_SOURCE_ARCHIVE_MEMBERS_INVALID"
+    )
+    files = positive_int(
+        archive.get("files"), "ATTENDED_MULTIPLAYER_SOURCE_ARCHIVE_FILES_INVALID"
+    )
+    archive_size = nonnegative_int(
+        archive.get("bytes"), "ATTENDED_MULTIPLAYER_SOURCE_ARCHIVE_BYTES_INVALID"
+    )
+    if members < files:
+        fail("ATTENDED_MULTIPLAYER_SOURCE_ARCHIVE_COUNTS_INVALID")
+    if summary.get("sourceArchive") != archive:
+        fail("ATTENDED_MULTIPLAYER_SOURCE_ARCHIVE_SUMMARY_MISMATCH")
+
+    profile_normalized, profile_normalized_bytes, _ = load_json_bytes(
+        root / "profile.normalized.json", "NORMALIZED_PROFILE"
+    )
+    if not profile_normalized:
+        fail("ATTENDED_MULTIPLAYER_NORMALIZED_PROFILE_EMPTY")
+
+    return {
+        "runContextSha256": sha256_bytes(run_context_bytes),
+        "hardwareSha256": sha256_bytes(hardware_bytes),
+        "validationReportSha256": sha256_bytes(validation_bytes),
+        "sourceArchiveSha256": sha256_bytes(archive_bytes),
+        "normalizedProfileSha256": sha256_bytes(profile_normalized_bytes),
+        "roleCount": role_count,
+        "maximumTotalSeconds": maximum_total_seconds,
+        "maximumArtifactBytes": maximum_artifact_bytes,
+        "sourceArchiveMembers": members,
+        "sourceArchiveFiles": files,
+        "sourceArchiveBytes": archive_size,
+    }
+
+
 def verify_multiplayer_summary_sources(
     *, summary_path: Path, artifact_root: Path
 ) -> dict[str, Any]:
@@ -217,11 +337,15 @@ def verify_multiplayer_summary_sources(
     if not common_required.issubset(artifact_paths):
         fail("ATTENDED_MULTIPLAYER_COMMON_ARTIFACT_MISSING")
 
+    source_receipts = _verify_retained_source_receipts(summary, root)
+
     roles_value = summary.get("roles")
     if not isinstance(roles_value, list) or not 2 <= len(roles_value) <= 8:
         fail("ATTENDED_MULTIPLAYER_ROLE_COUNT_INVALID")
     if summary.get("concurrentRoleCount") != len(roles_value):
         fail("ATTENDED_MULTIPLAYER_CONCURRENT_ROLE_COUNT_MISMATCH")
+    if source_receipts["roleCount"] != len(roles_value):
+        fail("ATTENDED_MULTIPLAYER_RUN_CONTEXT_ROLE_COUNT_MISMATCH")
     roles = [_verify_role_result(role, artifact_paths) for role in roles_value]
     role_ids = [str(role["id"]) for role in roles]
     if len(set(role_ids)) != len(role_ids):
@@ -242,8 +366,17 @@ def verify_multiplayer_summary_sources(
         "ATTENDED_MULTIPLAYER_MAXIMUM_BYTES_INVALID",
         MAX_ARTIFACT_BYTES,
     )
+    maximum_total_seconds = positive_int(
+        execution_budget.get("maximumTotalSeconds"),
+        "ATTENDED_MULTIPLAYER_MAXIMUM_TOTAL_SECONDS_INVALID",
+        14_400,
+    )
     if retained_bytes > maximum_bytes:
         fail("ATTENDED_MULTIPLAYER_RETAINED_BYTES_EXCEEDED")
+    if source_receipts["maximumArtifactBytes"] != maximum_bytes:
+        fail("ATTENDED_MULTIPLAYER_RUN_CONTEXT_ARTIFACT_BUDGET_MISMATCH")
+    if source_receipts["maximumTotalSeconds"] != maximum_total_seconds:
+        fail("ATTENDED_MULTIPLAYER_RUN_CONTEXT_TIME_BUDGET_MISMATCH")
 
     return {
         "campaignSource": "godot-game-test-lab-multiplayer-summary",
@@ -266,4 +399,10 @@ def verify_multiplayer_summary_sources(
         "nativeDesktopEvidence": True,
         "interactiveDesktop": True,
         "explorerInSameSession": True,
+        "retainedSourceReceiptsVerified": True,
+        "runContextSha256": source_receipts["runContextSha256"],
+        "hardwareSha256": source_receipts["hardwareSha256"],
+        "validationReportSha256": source_receipts["validationReportSha256"],
+        "sourceArchiveSha256": source_receipts["sourceArchiveSha256"],
+        "normalizedProfileSha256": source_receipts["normalizedProfileSha256"],
     }
