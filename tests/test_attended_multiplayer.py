@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -11,16 +10,59 @@ from godot_game_test_lab import attended_multiplayer as subject
 from godot_game_test_lab import attended_multiplayer_common as subject_common
 
 
+def _write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def _fixture(root: Path, generated_at: datetime | None = None):
     artifacts = root / "artifacts"
     generated = generated_at or datetime.now(UTC) - timedelta(minutes=2)
-    files = {
-        "hardware.json": b"{}\n",
-        "profile.normalized.json": b"{}\n",
-        "run-context.json": b"{}\n",
-        "source-archive.json": b"{}\n",
-        "validation/report.json": b'{"status":"passed"}\n',
+    lab_sha = "a" * 40
+    target_sha = "b" * 40
+    profile_sha = "c" * 64
+    target_git_root = r"C:\GitRepos\fixture-target"
+    project_subpath = "."
+    profile_path = "examples/multiplayer-qa.profile.json"
+    session_label = "fixture-session"
+    maximum_total_seconds = 3600
+    maximum_artifact_bytes = 1024**3
+
+    hardware = {
+        "session": {
+            "sessionId": 7,
+            "interactive": True,
+            "explorerInSameSession": True,
+        }
     }
+    normalized_profile = {
+        "schemaVersion": "1.0",
+        "roles": [{"id": "host"}, {"id": "guest"}],
+    }
+    run_context = {
+        "schemaVersion": "1.0",
+        "runId": "multiplayer-test-001",
+        "labSha": lab_sha,
+        "targetSha": target_sha,
+        "targetGitRoot": target_git_root,
+        "projectSubpath": project_subpath,
+        "profile": profile_path,
+        "profileSha256": profile_sha,
+        "sessionLabel": session_label,
+        "roleCount": 2,
+        "maximumTotalSeconds": maximum_total_seconds,
+        "maximumArtifactBytes": maximum_artifact_bytes,
+    }
+    source_archive = {"members": 12, "files": 10, "bytes": 4096}
+    validation_report = {"status": "passed"}
+
+    _write_json(artifacts / "hardware.json", hardware)
+    _write_json(artifacts / "profile.normalized.json", normalized_profile)
+    _write_json(artifacts / "run-context.json", run_context)
+    _write_json(artifacts / "source-archive.json", source_archive)
+    _write_json(artifacts / "validation/report.json", validation_report)
+
+    files: dict[str, bytes] = {}
     for role in ("host", "guest"):
         files.update(
             {
@@ -28,9 +70,7 @@ def _fixture(root: Path, generated_at: datetime | None = None):
                 f"roles/{role}/godot.log": b"clean\n",
                 f"roles/{role}/journey-report.json": b'{"status":"passed"}\n',
                 f"roles/{role}/contact-sheet.png": b"\x89PNG\r\n\x1a\nfixture",
-                f"roles/{role}/screenshots/frame-01.png": (
-                    b"\x89PNG\r\n\x1a\nfixture"
-                ),
+                f"roles/{role}/screenshots/frame-01.png": b"\x89PNG\r\n\x1a\nfixture",
             }
         )
     for relative, payload in files.items():
@@ -81,9 +121,13 @@ def _fixture(root: Path, generated_at: datetime | None = None):
         "status": "passed",
         "generatedAt": generated.isoformat(),
         "durationSeconds": 15.5,
-        "labSha": "a" * 40,
-        "targetSha": "b" * 40,
-        "sessionLabel": "fixture-session",
+        "labSha": lab_sha,
+        "targetSha": target_sha,
+        "targetGitRoot": target_git_root,
+        "projectSubpath": project_subpath,
+        "profile": profile_path,
+        "profileSha256": profile_sha,
+        "sessionLabel": session_label,
         "interactiveDesktopRequired": True,
         "nativeDesktopEvidence": True,
         "desktopLease": {
@@ -91,13 +135,8 @@ def _fixture(root: Path, generated_at: datetime | None = None):
             "name": subject.DESKTOP_LEASE_NAME,
             "ownerPid": 1234,
         },
-        "hardware": {
-            "session": {
-                "sessionId": 7,
-                "interactive": True,
-                "explorerInSameSession": True,
-            }
-        },
+        "hardware": hardware,
+        "sourceArchive": source_archive,
         "validationStatus": "passed",
         "validationFindings": [],
         "roles": roles,
@@ -106,7 +145,8 @@ def _fixture(root: Path, generated_at: datetime | None = None):
         "targetStatusBefore": "",
         "targetStatusAfter": "",
         "executionBudget": {
-            "maximumArtifactBytes": 1024**3,
+            "maximumTotalSeconds": maximum_total_seconds,
+            "maximumArtifactBytes": maximum_artifact_bytes,
             "retainedArtifactBytes": retained_bytes,
             "retainedArtifactFiles": len(inventory),
             "measurementComplete": True,
@@ -115,7 +155,7 @@ def _fixture(root: Path, generated_at: datetime | None = None):
         "artifacts": inventory,
     }
     summary_path = artifacts / "multiplayer-agent-summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    _write_json(summary_path, summary)
     return artifacts, summary_path, generated
 
 
@@ -125,6 +165,7 @@ def test_compiles_and_reverifies_exact_attended_receipt(tmp_path: Path) -> None:
         summary_path=summary_path,
         artifact_root=artifacts,
     )
+    assert evidence["retainedSourceReceiptsVerified"] is True
     attested = generated + timedelta(minutes=3)
     attestation = subject.build_operator_attestation(
         evidence=evidence,
@@ -146,6 +187,8 @@ def test_compiles_and_reverifies_exact_attended_receipt(tmp_path: Path) -> None:
     )
     assert verified["status"] == "passed"
     assert verified["authority"]["publicationAuthority"] is False
+    assert verified["sourceVerification"]["operatorAttestationBoundToExactEvidence"] is True
+    assert verified["operatorAttestation"]["boundSummarySha256"] == evidence["summarySha256"]
     assert len(verified["roles"]) == 2
 
 
@@ -159,6 +202,60 @@ def test_changed_artifact_is_rejected(tmp_path: Path) -> None:
         subject.verify_multiplayer_summary_sources(
             summary_path=summary_path,
             artifact_root=artifacts,
+        )
+
+
+def test_run_context_must_independently_match_summary(tmp_path: Path) -> None:
+    artifacts, summary_path, _generated = _fixture(tmp_path)
+    run_context_path = artifacts / "run-context.json"
+    run_context = json.loads(run_context_path.read_text(encoding="utf-8"))
+    run_context["sessionLabel"] = "other-session"
+    _write_json(run_context_path, run_context)
+
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    inventory = subject_common.inventory_artifacts(artifacts)
+    summary["artifacts"] = inventory
+    summary["executionBudget"]["retainedArtifactBytes"] = sum(
+        item["bytes"] for item in inventory
+    )
+    summary["executionBudget"]["retainedArtifactFiles"] = len(inventory)
+    _write_json(summary_path, summary)
+
+    with pytest.raises(
+        subject.AttendedMultiplayerError,
+        match="RUN_CONTEXT_SUMMARY_MISMATCH",
+    ):
+        subject.verify_multiplayer_summary_sources(
+            summary_path=summary_path,
+            artifact_root=artifacts,
+        )
+
+
+def test_attestation_cannot_be_reused_for_changed_evidence(tmp_path: Path) -> None:
+    artifacts, summary_path, generated = _fixture(tmp_path)
+    evidence = subject.verify_multiplayer_summary_sources(
+        summary_path=summary_path,
+        artifact_root=artifacts,
+    )
+    attested = generated + timedelta(minutes=2)
+    attestation = subject.build_operator_attestation(
+        evidence=evidence,
+        campaign_id="campaign-001",
+        operator_id="Greg Parker",
+        windows_session_id=7,
+        confirmation="ATTEND multiplayer-test-001",
+        now=attested,
+    )
+    changed_evidence = dict(evidence)
+    changed_evidence["summarySha256"] = "d" * 64
+    with pytest.raises(
+        subject.AttendedMultiplayerError,
+        match="ATTESTATION_SUMMARY_DIGEST_MISMATCH",
+    ):
+        subject.compile_attended_multiplayer_receipt(
+            evidence=changed_evidence,
+            attestation=attestation,
+            now=attested + timedelta(minutes=1),
         )
 
 
