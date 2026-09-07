@@ -7,6 +7,7 @@ from .attended_multiplayer_attestation import verify_operator_attestation
 from .attended_multiplayer_common import (
     PRODUCER_REPOSITORY,
     RECEIPT_CONTRACT,
+    RECEIPT_CONTRACT_V1,
     digest,
     exact_fields,
     exact_timestamp,
@@ -16,18 +17,20 @@ from .attended_multiplayer_common import (
 )
 
 
-def _receipt_body(
+def _base_receipt_body(
     *,
     evidence: dict[str, Any],
     attestation: dict[str, Any],
     generated_at: str,
+    schema_version: int,
+    contract: str,
 ) -> dict[str, Any]:
     role_evidence = [
         path for role in evidence["roles"] for path in role["requiredEvidence"]
     ]
     return {
-        "schemaVersion": 1,
-        "contract": RECEIPT_CONTRACT,
+        "schemaVersion": schema_version,
+        "contract": contract,
         "generatedAt": generated_at,
         "producerRepository": PRODUCER_REPOSITORY,
         "campaignId": attestation["campaignId"],
@@ -90,14 +93,115 @@ def _receipt_body(
             "deploymentAuthority": False,
             "publicationAuthority": False,
         },
-        "truthBoundary": (
-            "This receipt proves exact attended synthetic multiplayer journeys and retained "
-            "evidence for one exact Lab and target revision. The operator attendance attestation "
-            "is bound to the exact summary digest and rehashed artifact inventory. It does not "
-            "prove physical controllers, real network conditions, complete gameplay coverage, "
-            "human game feel, release approval, source mutation, deployment or publication."
-        ),
     }
+
+
+def _receipt_body_v1(
+    *,
+    evidence: dict[str, Any],
+    attestation: dict[str, Any],
+    generated_at: str,
+) -> dict[str, Any]:
+    body = _base_receipt_body(
+        evidence=evidence,
+        attestation=attestation,
+        generated_at=generated_at,
+        schema_version=1,
+        contract=RECEIPT_CONTRACT_V1,
+    )
+    body["truthBoundary"] = (
+        "This receipt proves exact attended synthetic multiplayer journeys and retained "
+        "evidence for one exact Lab and target revision. The operator attendance attestation "
+        "is bound to the exact summary digest and rehashed artifact inventory. It does not "
+        "prove physical controllers, real network conditions, complete gameplay coverage, "
+        "human game feel, release approval, source mutation, deployment or publication."
+    )
+    return body
+
+
+def _verified_peer_exchange(evidence: dict[str, Any]) -> dict[str, Any]:
+    value = evidence.get("peerExchange")
+    if not is_record(value):
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_REQUIRED")
+    peer_exchange = dict(value)
+    exact_fields(
+        peer_exchange,
+        {
+            "schemaVersion",
+            "configured",
+            "proven",
+            "requiredRoleCount",
+            "authorityObserved",
+            "roles",
+            "findings",
+            "truthBoundary",
+        },
+        "ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_FIELDS_INVALID",
+    )
+    if peer_exchange.get("schemaVersion") != 1:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_SCHEMA_INVALID")
+    configured = peer_exchange.get("configured")
+    proven = peer_exchange.get("proven")
+    authority_observed = peer_exchange.get("authorityObserved")
+    if not isinstance(configured, bool) or not isinstance(proven, bool):
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_STATUS_INVALID")
+    if not isinstance(authority_observed, bool):
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_AUTHORITY_INVALID")
+    if proven and not configured:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_PROOF_WITHOUT_CONFIG")
+    if configured and not proven:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_NOT_PROVEN")
+    required_role_count = peer_exchange.get("requiredRoleCount")
+    if (
+        not isinstance(required_role_count, int)
+        or isinstance(required_role_count, bool)
+        or not 0 <= required_role_count <= 8
+    ):
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_ROLE_COUNT_INVALID")
+    roles = peer_exchange.get("roles")
+    findings = peer_exchange.get("findings")
+    truth_boundary = peer_exchange.get("truthBoundary")
+    if not isinstance(roles, list) or len(roles) > 8:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_ROLES_INVALID")
+    if not isinstance(findings, list) or findings:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_FINDINGS_PRESENT")
+    if not isinstance(truth_boundary, str) or not truth_boundary:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_BOUNDARY_INVALID")
+    if configured and len(roles) != required_role_count:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_ROLE_EVIDENCE_INCOMPLETE")
+    if not configured and roles:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_UNCONFIGURED_ROLES_PRESENT")
+    return peer_exchange
+
+
+def _receipt_body(
+    *,
+    evidence: dict[str, Any],
+    attestation: dict[str, Any],
+    generated_at: str,
+) -> dict[str, Any]:
+    peer_exchange = _verified_peer_exchange(evidence)
+    body = _base_receipt_body(
+        evidence=evidence,
+        attestation=attestation,
+        generated_at=generated_at,
+        schema_version=2,
+        contract=RECEIPT_CONTRACT,
+    )
+    body["peerExchange"] = peer_exchange
+    body["sourceVerification"]["peerExchangeContractReverified"] = True
+    body["authority"]["transportPathCertified"] = False
+    body["truthBoundary"] = (
+        "This receipt proves exact attended synthetic multiplayer journeys and retained "
+        "evidence for one exact Lab and target revision. The operator attendance attestation "
+        "is bound to the exact summary digest and rehashed artifact inventory. When "
+        "peerExchange.proven is true, it additionally proves that configured game-owned "
+        "metadata assertions reported one shared session, unique local peer ids and reciprocal "
+        "peer observation for the required roles. It does not prove physical controllers, "
+        "transport causality, hostile or real-world network conditions, complete gameplay "
+        "coverage, human game feel, release approval, source mutation, deployment or publication."
+    )
+    return body
 
 
 def compile_attended_multiplayer_receipt(
@@ -145,11 +249,22 @@ def verify_attended_multiplayer_receipt(
         evidence=evidence,
         reference_time=generated_at,
     )
-    expected_body = _receipt_body(
-        evidence=evidence,
-        attestation=verified_attestation,
-        generated_at=generated_text,
-    )
+    schema_version = receipt.get("schemaVersion")
+    contract = receipt.get("contract")
+    if schema_version == 1 and contract == RECEIPT_CONTRACT_V1:
+        expected_body = _receipt_body_v1(
+            evidence=evidence,
+            attestation=verified_attestation,
+            generated_at=generated_text,
+        )
+    elif schema_version == 2 and contract == RECEIPT_CONTRACT:
+        expected_body = _receipt_body(
+            evidence=evidence,
+            attestation=verified_attestation,
+            generated_at=generated_text,
+        )
+    else:
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_SCHEMA_OR_CONTRACT_UNSUPPORTED")
     exact_fields(
         receipt,
         set(expected_body) | {"receiptSha256", "receiptReference"},
