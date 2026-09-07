@@ -44,6 +44,12 @@ def test_multiplayer_wrapper_is_fixed_exact_sha_and_budget_bounded() -> None:
         '$WindowColumns = 2',
         '[switch]$AllowNonInteractive',
         'Session 0 service',
+        'multiplayer-agent-summary.json',
+        'EVAVO_MULTIPLAYER_AGENT_QA=PASS run_id=$RunId',
+        'EVAVO_MULTIPLAYER_AGENT_QA=CONTRACT_ONLY run_id=$RunId',
+        'summary Lab SHA does not match the requested exact SHA',
+        'summary target SHA does not match the requested exact SHA',
+        'Retained multiplayer summary disagrees with process summary field',
     ):
         assert marker in text
     for forbidden in (
@@ -54,3 +60,15 @@ def test_multiplayer_wrapper_is_fixed_exact_sha_and_budget_bounded() -> None:
         "git clean",
     ):
         assert forbidden not in text
+
+
+def test_noninteractive_multiplayer_cannot_emit_native_pass_marker() -> None:
+    text = (ROOT / "scripts" / "Invoke-GodotLabMultiplayerAgentQA.ps1").read_text(
+        encoding="utf-8"
+    )
+    contract_only = text.index('EVAVO_MULTIPLAYER_AGENT_QA=CONTRACT_ONLY run_id=$RunId')
+    native_pass = text.index('EVAVO_MULTIPLAYER_AGENT_QA=PASS run_id=$RunId')
+    allow_guard = text.index('if ($AllowNonInteractive) {', text.index("$SummaryPath"))
+    return_index = text.index("return", allow_guard)
+    assert allow_guard < contract_only < return_index < native_pass
+    assert "will never emit the native PASS marker" in text
