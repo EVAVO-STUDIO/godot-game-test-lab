@@ -66,11 +66,16 @@ def _receipt_body(
             "attestedAt": attestation["attestedAt"],
             "expiresAt": attestation["expiresAt"],
             "attendanceOnly": True,
+            "boundSummarySha256": attestation["summarySha256"],
+            "boundArtifactInventorySha256": attestation["artifactInventorySha256"],
+            "boundArtifactCount": attestation["artifactCount"],
+            "boundArtifactBytes": attestation["artifactBytes"],
         },
         "sourceVerification": {
             "summaryReopened": True,
             "artifactInventoryRebuilt": True,
             "artifactBytesRehashed": True,
+            "operatorAttestationBoundToExactEvidence": True,
             "targetMutationDetected": False,
         },
         "authority": {
@@ -87,9 +92,10 @@ def _receipt_body(
         },
         "truthBoundary": (
             "This receipt proves exact attended synthetic multiplayer journeys and retained "
-            "evidence for one exact Lab and target revision. It does not prove physical "
-            "controllers, real network conditions, complete gameplay coverage, human game "
-            "feel, release approval, source mutation, deployment or publication."
+            "evidence for one exact Lab and target revision. The operator attendance attestation "
+            "is bound to the exact summary digest and rehashed artifact inventory. It does not "
+            "prove physical controllers, real network conditions, complete gameplay coverage, "
+            "human game feel, release approval, source mutation, deployment or publication."
         ),
     }
 
