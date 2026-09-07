@@ -11,7 +11,8 @@ from typing import Any
 ATTESTATION_CONTRACT = (
     "evavo.godot-game-test-lab.attended-multiplayer-operator-attestation.v1"
 )
-RECEIPT_CONTRACT = "evavo.godot-game-test-lab.attended-multiplayer-receipt.v1"
+RECEIPT_CONTRACT_V1 = "evavo.godot-game-test-lab.attended-multiplayer-receipt.v1"
+RECEIPT_CONTRACT = "evavo.godot-game-test-lab.attended-multiplayer-receipt.v2"
 PRODUCER_REPOSITORY = "EVAVO-STUDIO/godot-game-test-lab"
 DESKTOP_LEASE_NAME = "Local\\EVAVO.GodotGameTestLab.NativeDesktop"
 ATTESTATION_VALIDITY = timedelta(hours=4, minutes=15)
