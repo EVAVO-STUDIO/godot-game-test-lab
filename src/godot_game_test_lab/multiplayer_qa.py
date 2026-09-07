@@ -175,7 +175,7 @@ def _run_role(
             "--quit-after",
             str(journey["maxFrames"] + 240),
             "--script",
-            "res://.evavo-lab/godot_input_journey.gd",
+            "res://.evavo-lab/godot_multiplayer_input_journey.gd",
         ]
     )
     if journey["userArguments"]:
@@ -431,6 +431,10 @@ def run_multiplayer_qa(args: argparse.Namespace) -> dict[str, Any]:
                 shutil.copyfile(
                     lab_root / "scripts" / "godot_input_journey.gd",
                     harness_root / "godot_input_journey.gd",
+                )
+                shutil.copyfile(
+                    lab_root / "scripts" / "godot_multiplayer_input_journey.gd",
+                    harness_root / "godot_multiplayer_input_journey.gd",
                 )
                 remaining_bytes, _usage = _artifact_remaining(
                     artifacts, args.max_artifact_bytes
