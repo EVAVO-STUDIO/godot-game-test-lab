@@ -28,7 +28,10 @@ from .attended_multiplayer_receipt import (
     compile_attended_multiplayer_receipt,
     verify_attended_multiplayer_receipt,
 )
-from .attended_multiplayer_run import verify_multiplayer_summary_sources
+from .attended_multiplayer_run import (
+    verify_multiplayer_summary_sources as _verify_multiplayer_summary_sources,
+)
+from .multiplayer_peer_exchange import PeerExchangeEvidenceError, verify_peer_exchange
 
 __all__ = [
     "ATTESTATION_CONTRACT",
@@ -43,6 +46,34 @@ __all__ = [
     "verify_multiplayer_summary_sources",
     "verify_operator_attestation",
 ]
+
+
+def verify_multiplayer_summary_sources(
+    *, summary_path: Path, artifact_root: Path
+) -> dict[str, Any]:
+    """Reverify attended sources and bind optional game-reported peer exchange."""
+    evidence = _verify_multiplayer_summary_sources(
+        summary_path=summary_path,
+        artifact_root=artifact_root,
+    )
+    try:
+        peer_exchange = verify_peer_exchange(
+            summary_path=summary_path,
+            artifact_root=artifact_root,
+        )
+    except PeerExchangeEvidenceError as error:
+        raise AttendedMultiplayerError(
+            "ATTENDED_MULTIPLAYER_PEER_EXCHANGE_INVALID: " + str(error)
+        ) from error
+    if peer_exchange.get("configured") is True and peer_exchange.get("proven") is not True:
+        findings = peer_exchange.get("findings", [])
+        detail = "; ".join(str(item) for item in findings) if isinstance(findings, list) else ""
+        message = "ATTENDED_MULTIPLAYER_PEER_EXCHANGE_NOT_PROVEN"
+        if detail:
+            message += ": " + detail
+        raise AttendedMultiplayerError(message)
+    evidence["peerExchange"] = peer_exchange
+    return evidence
 
 
 def _load_attestation(path: Path) -> dict[str, Any]:
