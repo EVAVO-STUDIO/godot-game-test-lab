@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,20 @@ EXPECTED_COMMANDS = {
     "game-runtime-contracts",
     "web-runtime-check",
 }
+EXPECTED_NETWORKING_CONTRACTS = [
+    "res://tests/godot/validate_multiplayer_peer_factory.gd",
+    "res://tests/godot/validate_network_clock_profile.gd",
+    "res://tests/godot/validate_entity_replication_envelope.gd",
+    "res://tests/godot/validate_entity_replication_receive_guard.gd",
+    "res://tests/godot/validate_replication_authority_contract.gd",
+    "res://tests/godot/validate_replication_visibility_policy.gd",
+    "res://tests/godot/validate_partition_handoff_protocol.gd",
+    "res://tests/godot/validate_network_state_buffers.gd",
+    "res://tests/godot/validate_network_reconciliation_pipeline.gd",
+]
+EXPECTED_NETWORKING_AGGREGATE = (
+    f"EVAVO_NETWORKING_CONTRACTS=PASS count={len(EXPECTED_NETWORKING_CONTRACTS)}"
+)
 
 
 def fail(message: str) -> None:
@@ -43,6 +58,72 @@ def validate_repository(value: Any, name: str, *, nullable: bool = False) -> Non
         fail(f"{name}.dirty must be boolean")
 
 
+def require_string_list(value: Any, name: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        fail(f"{name} must be an array of non-empty strings")
+    return value
+
+
+def validate_networking_evidence(value: Any) -> bool:
+    evidence = require_mapping(value, "networking_evidence")
+    expected_fields = {
+        "expected_contract_count",
+        "observed_contract_count",
+        "aggregate_marker",
+        "aggregate_marker_occurrences",
+        "expected_contracts",
+        "observed_contracts",
+        "missing_contracts",
+        "unexpected_contracts",
+        "duplicate_contracts",
+        "valid",
+    }
+    if set(evidence) != expected_fields:
+        fail("networking_evidence contains missing or unexpected fields")
+    if evidence["expected_contract_count"] != len(EXPECTED_NETWORKING_CONTRACTS):
+        fail("networking_evidence.expected_contract_count is wrong")
+    if not isinstance(evidence["observed_contract_count"], int) or evidence["observed_contract_count"] < 0:
+        fail("networking_evidence.observed_contract_count must be non-negative integer")
+    if evidence["aggregate_marker"] != EXPECTED_NETWORKING_AGGREGATE:
+        fail("networking_evidence.aggregate_marker is wrong")
+    if not isinstance(evidence["aggregate_marker_occurrences"], int) or evidence["aggregate_marker_occurrences"] < 0:
+        fail("networking_evidence.aggregate_marker_occurrences must be non-negative integer")
+
+    expected = require_string_list(evidence["expected_contracts"], "networking_evidence.expected_contracts")
+    observed = require_string_list(evidence["observed_contracts"], "networking_evidence.observed_contracts")
+    missing = require_string_list(evidence["missing_contracts"], "networking_evidence.missing_contracts")
+    unexpected = require_string_list(evidence["unexpected_contracts"], "networking_evidence.unexpected_contracts")
+    duplicates = require_string_list(evidence["duplicate_contracts"], "networking_evidence.duplicate_contracts")
+    if expected != EXPECTED_NETWORKING_CONTRACTS:
+        fail("networking_evidence.expected_contracts does not match the Test Lab contract inventory")
+    if evidence["observed_contract_count"] != len(observed):
+        fail("networking_evidence.observed_contract_count disagrees with observed_contracts")
+
+    counts = Counter(observed)
+    computed_missing = [item for item in EXPECTED_NETWORKING_CONTRACTS if item not in counts]
+    computed_unexpected = sorted(item for item in counts if item not in EXPECTED_NETWORKING_CONTRACTS)
+    computed_duplicates = sorted(item for item, count in counts.items() if count != 1)
+    if missing != computed_missing:
+        fail("networking_evidence.missing_contracts is inconsistent")
+    if unexpected != computed_unexpected:
+        fail("networking_evidence.unexpected_contracts is inconsistent")
+    if duplicates != computed_duplicates:
+        fail("networking_evidence.duplicate_contracts is inconsistent")
+
+    computed_valid = (
+        evidence["aggregate_marker_occurrences"] == 1
+        and observed == EXPECTED_NETWORKING_CONTRACTS
+        and not computed_missing
+        and not computed_unexpected
+        and not computed_duplicates
+    )
+    if not isinstance(evidence["valid"], bool):
+        fail("networking_evidence.valid must be boolean")
+    if evidence["valid"] != computed_valid:
+        fail("networking_evidence.valid disagrees with independently recomputed evidence")
+    return computed_valid
+
+
 def validate_receipt(payload: Any) -> None:
     root = require_mapping(payload, "receipt")
     expected_root = {
@@ -53,6 +134,7 @@ def validate_receipt(payload: Any) -> None:
         "repositories",
         "godot",
         "commands",
+        "networking_evidence",
         "issues",
         "claims",
     }
@@ -115,13 +197,18 @@ def validate_receipt(payload: Any) -> None:
     if names != EXPECTED_COMMANDS:
         fail("receipt must contain exactly the three shared runtime acceptance commands")
 
+    networking_valid = validate_networking_evidence(root["networking_evidence"])
+
     issues = root["issues"]
     if not isinstance(issues, list) or not all(isinstance(item, str) and item for item in issues):
         fail("issues must be an array of non-empty strings")
-    if status == "failed" and failures == 0:
-        fail("failed receipt must contain at least one failed command")
-    if status != "failed" and failures != 0:
-        fail("non-failed receipt cannot contain failed commands")
+    evidence_failure = "engine_networking_evidence_invalid" in issues
+    if evidence_failure == networking_valid:
+        fail("engine networking evidence issue does not match networking_evidence.valid")
+    if status == "failed" and failures == 0 and not evidence_failure:
+        fail("failed receipt must contain a failed command or invalid networking evidence")
+    if status != "failed" and (failures != 0 or evidence_failure):
+        fail("non-failed receipt cannot contain failed commands or invalid networking evidence")
 
     claims = require_mapping(root["claims"], "claims")
     required_claims = {
@@ -142,11 +229,13 @@ def validate_receipt(payload: Any) -> None:
             fail(f"claims.{name} must be boolean")
 
     by_name = {command["name"]: command for command in commands}
-    expected_networking = by_name["engine-networking-contracts"]["status"] == "passed"
+    expected_networking = (
+        by_name["engine-networking-contracts"]["status"] == "passed" and networking_valid
+    )
     expected_game = by_name["game-runtime-contracts"]["status"] == "passed"
     expected_web = by_name["web-runtime-check"]["status"] == "passed"
     if claims["networking_contracts_executed"] != expected_networking:
-        fail("networking_contracts_executed disagrees with command evidence")
+        fail("networking_contracts_executed disagrees with command and marker evidence")
     if claims["game_runtime_contracts_executed"] != expected_game:
         fail("game_runtime_contracts_executed disagrees with command evidence")
     if claims["web_runtime_contracts_executed"] != expected_web:
@@ -156,13 +245,22 @@ def validate_receipt(payload: Any) -> None:
         if godot is None:
             fail("passed receipt requires Godot evidence")
         if not expected_networking or not expected_game or not expected_web:
-            fail("passed receipt requires all three runtime command lanes to pass")
-        repos = [root["test_lab"], repositories["game_runtime"], repositories["engine_systems"], repositories["web_runtime"]]
+            fail("passed receipt requires all three runtime command lanes and networking marker evidence to pass")
+        repos = [
+            root["test_lab"],
+            repositories["game_runtime"],
+            repositories["engine_systems"],
+            repositories["web_runtime"],
+        ]
         if any(repo is None or repo["dirty"] for repo in repos):
             fail("passed receipt requires clean evidence for all four repositories")
     elif status == "source_only":
         if expected_networking:
             fail("source_only receipt cannot claim executable engine networking contracts")
+        if root["networking_evidence"]["observed_contract_count"] != 0:
+            fail("source_only receipt cannot contain executed networking contract evidence")
+        if root["networking_evidence"]["aggregate_marker_occurrences"] != 0:
+            fail("source_only receipt cannot contain networking aggregate PASS evidence")
 
 
 def main() -> int:
