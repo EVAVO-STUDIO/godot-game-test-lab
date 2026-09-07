@@ -130,7 +130,7 @@ def _assertion_records(role: dict[str, Any]) -> dict[int, dict[str, Any]]:
 
 
 def _reserved_assertions(journey: dict[str, Any]) -> dict[str, tuple[int, dict[str, Any]]]:
-    assertions = journey.get("assertions")
+    assertions = journey.get("assertions", [])
     if not isinstance(assertions, list) or len(assertions) > 128:
         _fail("normalized journey assertions are invalid")
     found: dict[str, tuple[int, dict[str, Any]]] = {}
@@ -218,11 +218,14 @@ def verify_peer_exchange(
         role_id = safe_id(role.get("id"), "ATTENDED_MULTIPLAYER_PEER_EXCHANGE_ROLE_ID_INVALID")
         if role_id in profile_by_id:
             _fail("normalized multiplayer profile role id is duplicated")
-        journey = role.get("journey")
-        if not is_record(journey):
-            _fail(f"role {role_id} normalized journey is invalid")
         profile_by_id[role_id] = role
-        configured_by_id[role_id] = _reserved_assertions(dict(journey))
+        journey = role.get("journey")
+        if journey is None:
+            configured_by_id[role_id] = {}
+        elif is_record(journey):
+            configured_by_id[role_id] = _reserved_assertions(dict(journey))
+        else:
+            _fail(f"role {role_id} normalized journey is invalid")
 
     for raw in summary_roles:
         if not is_record(raw):
