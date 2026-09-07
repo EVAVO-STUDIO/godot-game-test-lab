@@ -9,7 +9,9 @@
     "status",
     "test_lab",
     "repositories",
+    "godot",
     "commands",
+    "networking_evidence",
     "issues",
     "claims"
   ],
@@ -63,6 +65,49 @@
         },
         "additionalProperties": true
       }
+    },
+    "networking_evidence": {
+      "type": "object",
+      "required": [
+        "expected_contract_count",
+        "observed_contract_count",
+        "aggregate_marker",
+        "aggregate_marker_occurrences",
+        "expected_contracts",
+        "observed_contracts",
+        "missing_contracts",
+        "unexpected_contracts",
+        "duplicate_contracts",
+        "valid"
+      ],
+      "properties": {
+        "expected_contract_count": {"const": 9},
+        "observed_contract_count": {"type": "integer", "minimum": 0},
+        "aggregate_marker": {"const": "EVAVO_NETWORKING_CONTRACTS=PASS count=9"},
+        "aggregate_marker_occurrences": {"type": "integer", "minimum": 0},
+        "expected_contracts": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "res://tests/godot/validate_multiplayer_peer_factory.gd"},
+            {"const": "res://tests/godot/validate_network_clock_profile.gd"},
+            {"const": "res://tests/godot/validate_entity_replication_envelope.gd"},
+            {"const": "res://tests/godot/validate_entity_replication_receive_guard.gd"},
+            {"const": "res://tests/godot/validate_replication_authority_contract.gd"},
+            {"const": "res://tests/godot/validate_replication_visibility_policy.gd"},
+            {"const": "res://tests/godot/validate_partition_handoff_protocol.gd"},
+            {"const": "res://tests/godot/validate_network_state_buffers.gd"},
+            {"const": "res://tests/godot/validate_network_reconciliation_pipeline.gd"}
+          ],
+          "minItems": 9,
+          "maxItems": 9
+        },
+        "observed_contracts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "missing_contracts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unexpected_contracts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "duplicate_contracts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "valid": {"type": "boolean"}
+      },
+      "additionalProperties": false
     },
     "issues": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "claims": {
