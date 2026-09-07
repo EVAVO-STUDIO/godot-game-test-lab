@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "roles": [
+    {
+      "id": "host",
+      "personaId": "authoritative-host",
+      "required": true,
+      "startDelayMs": 0,
+      "journey": {
+        "device": "keyboard_mouse",
+        "maxFrames": 1200,
+        "fps": 30,
+        "width": 1280,
+        "height": 720,
+        "renderingMethod": "forward_plus",
+        "renderingDriver": "vulkan",
+        "gpuIndex": 0,
+        "userArguments": [
+          "--multiplayer-role=host"
+        ],
+        "steps": [
+          {
+            "type": "wait",
+            "frames": 180
+          },
+          {
+            "type": "checkpoint",
+            "id": "host-peer-exchange"
+          }
+        ],
+        "assertions": [
+          {
+            "type": "scene_loaded"
+          },
+          {
+            "type": "metadata_capture",
+            "path": "/root/PeerExchangeEvidence",
+            "key": "evavo_peer_session_id"
+          },
+          {
+            "type": "metadata_capture",
+            "path": "/root/PeerExchangeEvidence",
+            "key": "evavo_local_peer_id"
+          },
+          {
+            "type": "metadata_capture",
+            "path": "/root/PeerExchangeEvidence",
+            "key": "evavo_observed_peer_ids"
+          }
+        ],
+        "ux": {
+          "captureControlTree": true,
+          "failOnBlackFrame": true,
+          "blackDurationSeconds": 3.0,
+          "failOnFrozenVideo": false,
+          "freezeDurationSeconds": 8.0
+        }
+      }
+    },
+    {
+      "id": "guest",
+      "personaId": "joining-guest",
+      "required": true,
+      "startDelayMs": 1000,
+      "journey": {
+        "device": "keyboard_mouse",
+        "maxFrames": 1200,
+        "fps": 30,
+        "width": 1280,
+        "height": 720,
+        "renderingMethod": "forward_plus",
+        "renderingDriver": "vulkan",
+        "gpuIndex": 0,
+        "userArguments": [
+          "--multiplayer-role=client"
+        ],
+        "steps": [
+          {
+            "type": "wait",
+            "frames": 180
+          },
+          {
+            "type": "checkpoint",
+            "id": "guest-peer-exchange"
+          }
+        ],
+        "assertions": [
+          {
+            "type": "scene_loaded"
+          },
+          {
+            "type": "metadata_capture",
+            "path": "/root/PeerExchangeEvidence",
+            "key": "evavo_peer_session_id"
+          },
+          {
+            "type": "metadata_capture",
+            "path": "/root/PeerExchangeEvidence",
+            "key": "evavo_local_peer_id"
+          },
+          {
+            "type": "metadata_capture",
+            "path": "/root/PeerExchangeEvidence",
+            "key": "evavo_observed_peer_ids"
+          }
+        ],
+        "ux": {
+          "captureControlTree": true,
+          "failOnBlackFrame": true,
+          "blackDurationSeconds": 3.0,
+          "failOnFrozenVideo": false,
+          "freezeDurationSeconds": 8.0
+        }
+      }
+    }
+  ]
+}
