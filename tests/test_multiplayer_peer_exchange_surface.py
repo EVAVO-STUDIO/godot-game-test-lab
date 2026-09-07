@@ -21,22 +21,65 @@ def test_multiplayer_launcher_cannot_drop_peer_exchange_verification() -> None:
         assert marker in text
 
 
+def test_multiplayer_runner_uses_capture_capable_harness_without_changing_native_driver() -> None:
+    runner = (ROOT / "src" / "godot_game_test_lab" / "multiplayer_qa.py").read_text(
+        encoding="utf-8"
+    )
+    native_runner = (
+        ROOT / "src" / "godot_game_test_lab" / "native_qa_runner.py"
+    ).read_text(encoding="utf-8")
+    harness = (ROOT / "scripts" / "godot_multiplayer_input_journey.gd").read_text(
+        encoding="utf-8"
+    )
+    for marker in (
+        'lab_root / "scripts" / "godot_input_journey.gd"',
+        'lab_root / "scripts" / "godot_multiplayer_input_journey.gd"',
+        '"res://.evavo-lab/godot_multiplayer_input_journey.gd"',
+    ):
+        assert marker in runner
+    assert '"res://.evavo-lab/godot_input_journey.gd"' in native_runner
+    assert 'godot_multiplayer_input_journey.gd' not in native_runner
+    for marker in (
+        'extends "res://.evavo-lab/godot_input_journey.gd"',
+        'assertion_type == "metadata_capture"',
+        'record["actual"] = capture.get("value")',
+        '"capture_key_not_reserved"',
+        'MAX_CAPTURE_OBSERVED_PEERS := 32',
+        'MAX_CAPTURE_PEER_ID := 2147483647',
+    ):
+        assert marker in harness
+
+
 def test_peer_exchange_reserved_contract_remains_narrow_and_explicit() -> None:
-    text = (
+    verifier = (
         ROOT / "src" / "godot_game_test_lab" / "multiplayer_peer_exchange.py"
+    ).read_text(encoding="utf-8")
+    profile = (
+        ROOT / "src" / "godot_game_test_lab" / "multiplayer_profile.py"
     ).read_text(encoding="utf-8")
     for marker in (
         '"evavo_peer_session_id"',
         '"evavo_local_peer_id"',
         '"evavo_observed_peer_ids"',
         '"evavo_authority_peer_id"',
+        '"metadata_capture"',
+        '"actual" not in observed',
+        "return observed.get(\"actual\")",
+        "local_peer in peers",
+        "shared authority peer id is not a participating required peer",
         "EVAVO_MULTIPLAYER_PEER_EXCHANGE=NOT_CONFIGURED",
         "EVAVO_MULTIPLAYER_PEER_EXCHANGE=PASS",
         "EVAVO_MULTIPLAYER_PEER_EXCHANGE=FAIL",
         "required_remote_ids.issubset(observed)",
         "transport causality",
     ):
-        assert marker in text
+        assert marker in verifier
+    for marker in (
+        "_CAPTURE_ALLOWED_KEYS",
+        "is not a reserved multiplayer evidence key",
+        "without advertising metadata_capture to standalone native QA",
+    ):
+        assert marker in profile
 
 
 def test_attended_receipt_reverifies_and_binds_peer_exchange() -> None:
