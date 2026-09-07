@@ -95,7 +95,7 @@ def test_metadata_capture_reuses_native_path_and_count_validation() -> None:
         normalize_multiplayer_profile(_profile_with_host_journey(host_journey))
 
 
-def test_metadata_capture_rejects_extra_fields_and_missing_key() -> None:
+def test_metadata_capture_rejects_extra_fields_missing_key_and_nonreserved_key() -> None:
     with pytest.raises(NativeQaError, match="unsupported fields"):
         normalize_multiplayer_profile(
             _profile_with_host_journey(
@@ -122,6 +122,22 @@ def test_metadata_capture_rejects_extra_fields_and_missing_key() -> None:
                         {
                             "type": "metadata_capture",
                             "path": "/root/PeerExchangeEvidence",
+                        }
+                    ],
+                }
+            )
+        )
+
+    with pytest.raises(NativeQaError, match="reserved multiplayer evidence key"):
+        normalize_multiplayer_profile(
+            _profile_with_host_journey(
+                {
+                    **_journey(),
+                    "assertions": [
+                        {
+                            "type": "metadata_capture",
+                            "path": "/root/PeerExchangeEvidence",
+                            "key": "access_token",
                         }
                     ],
                 }
