@@ -86,7 +86,7 @@ if (-not $AllowNonInteractive) {
 else {
     Write-Warning (
         "AllowNonInteractive is for contract tests only. This run cannot produce " +
-        "native desktop evidence."
+        "native desktop evidence and will never emit the native PASS marker."
     )
 }
 
@@ -125,8 +125,76 @@ if ($AllowNonInteractive) {
 }
 
 Write-Host "[godot-lab] Running exact-SHA concurrent multiplayer Windows agent QA."
-& $PythonExecutable @arguments
-if ($LASTEXITCODE -ne 0) {
-    throw "Multiplayer Windows agent QA failed with exit code $LASTEXITCODE."
+$global:LASTEXITCODE = 0
+$OutputLines = @(& $PythonExecutable @arguments 2>&1 | ForEach-Object { [string]$_ })
+$ExitCode = [int]$LASTEXITCODE
+$OutputLines | ForEach-Object { Write-Host $_ }
+if ($ExitCode -ne 0) {
+    throw "Multiplayer Windows agent QA failed with exit code $ExitCode."
 }
-Write-Host "[godot-lab] Multiplayer Windows agent QA passed."
+if ($OutputLines.Count -lt 1) {
+    throw "Multiplayer Windows agent QA produced no summary output."
+}
+
+$Summary = $null
+try {
+    $Summary = $OutputLines[-1] | ConvertFrom-Json -ErrorAction Stop
+}
+catch {
+    throw "Multiplayer Windows agent QA did not end with a valid JSON summary."
+}
+if ($null -eq $Summary) {
+    throw "Multiplayer Windows agent QA summary was empty."
+}
+if ([string]$Summary.status -ne "passed") {
+    throw "Multiplayer Windows agent QA summary did not report passed status."
+}
+if ([string]$Summary.labSha -ne $ExpectedLabSha) {
+    throw "Multiplayer Windows agent QA summary Lab SHA does not match the requested exact SHA."
+}
+if ([string]$Summary.targetSha -ne $ExpectedTargetSha) {
+    throw "Multiplayer Windows agent QA summary target SHA does not match the requested exact SHA."
+}
+if ([string]$Summary.sessionLabel -ne $SessionLabel) {
+    throw "Multiplayer Windows agent QA summary session label does not match the requested session."
+}
+$RunId = [string]$Summary.runId
+if ($RunId -notmatch '^multiplayer-[0-9]{8}T[0-9]{6}-[0-9a-f]{12}$') {
+    throw "Multiplayer Windows agent QA summary run ID is malformed."
+}
+
+$SummaryPath = Join-Path $ArtifactPath "multiplayer-agent-summary.json"
+if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
+    throw "Multiplayer Windows agent QA did not retain multiplayer-agent-summary.json."
+}
+try {
+    $RetainedSummary = Get-Content -LiteralPath $SummaryPath -Raw -Encoding utf8 | ConvertFrom-Json -ErrorAction Stop
+}
+catch {
+    throw "Retained multiplayer-agent-summary.json is not valid JSON."
+}
+foreach ($Field in @("runId", "status", "labSha", "targetSha", "sessionLabel")) {
+    if ([string]$RetainedSummary.$Field -ne [string]$Summary.$Field) {
+        throw "Retained multiplayer summary disagrees with process summary field '$Field'."
+    }
+}
+
+if ($AllowNonInteractive) {
+    Write-Host "EVAVO_MULTIPLAYER_AGENT_QA=CONTRACT_ONLY run_id=$RunId"
+    Write-Host "[godot-lab] Multiplayer contract run completed without native desktop evidence."
+    return
+}
+
+if ($Summary.nativeDesktopEvidence -ne $true -or $Summary.interactiveDesktopRequired -ne $true) {
+    throw "Interactive multiplayer QA did not retain native desktop evidence."
+}
+$SummaryFindings = @($Summary.findings)
+if ($SummaryFindings.Count -ne 0) {
+    throw "Interactive multiplayer QA summary contains findings and cannot emit native PASS evidence."
+}
+if ($RetainedSummary.nativeDesktopEvidence -ne $true -or $RetainedSummary.interactiveDesktopRequired -ne $true) {
+    throw "Retained multiplayer summary does not prove interactive native desktop evidence."
+}
+
+Write-Host "EVAVO_MULTIPLAYER_AGENT_QA=PASS run_id=$RunId"
+Write-Host "[godot-lab] Multiplayer Windows agent QA passed with exact-SHA native evidence."
