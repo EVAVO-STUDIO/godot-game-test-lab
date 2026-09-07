@@ -27,6 +27,7 @@ _REQUIRED_KEYS = {
     "evavo_local_peer_id",
     "evavo_observed_peer_ids",
 }
+_RESERVED_ASSERTION_TYPES = {"metadata_capture", "metadata_equals"}
 _MAX_ROLES = 8
 _MAX_OBSERVED_PEERS = 32
 _MAX_SESSION_BYTES = 256
@@ -138,7 +139,8 @@ def _reserved_assertions(journey: dict[str, Any]) -> dict[str, tuple[int, dict[s
         if not is_record(raw):
             _fail("normalized journey assertion must be an object")
         assertion = dict(raw)
-        if assertion.get("type") != "metadata_equals":
+        assertion_type = assertion.get("type")
+        if assertion_type not in _RESERVED_ASSERTION_TYPES:
             continue
         key = assertion.get("key")
         if key not in _RESERVED_KEYS:
@@ -160,14 +162,21 @@ def _accepted_value(
     if key not in configured:
         _fail(f"role {role_id} is missing reserved multiplayer assertion {key}")
     index, assertion = configured[key]
+    assertion_type = assertion.get("type")
     observed = harness.get(index)
     if (
         observed is None
-        or observed.get("type") != "metadata_equals"
+        or observed.get("type") != assertion_type
         or observed.get("accepted") is not True
     ):
         _fail(f"role {role_id} did not pass reserved multiplayer assertion {key}")
-    return assertion.get("value")
+    if assertion_type == "metadata_capture":
+        if "actual" not in observed:
+            _fail(f"role {role_id} reserved multiplayer capture {key} has no actual value")
+        return observed.get("actual")
+    if assertion_type == "metadata_equals":
+        return assertion.get("value")
+    _fail(f"role {role_id} reserved multiplayer assertion {key} has unsupported type")
 
 
 def verify_peer_exchange(
@@ -248,6 +257,7 @@ def verify_peer_exchange(
                 1 for role in profile_by_id.values() if role.get("required", True) is True
             ),
             "authorityObserved": False,
+            "dynamicCaptureRoleCount": 0,
             "roles": [],
             "findings": [],
             "truthBoundary": (
@@ -272,9 +282,9 @@ def verify_peer_exchange(
     observed_peer_ids: dict[str, list[int]] = {}
     authority_peer_ids: dict[str, int] = {}
     authority_configured_count = 0
+    dynamic_capture_role_count = 0
 
     for role_id in required_ids:
-        profile_role = profile_by_id[role_id]
         summary_role = summary_by_id[role_id]
         if summary_role.get("required") is not True or summary_role.get("status") != "passed":
             findings.append(f"required role {role_id} did not pass as required")
@@ -288,6 +298,14 @@ def verify_peer_exchange(
             continue
         try:
             harness = _assertion_records(summary_role)
+            capture_keys = sorted(
+                key
+                for key, (_index, assertion) in configured_assertions.items()
+                if assertion.get("type") == "metadata_capture"
+            )
+            if set(_REQUIRED_KEYS).issubset(capture_keys):
+                dynamic_capture_role_count += 1
+
             session_value = _bounded_session(
                 _accepted_value(
                     role_id=role_id,
@@ -320,6 +338,8 @@ def verify_peer_exchange(
             ]
             if len(set(peers)) != len(peers):
                 _fail(f"role {role_id} observed peer ids contain duplicates")
+            if local_peer in peers:
+                _fail(f"role {role_id} observed peer ids include its local peer id")
 
             authority_peer: int | None = None
             if "evavo_authority_peer_id" in configured_assertions:
@@ -345,6 +365,7 @@ def verify_peer_exchange(
                     "localPeerId": local_peer,
                     "observedPeerIds": peers,
                     "authorityPeerId": authority_peer,
+                    "dynamicRequiredMetadataCaptured": set(_REQUIRED_KEYS).issubset(capture_keys),
                     "reservedAssertionsAccepted": True,
                 }
             )
@@ -364,6 +385,12 @@ def verify_peer_exchange(
                 findings.append(
                     f"role {role_id} did not report every other required peer as observed"
                 )
+        if authority_configured_count == len(required_ids):
+            shared_authorities = set(authority_peer_ids.values())
+            if len(shared_authorities) == 1:
+                shared_authority = next(iter(shared_authorities))
+                if shared_authority not in expected_peer_ids:
+                    findings.append("shared authority peer id is not a participating required peer")
     if authority_configured_count not in {0, len(required_ids)}:
         findings.append("authority peer evidence is only partially configured across required roles")
     if authority_configured_count == len(required_ids) and len(set(authority_peer_ids.values())) != 1:
@@ -376,12 +403,15 @@ def verify_peer_exchange(
         "proven": proven,
         "requiredRoleCount": len(required_ids),
         "authorityObserved": authority_configured_count == len(required_ids) and proven,
+        "dynamicCaptureRoleCount": dynamic_capture_role_count,
         "roles": role_evidence,
         "findings": sorted(set(findings)),
         "truthBoundary": (
             "A proven result means the required role journeys all passed game-owned metadata "
-            "assertions for one shared session, unique local peer ids, and reciprocal peer "
-            "observation. It does not by itself prove transport causality, hostile-network "
+            "evidence for one shared session, unique local peer ids, and reciprocal peer "
+            "observation. metadata_capture values come from the running game rather than the "
+            "profile. Legacy metadata_equals assertions remain supported for fixed-value "
+            "contracts. Neither form by itself proves transport causality, hostile-network "
             "resilience, complete authority enforcement, game feel, or release readiness."
         ),
     }
