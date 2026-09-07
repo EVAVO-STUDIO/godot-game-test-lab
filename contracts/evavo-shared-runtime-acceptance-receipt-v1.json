@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evavo.local/contracts/evavo-shared-runtime-acceptance-receipt-v1.json",
+  "title": "EVAVO Shared Runtime Acceptance Receipt",
+  "type": "object",
+  "required": [
+    "version",
+    "generated_utc",
+    "status",
+    "test_lab",
+    "repositories",
+    "commands",
+    "issues",
+    "claims"
+  ],
+  "properties": {
+    "version": {"const": 1},
+    "generated_utc": {"type": "string", "minLength": 1},
+    "status": {"enum": ["passed", "failed", "source_only"]},
+    "test_lab": {"$ref": "#/$defs/repositoryEvidence"},
+    "repositories": {
+      "type": "object",
+      "required": ["game_runtime", "engine_systems", "web_runtime"],
+      "properties": {
+        "game_runtime": {"$ref": "#/$defs/repositoryEvidence"},
+        "engine_systems": {"$ref": "#/$defs/repositoryEvidence"},
+        "web_runtime": {
+          "anyOf": [
+            {"$ref": "#/$defs/repositoryEvidence"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "godot": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["path", "version"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        {"type": "null"}
+      ]
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "repository", "status", "exit_code", "duration_ms", "log_path"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "repository": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "skipped"]},
+          "exit_code": {"type": "integer"},
+          "duration_ms": {"type": "integer", "minimum": 0},
+          "log_path": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": true
+      }
+    },
+    "issues": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "claims": {
+      "type": "object",
+      "required": [
+        "source_only_is_executable_pass",
+        "dirty_checkout_is_release_evidence",
+        "networking_contracts_executed",
+        "game_runtime_contracts_executed",
+        "web_runtime_contracts_executed"
+      ],
+      "properties": {
+        "source_only_is_executable_pass": {"const": false},
+        "dirty_checkout_is_release_evidence": {"const": false},
+        "networking_contracts_executed": {"type": "boolean"},
+        "game_runtime_contracts_executed": {"type": "boolean"},
+        "web_runtime_contracts_executed": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "repositoryEvidence": {
+      "type": "object",
+      "required": ["path", "sha", "branch", "dirty"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "branch": {"type": "string", "minLength": 1},
+        "dirty": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
