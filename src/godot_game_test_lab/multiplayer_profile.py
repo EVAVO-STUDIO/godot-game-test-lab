@@ -11,6 +11,12 @@ _TOP_LEVEL_KEYS = {"roles", "schemaVersion"}
 _ROLE_KEYS = {"id", "journey", "personaId", "required", "startDelayMs"}
 _CAPTURE_ASSERTION_TYPE = "metadata_capture"
 _CAPTURE_ASSERTION_KEYS = {"key", "path", "type"}
+_CAPTURE_ALLOWED_KEYS = {
+    "evavo_peer_session_id",
+    "evavo_local_peer_id",
+    "evavo_observed_peer_ids",
+    "evavo_authority_peer_id",
+}
 
 
 def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], label: str) -> None:
@@ -48,6 +54,10 @@ def _prepare_capture_assertions(
             maximum_bytes=128,
             allow_empty=False,
         )
+        if key not in _CAPTURE_ALLOWED_KEYS:
+            raise NativeQaError(
+                f"{assertion_label}.key is not a reserved multiplayer evidence key"
+            )
         captures[index] = {
             "type": _CAPTURE_ASSERTION_TYPE,
             "path": path,
