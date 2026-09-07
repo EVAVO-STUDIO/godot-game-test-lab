@@ -179,6 +179,29 @@ foreach ($Field in @("runId", "status", "labSha", "targetSha", "sessionLabel")) 
     }
 }
 
+$PeerExchangeArguments = @(
+    "-m", "godot_game_test_lab.multiplayer_peer_exchange",
+    "--summary", $SummaryPath,
+    "--artifacts", $ArtifactPath
+)
+$global:LASTEXITCODE = 0
+$PeerExchangeLines = @(
+    & $PythonExecutable @PeerExchangeArguments 2>&1 | ForEach-Object { [string]$_ }
+)
+$PeerExchangeExitCode = [int]$LASTEXITCODE
+$PeerExchangeLines | ForEach-Object { Write-Host $_ }
+if ($PeerExchangeExitCode -ne 0) {
+    throw "Configured multiplayer peer-exchange evidence did not prove reciprocal session participation."
+}
+$PeerExchangeMarkers = @(
+    $PeerExchangeLines | Where-Object {
+        $_ -match '^EVAVO_MULTIPLAYER_PEER_EXCHANGE=(PASS required_roles=[1-8]|NOT_CONFIGURED)$'
+    }
+)
+if ($PeerExchangeMarkers.Count -ne 1) {
+    throw "Multiplayer peer-exchange verifier did not emit exactly one admissible evidence marker."
+}
+
 if ($AllowNonInteractive) {
     Write-Host "EVAVO_MULTIPLAYER_AGENT_QA=CONTRACT_ONLY run_id=$RunId"
     Write-Host "[godot-lab] Multiplayer contract run completed without native desktop evidence."
