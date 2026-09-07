@@ -44,6 +44,10 @@ def _attestation_body(
         "labSha": evidence["labSha"],
         "targetSha": evidence["targetSha"],
         "sessionLabel": evidence["sessionLabel"],
+        "summarySha256": evidence["summarySha256"],
+        "artifactInventorySha256": evidence["artifactInventorySha256"],
+        "artifactCount": evidence["artifactCount"],
+        "artifactBytes": evidence["artifactBytes"],
         "operatorId": operator_id,
         "operatorIdentitySource": "windows-current-principal",
         "operatorIdentityCryptographicallyVerified": False,
@@ -86,6 +90,23 @@ def build_operator_attestation(
     )
     if session_id != evidence.get("windowsSessionId"):
         fail("ATTENDED_MULTIPLAYER_ATTESTATION_SESSION_MISMATCH")
+    summary_digest = digest(
+        evidence.get("summarySha256"), "ATTENDED_MULTIPLAYER_EVIDENCE_SUMMARY_DIGEST_INVALID"
+    )
+    inventory_digest = digest(
+        evidence.get("artifactInventorySha256"),
+        "ATTENDED_MULTIPLAYER_EVIDENCE_INVENTORY_DIGEST_INVALID",
+    )
+    artifact_count = positive_int(
+        evidence.get("artifactCount"), "ATTENDED_MULTIPLAYER_EVIDENCE_ARTIFACT_COUNT_INVALID"
+    )
+    artifact_bytes = positive_int(
+        evidence.get("artifactBytes"), "ATTENDED_MULTIPLAYER_EVIDENCE_ARTIFACT_BYTES_INVALID"
+    )
+    if summary_digest != evidence["summarySha256"] or inventory_digest != evidence["artifactInventorySha256"]:
+        fail("ATTENDED_MULTIPLAYER_EVIDENCE_DIGEST_NORMALIZATION_INVALID")
+    if artifact_count != evidence["artifactCount"] or artifact_bytes != evidence["artifactBytes"]:
+        fail("ATTENDED_MULTIPLAYER_EVIDENCE_ARTIFACT_TOTALS_INVALID")
     phrase = confirmation_phrase(str(evidence["runId"]))
     if confirmation != phrase:
         fail("ATTENDED_MULTIPLAYER_CONFIRMATION_MISMATCH")
@@ -159,6 +180,10 @@ def verify_operator_attestation(
         "targetSha": "TARGET_SHA",
         "sessionLabel": "SESSION_LABEL",
         "windowsSessionId": "SESSION",
+        "summarySha256": "SUMMARY_DIGEST",
+        "artifactInventorySha256": "ARTIFACT_INVENTORY_DIGEST",
+        "artifactCount": "ARTIFACT_COUNT",
+        "artifactBytes": "ARTIFACT_BYTES",
     }
     for field, suffix in mismatches.items():
         if attestation.get(field) != evidence[field]:
