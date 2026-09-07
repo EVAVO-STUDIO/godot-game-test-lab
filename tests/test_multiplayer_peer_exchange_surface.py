@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,3 +66,19 @@ def test_attended_receipt_reverifies_and_binds_peer_exchange() -> None:
         assert marker in receipt
     assert "attended-multiplayer-receipt.v1" in common
     assert "attended-multiplayer-receipt.v2" in common
+
+
+def test_peer_exchange_is_discoverable_in_capability_registry() -> None:
+    manifest = json.loads((ROOT / "evavo.capabilities.json").read_text(encoding="utf-8"))
+    capability = next(
+        item for item in manifest["capabilities"] if item["id"] == "testlab.qa.multiplayer"
+    )
+    assert "peer-exchange" in capability["tags"]
+    assert "python -m godot_game_test_lab.multiplayer_peer_exchange" in capability["entrypoints"]
+    assert "src/godot_game_test_lab/multiplayer_peer_exchange.py" in capability["entrypoints"]
+    assert "docs/MULTIPLAYER_PEER_EXCHANGE.md" in capability["entrypoints"]
+    assert (
+        "Game-owned reserved metadata assertions on every required role when peer-exchange proof is requested"
+        in capability["requires"]
+    )
+    assert "peer-exchange proof" in capability["description"].lower()
