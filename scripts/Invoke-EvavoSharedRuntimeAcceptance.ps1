@@ -27,6 +27,19 @@ if (-not $EngineSystemsPath) { $EngineSystemsPath = Join-Path $WorkspaceRoot "go
 if (-not $WebRuntimePath) { $WebRuntimePath = Join-Path $WorkspaceRoot "godot-web-runtime" }
 if (-not $OutputRoot) { $OutputRoot = Join-Path $LabRoot "artifacts\shared-runtime-acceptance" }
 
+$ExpectedNetworkingContracts = @(
+    "res://tests/godot/validate_multiplayer_peer_factory.gd",
+    "res://tests/godot/validate_network_clock_profile.gd",
+    "res://tests/godot/validate_entity_replication_envelope.gd",
+    "res://tests/godot/validate_entity_replication_receive_guard.gd",
+    "res://tests/godot/validate_replication_authority_contract.gd",
+    "res://tests/godot/validate_replication_visibility_policy.gd",
+    "res://tests/godot/validate_partition_handoff_protocol.gd",
+    "res://tests/godot/validate_network_state_buffers.gd",
+    "res://tests/godot/validate_network_reconciliation_pipeline.gd"
+)
+$ExpectedNetworkingAggregateMarker = "EVAVO_NETWORKING_CONTRACTS=PASS count=$($ExpectedNetworkingContracts.Count)"
+
 function Resolve-RepositoryEvidence {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -118,6 +131,63 @@ function Invoke-RecordedCommand {
     }
 }
 
+function Get-NetworkingEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$LogPath,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedContracts,
+        [Parameter(Mandatory = $true)][string]$AggregateMarker
+    )
+
+    $Lines = if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+        @(Get-Content -LiteralPath $LogPath | ForEach-Object { [string]$_ })
+    }
+    else {
+        @()
+    }
+    $Prefix = "[networking] PASS "
+    $ObservedContracts = @(
+        $Lines |
+            Where-Object { $_.Trim().StartsWith($Prefix, [StringComparison]::Ordinal) } |
+            ForEach-Object { $_.Trim().Substring($Prefix.Length) }
+    )
+    $Counts = @{}
+    foreach ($Contract in $ObservedContracts) {
+        if ($Counts.ContainsKey($Contract)) { $Counts[$Contract] = [int]$Counts[$Contract] + 1 }
+        else { $Counts[$Contract] = 1 }
+    }
+    $Missing = @($ExpectedContracts | Where-Object { -not $Counts.ContainsKey($_) })
+    $Unexpected = @($Counts.Keys | Where-Object { $_ -notin $ExpectedContracts } | Sort-Object)
+    $Duplicates = @($Counts.Keys | Where-Object { [int]$Counts[$_] -ne 1 } | Sort-Object)
+    $AggregateOccurrences = @($Lines | Where-Object { $_.Trim() -ceq $AggregateMarker }).Count
+    $Valid = (
+        $AggregateOccurrences -eq 1 -and
+        $ObservedContracts.Count -eq $ExpectedContracts.Count -and
+        $Missing.Count -eq 0 -and
+        $Unexpected.Count -eq 0 -and
+        $Duplicates.Count -eq 0
+    )
+    if ($Valid) {
+        for ($Index = 0; $Index -lt $ExpectedContracts.Count; $Index++) {
+            if ($ObservedContracts[$Index] -cne $ExpectedContracts[$Index]) {
+                $Valid = $false
+                break
+            }
+        }
+    }
+    return [ordered]@{
+        expected_contract_count = $ExpectedContracts.Count
+        observed_contract_count = $ObservedContracts.Count
+        aggregate_marker = $AggregateMarker
+        aggregate_marker_occurrences = $AggregateOccurrences
+        expected_contracts = @($ExpectedContracts)
+        observed_contracts = @($ObservedContracts)
+        missing_contracts = @($Missing)
+        unexpected_contracts = @($Unexpected)
+        duplicate_contracts = @($Duplicates)
+        valid = $Valid
+    }
+}
+
 $GameRuntime = Resolve-RepositoryEvidence -Path $GameRuntimePath -Name "evavo-game-runtime"
 $EngineSystems = Resolve-RepositoryEvidence -Path $EngineSystemsPath -Name "godot-engine-systems"
 $WebRuntime = Resolve-RepositoryEvidence -Path $WebRuntimePath -Name "godot-web-runtime" -Optional:$SkipWebRuntime
@@ -163,8 +233,13 @@ $EngineLog = Join-Path $RunRoot "godot-engine-systems-networking.log"
 if (-not (Test-Path -LiteralPath $EngineRunner -PathType Leaf)) {
     throw "godot-engine-systems networking runner is missing: $EngineRunner"
 }
-$Commands += Invoke-RecordedCommand -Name "engine-networking-contracts" -Repository "godot-engine-systems" -LogPath $EngineLog -Skip:$SourceOnly -Command {
+$EngineCommand = Invoke-RecordedCommand -Name "engine-networking-contracts" -Repository "godot-engine-systems" -LogPath $EngineLog -Skip:$SourceOnly -Command {
     & $EngineRunner -GodotPath $Godot
+}
+$Commands += $EngineCommand
+$NetworkingEvidence = Get-NetworkingEvidence -LogPath $EngineLog -ExpectedContracts $ExpectedNetworkingContracts -AggregateMarker $ExpectedNetworkingAggregateMarker
+if (-not $SourceOnly -and $EngineCommand.status -eq "passed" -and -not $NetworkingEvidence.valid) {
+    $Issues.Add("engine_networking_evidence_invalid")
 }
 
 $GameRunner = Join-Path $GameRuntime.path "scripts\validate.ps1"
@@ -211,6 +286,11 @@ foreach ($CommandResult in $Commands) {
     }
 }
 
+$NetworkingExecuted = (
+    -not $SourceOnly -and
+    $EngineCommand.status -eq "passed" -and
+    [bool]$NetworkingEvidence.valid
+)
 $Status = if ($Issues.Count -gt 0) { "failed" } elseif ($SourceOnly) { "source_only" } else { "passed" }
 $Receipt = [ordered]@{
     version = 1
@@ -224,11 +304,12 @@ $Receipt = [ordered]@{
     }
     godot = $GodotEvidence
     commands = $Commands
+    networking_evidence = $NetworkingEvidence
     issues = @($Issues)
     claims = [ordered]@{
         source_only_is_executable_pass = $false
         dirty_checkout_is_release_evidence = $false
-        networking_contracts_executed = (-not $SourceOnly -and ($Commands | Where-Object { $_.name -eq "engine-networking-contracts" -and $_.status -eq "passed" }).Count -eq 1)
+        networking_contracts_executed = $NetworkingExecuted
         game_runtime_contracts_executed = (($Commands | Where-Object { $_.name -eq "game-runtime-contracts" -and $_.status -eq "passed" }).Count -eq 1)
         web_runtime_contracts_executed = ($WebExecuted -and ($Commands | Where-Object { $_.name -eq "web-runtime-check" -and $_.status -eq "passed" }).Count -eq 1)
     }
