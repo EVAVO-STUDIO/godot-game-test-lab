@@ -3,18 +3,88 @@ from __future__ import annotations
 from typing import Any
 
 from .native_qa_common import _ID_RE, NativeQaError
-from .native_qa_profile import normalize_profile
+from .native_qa_profile import _bounded_string, normalize_profile
 
 _MAX_ROLES = 8
 _MAX_START_DELAY_MS = 120_000
 _TOP_LEVEL_KEYS = {"roles", "schemaVersion"}
 _ROLE_KEYS = {"id", "journey", "personaId", "required", "startDelayMs"}
+_CAPTURE_ASSERTION_TYPE = "metadata_capture"
+_CAPTURE_ASSERTION_KEYS = {"key", "path", "type"}
 
 
 def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], label: str) -> None:
     unknown = sorted(set(value) - allowed)
     if unknown:
         raise NativeQaError(f"{label} contains unsupported fields: {', '.join(unknown)}")
+
+
+def _prepare_capture_assertions(
+    journey: dict[str, Any], label: str
+) -> tuple[dict[str, Any], dict[int, dict[str, Any]]]:
+    raw_assertions = journey.get("assertions", [])
+    if not isinstance(raw_assertions, list):
+        return journey, {}
+
+    captures: dict[int, dict[str, Any]] = {}
+    prepared_assertions: list[Any] = []
+    for index, assertion in enumerate(raw_assertions):
+        assertion_label = f"{label}.assertions[{index}]"
+        if not isinstance(assertion, dict) or assertion.get("type") != _CAPTURE_ASSERTION_TYPE:
+            prepared_assertions.append(assertion)
+            continue
+        _reject_unknown_keys(assertion, _CAPTURE_ASSERTION_KEYS, assertion_label)
+        path = _bounded_string(
+            assertion.get("path"),
+            f"{assertion_label}.path",
+            minimum_bytes=1,
+            maximum_bytes=512,
+            allow_empty=False,
+        )
+        key = _bounded_string(
+            assertion.get("key"),
+            f"{assertion_label}.key",
+            minimum_bytes=1,
+            maximum_bytes=128,
+            allow_empty=False,
+        )
+        captures[index] = {
+            "type": _CAPTURE_ASSERTION_TYPE,
+            "path": path,
+            "key": key,
+        }
+        # Reuse the native assertion normalizer for path/count/order validation
+        # without advertising metadata_capture to standalone native QA.
+        prepared_assertions.append({"type": "node_exists", "path": path})
+
+    prepared = dict(journey)
+    prepared["assertions"] = prepared_assertions
+    return prepared, captures
+
+
+def _restore_capture_assertions(
+    journey: dict[str, Any], captures: dict[int, dict[str, Any]], label: str
+) -> dict[str, Any]:
+    if not captures:
+        return journey
+    assertions = journey.get("assertions")
+    if not isinstance(assertions, list):
+        raise NativeQaError(f"{label}.assertions normalization lost its assertion array")
+    restored = [dict(item) if isinstance(item, dict) else item for item in assertions]
+    for index, capture in captures.items():
+        if index >= len(restored):
+            raise NativeQaError(f"{label}.assertions normalization changed capture ordering")
+        placeholder = restored[index]
+        if (
+            not isinstance(placeholder, dict)
+            or placeholder.get("type") != "node_exists"
+            or placeholder.get("path") != capture["path"]
+        ):
+            raise NativeQaError(f"{label}.assertions normalization changed capture identity")
+        restored[index] = dict(capture)
+    result = dict(journey)
+    result["assertions"] = restored
+    return result
 
 
 def normalize_multiplayer_profile(profile: dict[str, Any]) -> dict[str, Any]:
@@ -71,9 +141,13 @@ def normalize_multiplayer_profile(profile: dict[str, Any]) -> dict[str, Any]:
         journey = dict(raw_journey)
         journey["id"] = role_id
         journey["required"] = required
+        prepared_journey, captures = _prepare_capture_assertions(journey, f"{label}.journey")
         normalized_journey = normalize_profile(
-            {"schemaVersion": "2.0", "journeys": [journey]}
+            {"schemaVersion": "2.0", "journeys": [prepared_journey]}
         )["journeys"][0]
+        normalized_journey = _restore_capture_assertions(
+            normalized_journey, captures, f"{label}.journey"
+        )
         normalized_roles.append(
             {
                 "id": role_id,
