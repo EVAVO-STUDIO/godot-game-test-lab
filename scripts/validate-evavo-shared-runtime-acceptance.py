@@ -197,14 +197,17 @@ def validate_receipt(payload: Any) -> None:
     if names != EXPECTED_COMMANDS:
         fail("receipt must contain exactly the three shared runtime acceptance commands")
 
+    by_name = {command["name"]: command for command in commands}
     networking_valid = validate_networking_evidence(root["networking_evidence"])
 
     issues = root["issues"]
     if not isinstance(issues, list) or not all(isinstance(item, str) and item for item in issues):
         fail("issues must be an array of non-empty strings")
     evidence_failure = "engine_networking_evidence_invalid" in issues
-    if evidence_failure == networking_valid:
-        fail("engine networking evidence issue does not match networking_evidence.valid")
+    engine_process_passed = by_name["engine-networking-contracts"]["status"] == "passed"
+    should_have_evidence_failure = status != "source_only" and engine_process_passed and not networking_valid
+    if evidence_failure != should_have_evidence_failure:
+        fail("engine networking evidence issue does not match command and marker evidence")
     if status == "failed" and failures == 0 and not evidence_failure:
         fail("failed receipt must contain a failed command or invalid networking evidence")
     if status != "failed" and (failures != 0 or evidence_failure):
@@ -228,10 +231,7 @@ def validate_receipt(payload: Any) -> None:
         if not isinstance(claims[name], bool):
             fail(f"claims.{name} must be boolean")
 
-    by_name = {command["name"]: command for command in commands}
-    expected_networking = (
-        by_name["engine-networking-contracts"]["status"] == "passed" and networking_valid
-    )
+    expected_networking = engine_process_passed and networking_valid
     expected_game = by_name["game-runtime-contracts"]["status"] == "passed"
     expected_web = by_name["web-runtime-check"]["status"] == "passed"
     if claims["networking_contracts_executed"] != expected_networking:
@@ -257,6 +257,8 @@ def validate_receipt(payload: Any) -> None:
     elif status == "source_only":
         if expected_networking:
             fail("source_only receipt cannot claim executable engine networking contracts")
+        if evidence_failure:
+            fail("source_only receipt cannot claim invalid executable networking evidence")
         if root["networking_evidence"]["observed_contract_count"] != 0:
             fail("source_only receipt cannot contain executed networking contract evidence")
         if root["networking_evidence"]["aggregate_marker_occurrences"] != 0:
