@@ -54,6 +54,7 @@ def _receipt() -> dict[str, object]:
         "truthBoundary": "This proves WebSocket transport, but does not prove that a browser-hosted Godot player traversed the path.",
         "runtimeOrigin": "https://runtime.example.test",
         "authorityOrigin": "wss://authority.example.test",
+        "authoritySourceSha": "a" * 40,
         "releaseId": "0.1.0-dev",
         "releaseChannel": "development",
         "runtimeSessionIssuerProven": True,
@@ -63,6 +64,7 @@ def _receipt() -> dict[str, object]:
         "authorityCapabilities": [
             "authoritative-room-presence",
             "stale-socket-send-rejection",
+            "source-bound-deployment",
         ],
     }
 
@@ -83,6 +85,8 @@ def test_verifies_runtime_to_authority_websocket_lifecycle_without_claiming_brow
     assert result["reconnectIdentityContinuityProven"] is True
     assert result["runtimeSessionRotationProven"] is True
     assert result["completeRoomCoverageProven"] is True
+    assert result["deploymentSourceBound"] is True
+    assert result["authoritySourceSha"] == "a" * 40
     assert result["privacySafe"] is True
     assert result["requiredRoleCount"] == 2
     assert result["departedRoleId"] == "beta"
@@ -142,8 +146,19 @@ def test_insecure_non_loopback_origins_are_rejected(tmp_path: Path) -> None:
 
 def test_required_authority_capabilities_cannot_be_forged_or_omitted(tmp_path: Path) -> None:
     receipt = _receipt()
-    receipt["authorityCapabilities"] = ["authoritative-room-presence", "other"]
+    receipt["authorityCapabilities"] = [
+        "authoritative-room-presence",
+        "stale-socket-send-rejection",
+        "other",
+    ]
     with pytest.raises(subject.RuntimeAuthorityPeerExchangeError, match="required capabilities"):
+        subject.verify_runtime_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_authority_source_sha_is_required(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["authoritySourceSha"] = "not-a-sha"
+    with pytest.raises(subject.RuntimeAuthorityPeerExchangeError, match="authority source SHA"):
         subject.verify_runtime_authority_peer_exchange(_write(tmp_path, receipt))
 
 
