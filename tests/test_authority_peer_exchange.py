@@ -95,6 +95,7 @@ def test_proves_reciprocal_departure_and_reconnect_lifecycle(tmp_path: Path) -> 
     assert result["proven"] is True
     assert result["requiredRoleCount"] == 2
     assert result["privacySafe"] is True
+    assert result["receiptBytes"] > 0
     assert result["phases"] == ["single", "reciprocal", "departure", "reconnect"]
 
 
@@ -119,6 +120,13 @@ def test_reconnect_must_restore_reciprocal_role_inventory(tmp_path: Path) -> Non
         subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
 
 
+def test_single_role_must_exist_in_reciprocal_phase(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["phases"][0]["roles"][0]["id"] = "observer"
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="single phase role"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
 def test_identity_or_credential_leak_claim_fails_closed(tmp_path: Path) -> None:
     for key in ("rawPlayerIdsTransmitted", "runtimeSessionIdsTransmitted", "credentialsTransmitted"):
         receipt = _receipt()
@@ -127,8 +135,30 @@ def test_identity_or_credential_leak_claim_fails_closed(tmp_path: Path) -> None:
             subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
 
 
+def test_privacy_values_must_be_literal_booleans(tmp_path: Path) -> None:
+    for invalid in (0, "", None):
+        receipt = _receipt()
+        receipt["privacy"]["credentialsTransmitted"] = invalid
+        with pytest.raises(subject.AuthorityPeerExchangeError, match="privacy values must be booleans"):
+            subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
 def test_unexpected_fields_are_rejected(tmp_path: Path) -> None:
     receipt = _receipt()
     receipt["rawPlayerIds"] = ["secret"]
     with pytest.raises(subject.AuthorityPeerExchangeError, match="unexpected fields"):
         subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_oversized_receipt_is_rejected_before_json_parsing(tmp_path: Path) -> None:
+    path = tmp_path / "authority-peer-exchange.json"
+    path.write_bytes(b"{" + (b" " * (subject._MAX_RECEIPT_BYTES + 1)) + b"}")
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="receipt size is invalid"):
+        subject.verify_authority_peer_exchange(path)
+
+
+def test_utf16_receipt_is_rejected_instead_of_silently_transcoded(tmp_path: Path) -> None:
+    path = tmp_path / "authority-peer-exchange.json"
+    path.write_text(json.dumps(_receipt()), encoding="utf-16")
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="receipt encoding is invalid"):
+        subject.verify_authority_peer_exchange(path)
