@@ -8,6 +8,7 @@ from typing import Any
 _MAX_ROLES = 32
 _MAX_SESSION_BYTES = 256
 _MAX_LABEL_BYTES = 64
+_MAX_RECEIPT_BYTES = 128 * 1024
 _PHASES = ("single", "reciprocal", "departure", "reconnect")
 
 
@@ -78,13 +79,27 @@ def _require_reciprocal(roles: dict[str, dict[str, Any]], label: str) -> None:
             _fail(f"{label} role {role['id']} does not report the exact reciprocal peer set")
 
 
-def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
+def _load_receipt(receipt_path: Path) -> dict[str, Any]:
     try:
-        raw = json.loads(receipt_path.read_text(encoding="utf-8"))
+        stat = receipt_path.stat()
+    except OSError as error:
+        raise AuthorityPeerExchangeError("authority peer-exchange receipt is unreadable") from error
+    if not receipt_path.is_file() or stat.st_size < 2 or stat.st_size > _MAX_RECEIPT_BYTES:
+        _fail("authority peer-exchange receipt size is invalid")
+    try:
+        payload = receipt_path.read_bytes()
+        if len(payload) != stat.st_size or payload.startswith((b"\xff\xfe", b"\xfe\xff")):
+            _fail("authority peer-exchange receipt encoding is invalid")
+        raw = json.loads(payload.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise AuthorityPeerExchangeError("authority peer-exchange receipt is unreadable") from error
     if not isinstance(raw, dict):
         _fail("authority peer-exchange receipt must be an object")
+    return raw
+
+
+def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
+    raw = _load_receipt(receipt_path)
     expected_top = {
         "schemaVersion",
         "kind",
@@ -110,13 +125,16 @@ def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
     _bounded_text(raw.get("truthBoundary"), "truth boundary", 1024)
 
     privacy = raw.get("privacy")
-    if not isinstance(privacy, dict) or set(privacy) != {
+    privacy_keys = {
         "rawPlayerIdsTransmitted",
         "runtimeSessionIdsTransmitted",
         "credentialsTransmitted",
-    }:
+    }
+    if not isinstance(privacy, dict) or set(privacy) != privacy_keys:
         _fail("authority peer-exchange privacy statement is invalid")
-    if any(privacy.values()):
+    if any(type(privacy[key]) is not bool for key in privacy_keys):
+        _fail("authority peer-exchange privacy values must be booleans")
+    if any(privacy[key] is not False for key in privacy_keys):
         _fail("authority peer-exchange receipt reports identity or credential leakage")
 
     phases = raw.get("phases")
@@ -144,6 +162,8 @@ def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
         _fail("single phase must not observe another peer")
     if not 2 <= len(reciprocal) <= _MAX_ROLES:
         _fail("reciprocal phase must contain at least two roles")
+    if str(only_single["id"]) not in reciprocal:
+        _fail("single phase role is not present in reciprocal phase")
     _require_reciprocal(reciprocal, "reciprocal phase")
     if departed_role not in reciprocal:
         _fail("departed role was not present in reciprocal phase")
@@ -165,6 +185,7 @@ def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
         "departedRoleId": departed_role,
         "phases": list(_PHASES),
         "privacySafe": True,
+        "receiptBytes": receipt_path.stat().st_size,
         "truthBoundary": (
             "This proves the retained server-authority lifecycle receipt has one shared session, "
             "exact reciprocal peer observation, departure revocation, reconnect restoration, and "
