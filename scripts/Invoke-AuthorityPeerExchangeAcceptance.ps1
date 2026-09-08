@@ -23,14 +23,14 @@ function ConvertTo-WindowsCommandLineArgument {
     }
 
     $builder = New-Object System.Text.StringBuilder
-    [void]$builder.Append('"')
+    [void]$builder.Append('"'.Substring(1))
     $slashes = 0
     foreach ($character in $Value.ToCharArray()) {
         if ($character -eq '\') {
             $slashes += 1
             continue
         }
-        if ($character -eq '"') {
+        if ($character -eq [char]34) {
             if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
             [void]$builder.Append('\"')
             $slashes = 0
@@ -43,7 +43,7 @@ function ConvertTo-WindowsCommandLineArgument {
         [void]$builder.Append($character)
     }
     if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
-    [void]$builder.Append('"')
+    [void]$builder.Append('"'.Substring(1))
     return $builder.ToString()
 }
 
