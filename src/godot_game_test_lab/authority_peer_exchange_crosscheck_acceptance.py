@@ -46,7 +46,7 @@ _MANIFEST_FIELDS = {
 }
 _REPOSITORY_FIELDS = {"sha", "branch", "dirty"}
 _EMITTER_FIELDS = {"relativePath", "marker", "markerOccurrences", "requiredRoleCount"}
-_VERIFIER_FIELDS = {
+_VERIFIER_V1_FIELDS = {
     "marker",
     "markerOccurrences",
     "requiredRoleCount",
@@ -57,6 +57,10 @@ _VERIFIER_FIELDS = {
     "standardPeerExchangeProven",
     "transportProven",
     "browserTransportProven",
+}
+_VERIFIER_V2_FIELDS = _VERIFIER_V1_FIELDS | {
+    "authorityReceiptSchemaVersion",
+    "staleSocketInboundRejectedProven",
 }
 _EVIDENCE_FIELDS = {"authorityReceiptSha256", "profileSha256", "summarySha256"}
 _EVIDENCE_FILES = {
@@ -126,9 +130,18 @@ def verify_authority_peer_exchange_crosscheck_acceptance(manifest_path: Path) ->
         _fail("authority crosscheck acceptance manifest changed during verification")
     if set(manifest) != _MANIFEST_FIELDS:
         _fail("authority crosscheck acceptance manifest fields are invalid")
+
+    schema = manifest.get("schemaVersion")
+    if schema == "1.0":
+        acceptance_schema = 1
+        verifier_fields = _VERIFIER_V1_FIELDS
+    elif schema == "2.0":
+        acceptance_schema = 2
+        verifier_fields = _VERIFIER_V2_FIELDS
+    else:
+        _fail("authority crosscheck acceptance schemaVersion must be 1.0 or 2.0")
     if (
-        manifest.get("schemaVersion") != "1.0"
-        or manifest.get("kind") != "evavo-authority-peer-exchange-semantic-crosscheck"
+        manifest.get("kind") != "evavo-authority-peer-exchange-semantic-crosscheck"
         or manifest.get("status") != "passed"
     ):
         _fail("authority crosscheck acceptance schema, kind, or status is invalid")
@@ -177,7 +190,7 @@ def verify_authority_peer_exchange_crosscheck_acceptance(manifest_path: Path) ->
             "authority crosscheck emitter output path is invalid"
         ) from error
 
-    verifier = _exact_fields(manifest.get("verifier"), _VERIFIER_FIELDS, "verifier")
+    verifier = _exact_fields(manifest.get("verifier"), verifier_fields, "verifier")
     verifier_marker = verifier.get("marker")
     verifier_match = (
         _VERIFIER_MARKER_RE.fullmatch(verifier_marker) if isinstance(verifier_marker, str) else None
@@ -203,6 +216,10 @@ def verify_authority_peer_exchange_crosscheck_acceptance(manifest_path: Path) ->
         "transportProven": False,
         "browserTransportProven": False,
     }
+    if acceptance_schema >= 2:
+        expected_verifier_flags["staleSocketInboundRejectedProven"] = True
+        if verifier.get("authorityReceiptSchemaVersion") != 3:
+            _fail("authority crosscheck v2 requires authority receipt schema v3")
     for key, expected in expected_verifier_flags.items():
         if verifier.get(key) is not expected:
             _fail(f"authority crosscheck verifier claim is invalid: {key}")
@@ -249,6 +266,13 @@ def verify_authority_peer_exchange_crosscheck_acceptance(manifest_path: Path) ->
         "transportProven": False,
         "browserTransportProven": False,
     }
+    if acceptance_schema >= 2:
+        comparisons.update(
+            {
+                "authorityReceiptSchemaVersion": 3,
+                "staleSocketInboundRejectedProven": True,
+            }
+        )
     for key, expected in comparisons.items():
         if verified.get(key) != expected:
             _fail(f"authority crosscheck verifier claim disagrees with retained evidence: {key}")
@@ -265,11 +289,13 @@ def verify_authority_peer_exchange_crosscheck_acceptance(manifest_path: Path) ->
 
     return {
         "schemaVersion": 1,
-        "acceptanceSchemaVersion": 1,
+        "acceptanceSchemaVersion": acceptance_schema,
         "proven": True,
         "semanticViewsAgree": True,
         "authorityLifecycleProven": True,
         "authoritySafetyProven": True,
+        "staleSocketInboundRejectedProven": verified.get("staleSocketInboundRejectedProven") is True,
+        "authorityReceiptSchemaVersion": verified.get("authorityReceiptSchemaVersion"),
         "standardPeerExchangeProven": True,
         "dynamicCaptureRoleCount": dynamic_roles,
         "transportProven": False,
@@ -287,7 +313,8 @@ def verify_authority_peer_exchange_crosscheck_acceptance(manifest_path: Path) ->
         "truthBoundary": (
             "This independently reopens the retained authority/Test Lab semantic bundle, verifies "
             "its exact evidence digests, reruns both semantic verifiers, and binds the result to "
-            "clean main-branch SHAs recorded by the runner. It still does not prove browser or "
+            "clean main-branch SHAs recorded by the runner. Acceptance v2 additionally binds "
+            "receipt-v3 stale inbound-message rejection. It still does not prove browser or "
             "native production-transport traversal."
         ),
     }
