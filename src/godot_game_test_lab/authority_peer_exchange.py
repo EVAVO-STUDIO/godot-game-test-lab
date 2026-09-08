@@ -16,9 +16,12 @@ _MAX_SESSION_BYTES = 256
 _MAX_LABEL_BYTES = 64
 _MAX_RECEIPT_BYTES = 128 * 1024
 _PHASES = ("single", "reciprocal", "departure", "reconnect")
-_AUTHORITY_SAFETY_KEYS = {
+_AUTHORITY_SAFETY_V2_KEYS = {
     "supersededSocketRetired",
     "staleSocketSendRejected",
+}
+_AUTHORITY_SAFETY_V3_KEYS = _AUTHORITY_SAFETY_V2_KEYS | {
+    "staleSocketMessageRejected",
 }
 _V1_FIELDS = {
     "schemaVersion",
@@ -33,6 +36,7 @@ _V1_FIELDS = {
     "truthBoundary",
 }
 _V2_FIELDS = _V1_FIELDS | {"authoritySafety"}
+_V3_FIELDS = _V2_FIELDS
 
 
 class AuthorityPeerExchangeError(ValueError):
@@ -127,30 +131,40 @@ def _load_receipt(receipt_path: Path) -> tuple[dict[str, Any], int]:
     return raw, stat.st_size
 
 
-def _receipt_schema(raw: dict[str, Any]) -> tuple[int, bool]:
+def _authority_safety(raw: dict[str, Any], keys: set[str]) -> dict[str, bool]:
+    safety = raw.get("authoritySafety")
+    if not isinstance(safety, dict) or set(safety) != keys:
+        _fail("authority peer-exchange authority safety statement is invalid")
+    if any(type(safety[key]) is not bool for key in keys):
+        _fail("authority peer-exchange authority safety values must be booleans")
+    if any(safety[key] is not True for key in keys):
+        _fail("authority peer-exchange receipt does not prove stale-socket authority retirement")
+    return safety
+
+
+def _receipt_schema(raw: dict[str, Any]) -> tuple[int, bool, bool]:
     schema = raw.get("schemaVersion")
     if schema == "1.0":
         if set(raw) != _V1_FIELDS:
             _fail("authority peer-exchange receipt has unexpected fields")
-        return 1, False
+        return 1, False, False
     if schema == "2.0":
         if set(raw) != _V2_FIELDS:
             _fail("authority peer-exchange receipt has unexpected fields")
-        safety = raw.get("authoritySafety")
-        if not isinstance(safety, dict) or set(safety) != _AUTHORITY_SAFETY_KEYS:
-            _fail("authority peer-exchange authority safety statement is invalid")
-        if any(type(safety[key]) is not bool for key in _AUTHORITY_SAFETY_KEYS):
-            _fail("authority peer-exchange authority safety values must be booleans")
-        if any(safety[key] is not True for key in _AUTHORITY_SAFETY_KEYS):
-            _fail("authority peer-exchange receipt does not prove stale-socket authority retirement")
-        return 2, True
+        _authority_safety(raw, _AUTHORITY_SAFETY_V2_KEYS)
+        return 2, True, False
+    if schema == "3.0":
+        if set(raw) != _V3_FIELDS:
+            _fail("authority peer-exchange receipt has unexpected fields")
+        _authority_safety(raw, _AUTHORITY_SAFETY_V3_KEYS)
+        return 3, True, True
     _fail("authority peer-exchange receipt schema is unsupported")
     raise AssertionError("unreachable")
 
 
 def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
     raw, receipt_bytes = _load_receipt(receipt_path)
-    receipt_schema, authority_safety_proven = _receipt_schema(raw)
+    receipt_schema, authority_safety_proven, stale_inbound_rejected = _receipt_schema(raw)
     if raw.get("kind") != "evavo-authority-peer-exchange-lifecycle":
         _fail("authority peer-exchange receipt schema is unsupported")
 
@@ -247,14 +261,16 @@ def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
         "privacySafe": True,
         "stablePeerMapping": True,
         "authoritySafetyProven": authority_safety_proven,
+        "staleSocketInboundRejectedProven": stale_inbound_rejected,
         "receiptBytes": receipt_bytes,
         "truthBoundary": (
             "This proves the retained server-authority lifecycle receipt has one shared session, "
             "exact reciprocal peer observation, departure revocation, reconnect restoration with "
             "a stable ephemeral peer mapping, and no declared raw identity or credential "
             "transmission. Receipt v2 additionally binds superseded-socket retirement and stale "
-            "socket send rejection. It does not by itself prove a browser or native client "
-            "traversed the production transport path."
+            "outbound-send rejection; receipt v3 also binds stale inbound-message rejection. It "
+            "does not by itself prove a browser or native client traversed the production "
+            "transport path."
         ),
     }
 
