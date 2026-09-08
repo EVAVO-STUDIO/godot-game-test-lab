@@ -41,6 +41,7 @@ def _transport(*, browser: bool = False, godot: bool = False) -> dict[str, objec
         "godotPlayerTransportProven": godot if browser and not godot else False,
         "godotWebPlayerTransportProven": godot,
         "runtimeHandoffConsumedByGodotProven": godot,
+        "descriptorSignatureCryptographicallyVerifiedByThisProbe": godot,
         "deploymentSourceBound": True,
         "privacySafe": True,
         "reconnectIdentityContinuityProven": True,
@@ -67,9 +68,11 @@ def test_accepts_four_aligned_evidence_tiers(monkeypatch: pytest.MonkeyPatch) ->
         Path("authority.json"), Path("runtime.json"), Path("browser.json"), Path("godot.json")
     )
     assert result["proven"] is True
+    assert result["schemaVersion"] == 2
     assert result["tierCount"] == 4
-    assert result["highestTier"] == "godot-web-player"
+    assert result["highestTier"] == "godot-web-player-cryptographic-release"
     assert result["godotWebPlayerTransportProven"] is True
+    assert result["descriptorSignatureCryptographicallyVerified"] is True
 
 
 def test_rejects_cross_deployment_authority_sha_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,6 +114,17 @@ def test_rejects_missing_current_authority_stale_socket_safety(monkeypatch: pyte
     authority["staleSocketInboundRejectedProven"] = False
     monkeypatch.setattr(ladder, "verify_authority_peer_exchange", lambda _path: authority)
     with pytest.raises(ladder.MultiplayerEvidenceLadderError, match="stale-socket safety"):
+        ladder.verify_multiplayer_evidence_ladder(
+            Path("authority.json"), Path("runtime.json"), Path("browser.json"), Path("godot.json")
+        )
+
+
+def test_rejects_legacy_envelope_only_godot_web_top_tier(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch(monkeypatch)
+    godot = _transport(browser=True, godot=True)
+    godot["descriptorSignatureCryptographicallyVerifiedByThisProbe"] = False
+    monkeypatch.setattr(ladder, "verify_godot_web_authority_peer_exchange", lambda _path: godot)
+    with pytest.raises(ladder.MultiplayerEvidenceLadderError, match="cryptographic descriptor verification"):
         ladder.verify_multiplayer_evidence_ladder(
             Path("authority.json"), Path("runtime.json"), Path("browser.json"), Path("godot.json")
         )
