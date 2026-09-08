@@ -220,8 +220,9 @@ if ([string]::IsNullOrWhiteSpace($JsonLine)) {
 $Verified = $JsonLine | ConvertFrom-Json
 if (
     $Verified.proven -ne $true -or
-    $Verified.receiptSchemaVersion -ne 2 -or
+    $Verified.receiptSchemaVersion -ne 3 -or
     $Verified.authoritySafetyProven -ne $true -or
+    $Verified.staleSocketInboundRejectedProven -ne $true -or
     $Verified.authorityLifecycleProven -ne $true -or
     $Verified.departureRevocationProven -ne $true -or
     $Verified.reconnectPeerSemanticsProven -ne $true -or
@@ -229,7 +230,7 @@ if (
     $Verified.browserTransportProven -ne $false -or
     [int]$Verified.requiredRoleCount -ne $ExpectedRoleCount
 ) {
-    throw "Test Lab verifier result does not satisfy the authority lifecycle contract."
+    throw "Test Lab verifier result does not satisfy the authority lifecycle v3 contract."
 }
 if (-not [string]::IsNullOrWhiteSpace($ExpectedGameId) -and [string]$Verified.gameId -ne $ExpectedGameId) {
     throw "Authority peer-exchange game ID mismatch: expected '$ExpectedGameId', found '$($Verified.gameId)'."
@@ -243,7 +244,7 @@ $ReceiptDigest = (Get-FileHash -LiteralPath $ReceiptPath -Algorithm SHA256).Hash
 $EvidenceGrade = "diagnostic"
 if (-not $AllowDirty) {
     $Acceptance = [ordered]@{
-        schemaVersion = "3.0"
+        schemaVersion = "4.0"
         kind = "evavo-authority-peer-exchange-acceptance"
         status = "passed"
         runId = $RunId
@@ -276,6 +277,7 @@ if (-not $AllowDirty) {
             authorityLifecycleProven = $true
             transportProven = $false
             browserTransportProven = $false
+            staleSocketInboundRejectedProven = $true
         }
         sourceUnchanged = $true
     }
@@ -299,20 +301,21 @@ if (-not $AllowDirty) {
     }
     $Accepted = $AcceptanceJsonLine | ConvertFrom-Json
     if (
-        $Accepted.acceptanceSchemaVersion -ne 3 -or
-        $Accepted.receiptSchemaVersion -ne 2 -or
+        $Accepted.acceptanceSchemaVersion -ne 4 -or
+        $Accepted.receiptSchemaVersion -ne 3 -or
         $Accepted.proven -ne $true -or
         $Accepted.authorityLifecycleProven -ne $true -or
         $Accepted.authoritySafetyProven -ne $true -or
+        $Accepted.staleSocketInboundRejectedProven -ne $true -or
         $Accepted.transportProven -ne $false -or
         $Accepted.browserTransportProven -ne $false -or
         $Accepted.sourceBound -ne $true -or
         [string]$Accepted.receiptSha256 -ne $ReceiptDigest
     ) {
-        throw "Test Lab authority acceptance result does not satisfy the source-bound v3 contract."
+        throw "Test Lab authority acceptance result does not satisfy the source-bound v4 contract."
     }
     $AcceptanceRun.output | ForEach-Object { Write-Host $_ }
-    $EvidenceGrade = "source-bound-v3"
+    $EvidenceGrade = "source-bound-v4"
 }
 else {
     $Diagnostic = [ordered]@{
@@ -321,12 +324,14 @@ else {
         target = [ordered]@{ branch = $TargetState.branch; sha = $TargetState.sha; dirty = $TargetState.dirty }
         testLab = [ordered]@{ branch = $LabState.branch; sha = $LabState.sha; dirty = $LabState.dirty }
         receiptSha256 = $ReceiptDigest
+        receiptSchemaVersion = [int]$Verified.receiptSchemaVersion
         gameId = [string]$Verified.gameId
         authority = [string]$Verified.authority
         protocol = [string]$Verified.protocol
         requiredRoleCount = [int]$Verified.requiredRoleCount
         authorityLifecycleProven = $true
         authoritySafetyProven = $true
+        staleSocketInboundRejectedProven = $true
         transportProven = $false
         browserTransportProven = $false
         sourceBound = $false
