@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +39,7 @@ CLAIMS = {
 
 
 def timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def parse_args() -> argparse.Namespace:
@@ -218,7 +218,7 @@ def main() -> None:
 
     artifact_root.mkdir(parents=True, exist_ok=True)
     run_id = (
-        f"http-range-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-"
+        f"http-range-{datetime.now(UTC):%Y%m%dT%H%M%SZ}-"
         f"{uuid.uuid4().hex[:8]}"
     )
     receipt_path = artifact_root / "receipt.json"
