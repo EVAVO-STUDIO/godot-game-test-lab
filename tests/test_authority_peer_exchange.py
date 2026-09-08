@@ -84,6 +84,16 @@ def _receipt() -> dict[str, object]:
     }
 
 
+def _receipt_v2() -> dict[str, object]:
+    receipt = _receipt()
+    receipt["schemaVersion"] = "2.0"
+    receipt["authoritySafety"] = {
+        "supersededSocketRetired": True,
+        "staleSocketSendRejected": True,
+    }
+    return receipt
+
+
 def _write(tmp_path: Path, receipt: dict[str, object]) -> Path:
     path = tmp_path / "authority-peer-exchange.json"
     path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
@@ -93,12 +103,37 @@ def _write(tmp_path: Path, receipt: dict[str, object]) -> Path:
 def test_proves_reciprocal_departure_and_reconnect_lifecycle(tmp_path: Path) -> None:
     result = subject.verify_authority_peer_exchange(_write(tmp_path, _receipt()))
     assert result["proven"] is True
+    assert result["authorityLifecycleProven"] is True
+    assert result["reciprocalPeerSemanticsProven"] is True
+    assert result["departureRevocationProven"] is True
+    assert result["reconnectPeerSemanticsProven"] is True
+    assert result["transportProven"] is False
+    assert result["browserTransportProven"] is False
     assert result["requiredRoleCount"] == 2
     assert result["privacySafe"] is True
     assert result["stablePeerMapping"] is True
+    assert result["authoritySafetyProven"] is False
+    assert result["receiptSchemaVersion"] == 1
     assert result["survivorRoleId"] == "alpha"
     assert result["receiptBytes"] > 0
     assert result["phases"] == ["single", "reciprocal", "departure", "reconnect"]
+
+
+def test_v2_receipt_proves_stale_socket_authority_safety(tmp_path: Path) -> None:
+    result = subject.verify_authority_peer_exchange(_write(tmp_path, _receipt_v2()))
+    assert result["proven"] is True
+    assert result["receiptSchemaVersion"] == 2
+    assert result["authoritySafetyProven"] is True
+    assert result["transportProven"] is False
+    assert result["browserTransportProven"] is False
+
+
+def test_v2_authority_safety_must_be_complete_and_true(tmp_path: Path) -> None:
+    for key in ("supersededSocketRetired", "staleSocketSendRejected"):
+        receipt = _receipt_v2()
+        receipt["authoritySafety"][key] = False
+        with pytest.raises(subject.AuthorityPeerExchangeError, match="does not prove stale-socket authority retirement"):
+            subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
 
 
 def test_missing_reciprocal_observation_fails_closed(tmp_path: Path) -> None:
