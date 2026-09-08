@@ -11,7 +11,7 @@ from godot_game_test_lab import authority_peer_exchange_crosscheck as subject
 
 def _authority_receipt() -> dict[str, object]:
     return {
-        "schemaVersion": "2.0",
+        "schemaVersion": "3.0",
         "kind": "evavo-authority-peer-exchange-lifecycle",
         "gameId": "galactic-cycle-online",
         "authority": "GalacticCycleRoom",
@@ -84,6 +84,7 @@ def _authority_receipt() -> dict[str, object]:
         "authoritySafety": {
             "supersededSocketRetired": True,
             "staleSocketSendRejected": True,
+            "staleSocketMessageRejected": True,
         },
         "truthBoundary": "server authority lifecycle only",
     }
@@ -179,6 +180,8 @@ def test_crosscheck_proves_both_semantic_views_agree(tmp_path: Path) -> None:
     assert result["proven"] is True
     assert result["authorityLifecycleProven"] is True
     assert result["authoritySafetyProven"] is True
+    assert result["staleSocketInboundRejectedProven"] is True
+    assert result["authorityReceiptSchemaVersion"] == 3
     assert result["standardPeerExchangeProven"] is True
     assert result["dynamicCaptureRoleCount"] == 2
     assert result["semanticViewsAgree"] is True
@@ -220,6 +223,21 @@ def test_crosscheck_requires_dynamic_capture_for_all_roles(tmp_path: Path) -> No
         record.pop("actual", None)
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     with pytest.raises(subject.AuthorityPeerExchangeCrosscheckError, match="dynamic metadata capture"):
+        subject.verify_authority_peer_exchange_crosscheck(artifacts)
+
+
+def test_crosscheck_rejects_downgraded_v2_authority_receipt(tmp_path: Path) -> None:
+    artifacts = _fixture(tmp_path)
+    receipt_path = artifacts / "authority-peer-exchange-lifecycle.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["schemaVersion"] = "2.0"
+    receipt["authoritySafety"].pop("staleSocketMessageRejected")
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    summary_path = artifacts / "multiplayer-agent-summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["artifacts"] = common.inventory_artifacts(artifacts)
+    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(subject.AuthorityPeerExchangeCrosscheckError, match="requires a v3 lifecycle receipt"):
         subject.verify_authority_peer_exchange_crosscheck(artifacts)
 
 
