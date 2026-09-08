@@ -177,5 +177,34 @@ $acceptance = [ordered]@{
 $acceptancePath = Join-Path $runRoot 'acceptance.json'
 $acceptance | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $acceptancePath -Encoding utf8NoBOM
 
+$acceptanceVerify = Invoke-LabModule -Python $python -LabRoot $labRoot -Module 'godot_game_test_lab.authority_peer_exchange_crosscheck_acceptance' -Arguments @($acceptancePath)
+$acceptanceVerifyMarker = "EVAVO_AUTHORITY_PEER_EXCHANGE_CROSSCHECK_ACCEPTANCE_VERIFY=PASS target_sha=$($targetState.sha) lab_sha=$($labState.sha)"
+$acceptanceVerifyMarkers = @($acceptanceVerify.output | Where-Object { $_ -ceq $acceptanceVerifyMarker })
+$acceptanceJsonLines = @($acceptanceVerify.output | Where-Object { $_ -match '^\{' })
+if ($acceptanceVerify.exitCode -ne 0 -or $acceptanceVerifyMarkers.Count -ne 1 -or $acceptanceJsonLines.Count -ne 1) {
+    $acceptanceVerify.output | ForEach-Object { Write-Host $_ }
+    throw "Authority peer-exchange cross-check acceptance verification failed or emitted ambiguous evidence. Exit=$($acceptanceVerify.exitCode) Markers=$($acceptanceVerifyMarkers.Count) Results=$($acceptanceJsonLines.Count)"
+}
+$accepted = $acceptanceJsonLines[0] | ConvertFrom-Json
+if (
+    $accepted.proven -ne $true -or
+    $accepted.evidenceBound -ne $true -or
+    $accepted.sourceBound -ne $true -or
+    $accepted.semanticViewsAgree -ne $true -or
+    $accepted.authorityLifecycleProven -ne $true -or
+    $accepted.authoritySafetyProven -ne $true -or
+    $accepted.standardPeerExchangeProven -ne $true -or
+    [int]$accepted.requiredRoleCount -ne $ExpectedRoleCount -or
+    [int]$accepted.dynamicCaptureRoleCount -ne $ExpectedRoleCount -or
+    $accepted.transportProven -ne $false -or
+    $accepted.browserTransportProven -ne $false
+) {
+    throw 'Cross-check acceptance verifier did not reproduce the retained semantic evidence contract.'
+}
+
+Assert-Unchanged -Root $targetRoot -Before $targetState -Label 'Target repository'
+Assert-Unchanged -Root $labRoot -Before $labState -Label 'godot-game-test-lab'
+
 Write-Host $crosscheckMarker
+Write-Host $acceptanceVerifyMarker
 Write-Host "EVAVO_AUTHORITY_PEER_EXCHANGE_CROSSCHECK_ACCEPTANCE=PASS target_sha=$($targetState.sha) lab_sha=$($labState.sha) receipt=$acceptancePath"
