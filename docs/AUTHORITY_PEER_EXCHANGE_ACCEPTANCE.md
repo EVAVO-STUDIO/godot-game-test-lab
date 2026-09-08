@@ -17,27 +17,50 @@ The verifier also requires:
 
 - one bounded shared session identifier;
 - unique positive ephemeral peer IDs inside each phase;
+- a stable role-to-peer mapping across the accepted four-phase scenario;
 - bounded role inventories and observed-peer lists;
 - no self-observation or duplicate observed peers;
 - literal `false` privacy statements for raw player IDs, runtime-session IDs, and credentials;
 - UTF-8 JSON no larger than 128 KiB;
 - no unexpected receipt fields.
 
-A server is allowed to renumber ephemeral peer slots when membership changes. The proof is about reciprocal authority-owned presence, not persistent player identity.
+The room protocol may define peer slots as ephemeral and may renumber them for membership changes outside this particular acceptance scenario. The retained acceptance proof is deliberately stricter: surviving roles and the reconnected role must preserve the reciprocal mapping demonstrated earlier in the same run. This prevents an ambiguous lifecycle from being promoted into a PASS.
+
+### Receipt v2 authority safety
+
+Current emitters should issue receipt schema `2.0`. In addition to the lifecycle fields, v2 requires:
+
+```json
+"authoritySafety": {
+  "supersededSocketRetired": true,
+  "staleSocketSendRejected": true
+}
+```
+
+These values must be derived from the authority implementation under test. They prove that a superseded reconnect socket lost authority and that a subsequent send from that stale socket was rejected before ordinary message processing.
+
+Receipt v1 remains readable for historical evidence, but it does **not** set `authoritySafetyProven=true` and is not sufficient for new acceptance-v3 issuance.
 
 ## What a PASS does not prove
 
-This lane does **not** by itself prove that a browser or native Godot client traversed the production transport path. It does not certify WebSocket/WAN quality, packet loss behavior, latency, browser lifecycle recovery, rendering, gameplay correctness, or release readiness.
+This lane does **not** by itself prove that a browser or native Godot client traversed the production transport path. The structured verifier therefore reports:
 
-Use it alongside client-side multiplayer QA. For Web-only games, the stronger downstream lane must launch real Web clients through runtime admission and then capture the same reserved peer evidence from those clients.
+- `authorityLifecycleProven: true` when the lifecycle passes;
+- `authoritySafetyProven: true` only for a valid v2 safety receipt;
+- `transportProven: false`;
+- `browserTransportProven: false`.
 
-## Receipt contract
+It does not certify WebSocket/WAN quality, packet loss behavior, latency, browser lifecycle recovery, rendering, gameplay correctness, or release readiness.
 
-A game-owned emitter writes one JSON object to stdout with this exact top-level shape:
+Use it alongside client-side multiplayer QA. For Web-only games, the stronger downstream lane must launch real Web clients through runtime admission and capture the same reserved peer evidence from those clients.
+
+## Current receipt contract
+
+A game-owned emitter writes one JSON object to stdout with this top-level shape:
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "kind": "evavo-authority-peer-exchange-lifecycle",
   "gameId": "example-game",
   "authority": "ExampleRoom",
@@ -54,6 +77,10 @@ A game-owned emitter writes one JSON object to stdout with this exact top-level 
     "rawPlayerIdsTransmitted": false,
     "runtimeSessionIdsTransmitted": false,
     "credentialsTransmitted": false
+  },
+  "authoritySafety": {
+    "supersededSocketRetired": true,
+    "staleSocketSendRejected": true
   },
   "truthBoundary": "Server authority lifecycle proof only."
 }
@@ -95,27 +122,44 @@ For a clean target repository, use the PowerShell 5.1-compatible acceptance wrap
 $Lab = "C:\GitRepos\godot-game-test-lab"
 $Target = "C:\GitRepos\godot-462-galactic-cycle-online"
 $TargetSha = (git -C $Target rev-parse HEAD).Trim()
+$LabSha = (git -C $Lab rev-parse HEAD).Trim()
 
 & "$Lab\scripts\Invoke-AuthorityPeerExchangeAcceptance.ps1" `
   -TargetRepoRoot $Target `
-  -ExpectedTargetSha $TargetSha
+  -ExpectedTargetSha $TargetSha `
+  -ExpectedLabSha $LabSha
 ```
 
 The wrapper:
 
-- requires the target to be clean and exactly at the requested SHA before execution;
+- requires both target and Test Lab to be clean `main` checkouts;
+- requires the target to be exactly at the requested SHA before execution;
 - runs the game-owned authority emitter;
-- requires `EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS`;
+- requires exactly one `EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS` marker;
 - retains the emitter JSON outside the target repository as UTF-8;
-- independently invokes the Test Lab verifier;
-- requires `EVAVO_AUTHORITY_PEER_EXCHANGE=PASS`;
-- rechecks the exact target SHA and clean state after execution;
-- records the receipt SHA-256 and byte count in `acceptance.json`.
+- independently invokes the canonical Test Lab verifier;
+- requires receipt schema v2, lifecycle proof, privacy safety, stable mapping, and stale-socket authority safety;
+- explicitly requires `transportProven=false` and `browserTransportProven=false` so authority evidence cannot be escalated into a transport claim;
+- rechecks exact target/Test Lab SHA and clean state after execution;
+- records the receipt SHA-256 and byte count in `acceptance.json`;
+- independently re-verifies the retained manifest before promoting it from `acceptance.pending.json`.
+
+New runs emit acceptance manifest schema **`3.0`**. The v3 verifier binds:
+
+- exact target and Test Lab SHAs;
+- exact retained receipt digest and byte count;
+- receipt schema version;
+- authority lifecycle proof;
+- authority safety proof;
+- privacy and stable mapping claims;
+- explicit non-transport truth flags.
+
+Previously retained acceptance schema `2.0` remains readable for backward compatibility, but new issuance uses v3.
 
 Successful wrapper output contains:
 
 ```text
-EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE=PASS target_sha=<40-hex-sha>
+EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE=PASS target_sha=<40-hex-sha> lab_sha=<40-hex-sha>
 ```
 
 ## Galactic Cycle Online
@@ -133,7 +177,7 @@ Set-Location C:\GitRepos\godot-462-galactic-cycle-online\authority
 npm run validate
 ```
 
-The Galactic Cycle emitter exercises the real `GalacticCycleRoom` presence implementation for single membership, reciprocal membership, departure revocation, reconnect de-duplication, and restored reciprocity. The wire evidence deliberately excludes raw player IDs and runtime-session IDs.
+The Galactic Cycle emitter exercises the real `GalacticCycleRoom` presence implementation for single membership, reciprocal membership, departure revocation, reconnect de-duplication, restored reciprocity, superseded-socket retirement, and rejection of a stale socket attempting to send after replacement. The retained wire evidence deliberately excludes raw player IDs and runtime-session IDs.
 
 ## Evidence handling
 
