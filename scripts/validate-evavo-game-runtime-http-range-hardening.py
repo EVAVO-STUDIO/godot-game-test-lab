@@ -95,7 +95,21 @@ def validate(runtime: Path) -> None:
     require(DOC, "strong validator", "exact Godot 4.6.2", "simulation authority")
     assert SHA_RE.fullmatch("a" * 40)
 
-    for path in (CONFIG, CONTRACT, RUNNER, POWERSHELL, DOC, Path(__file__), policy, runtime_contract, runtime_validator, runtime_smoke, runtime_runner, runtime_doc):
+    source_paths = (
+        CONFIG,
+        CONTRACT,
+        RUNNER,
+        POWERSHELL,
+        DOC,
+        Path(__file__),
+        policy,
+        runtime_contract,
+        runtime_validator,
+        runtime_smoke,
+        runtime_runner,
+        runtime_doc,
+    )
+    for path in source_paths:
         value = path.read_text(encoding="utf-8")
         assert "\t" not in value, f"{path} contains tabs"
         assert not any(line.rstrip() != line for line in value.splitlines()), f"{path} contains trailing whitespace"
