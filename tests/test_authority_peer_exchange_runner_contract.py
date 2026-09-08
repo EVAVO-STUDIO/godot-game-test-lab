@@ -12,6 +12,11 @@ def test_authority_peer_exchange_runner_is_exact_sha_fail_closed_and_ps51_safe()
     required = [
         "ExpectedTargetSha",
         "status --porcelain=v1 --untracked-files=all",
+        "ConvertTo-WindowsCommandLineArgument",
+        "System.Diagnostics.ProcessStartInfo",
+        "$start.Arguments",
+        "ReadToEndAsync()",
+        "System.Text.UTF8Encoding($false)",
         "EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS",
         "godot_game_test_lab.authority_peer_exchange",
         "EVAVO_AUTHORITY_PEER_EXCHANGE=PASS",
@@ -24,5 +29,6 @@ def test_authority_peer_exchange_runner_is_exact_sha_fail_closed_and_ps51_safe()
 
     assert ".ArgumentList" not in source
     assert "Start-Process" not in source
-    assert "1> $receiptPath 2> $emitterStderr" in source
-    assert "1> $verifierStdout 2> $verifierStderr" in source
+    assert "1> $receiptPath" not in source
+    assert "1> $verifierStdout" not in source
+    assert "[void]$builder.Append([char]34)" in source
