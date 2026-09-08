@@ -124,8 +124,8 @@ def verify_authority_peer_exchange_source(path: Path) -> dict[str, Any]:
     }
     if set(receipt) != expected_fields:
         _fail("authority peer exchange source has unexpected top-level fields")
-    if receipt.get("schemaVersion") != "2.0":
-        _fail("authority peer exchange source schema is invalid")
+    if receipt.get("schemaVersion") != "3.0":
+        _fail("authority peer exchange source schema must be 3.0")
     if receipt.get("kind") != "evavo-authority-peer-exchange-lifecycle":
         _fail("authority peer exchange source kind is invalid")
     if receipt.get("authority") != "GalacticCycleRoom":
@@ -203,6 +203,7 @@ def verify_authority_peer_exchange_source(path: Path) -> dict[str, Any]:
 
     return {
         "schemaVersion": 1,
+        "receiptSchemaVersion": 3,
         "sourceBound": True,
         "gameId": game_id,
         "sessionId": session_id,
@@ -210,5 +211,7 @@ def verify_authority_peer_exchange_source(path: Path) -> dict[str, Any]:
         "roles": phases["reconnect"],
         "departedRoleId": departed_role_id,
         "authoritySafety": dict(safety),
+        "authoritySafetyProven": True,
+        "staleSocketInboundRejectedProven": True,
         "truthBoundary": truth,
     }
