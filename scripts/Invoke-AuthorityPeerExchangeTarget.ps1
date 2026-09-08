@@ -37,6 +37,23 @@ function Get-RepoState {
     }
 }
 
+function Assert-RepoStateUnchanged {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Before,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    $after = Get-RepoState -Path $Path
+    if ($after.branch -ne $Before.branch -or $after.sha -ne $Before.sha) {
+        throw "$Label branch or HEAD changed during authority peer-exchange verification."
+    }
+    if (($after.status -join "`n") -ne ($Before.status -join "`n")) {
+        throw "$Label working-tree status changed during authority peer-exchange verification."
+    }
+    return $after
+}
+
 function Resolve-PythonInvocation {
     if (Get-Command python -ErrorAction SilentlyContinue) {
         return [ordered]@{ executable = "python"; prefix = @() }
@@ -80,7 +97,7 @@ function Assert-NotLink {
 
 function Invoke-TestLabModule {
     param(
-        [Parameter(Mandatory = $true)][hashtable]$Python,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Python,
         [Parameter(Mandatory = $true)][string]$TestLabRoot,
         [Parameter(Mandatory = $true)][string]$Module,
         [Parameter(Mandatory = $true)][string]$Path
@@ -158,6 +175,7 @@ Assert-NotLink -Path $ArtifactRoot -Label "Authority peer-exchange artifact dire
 $RunId = "authority-$($TargetState.sha.Substring(0, 12))-$($LabState.sha.Substring(0, 12))"
 $RunRoot = Join-Path $ArtifactRoot $RunId
 if (Test-Path -LiteralPath $RunRoot) {
+    Assert-NotLink -Path $RunRoot -Label "Existing authority peer-exchange run directory"
     Remove-Item -LiteralPath $RunRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $RunRoot -Force | Out-Null
@@ -217,19 +235,8 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedGameId) -and [string]$Verified.ga
     throw "Authority peer-exchange game ID mismatch: expected '$ExpectedGameId', found '$($Verified.gameId)'."
 }
 
-$AfterTargetState = Get-RepoState -Path $TargetRepoRoot
-$AfterLabState = Get-RepoState -Path $TestLabRoot
-if ($AfterTargetState.sha -ne $TargetState.sha -or $AfterLabState.sha -ne $LabState.sha) {
-    throw "Repository HEAD changed during authority peer-exchange verification."
-}
-if (-not $AllowDirty) {
-    if ($AfterTargetState.dirty -or $AfterLabState.dirty) {
-        throw "Repository source changed during authority peer-exchange verification."
-    }
-    if (($AfterTargetState.status -join "`n") -ne ($TargetState.status -join "`n") -or ($AfterLabState.status -join "`n") -ne ($LabState.status -join "`n")) {
-        throw "Repository status changed during authority peer-exchange verification."
-    }
-}
+[void](Assert-RepoStateUnchanged -Path $TargetRepoRoot -Before $TargetState -Label "Target repository")
+[void](Assert-RepoStateUnchanged -Path $TestLabRoot -Before $LabState -Label "Test Lab repository")
 
 $ReceiptItem = Get-Item -LiteralPath $ReceiptPath
 $ReceiptDigest = (Get-FileHash -LiteralPath $ReceiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -326,6 +333,9 @@ else {
     }
     $Diagnostic | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $VerificationPath -Encoding utf8NoBOM
 }
+
+[void](Assert-RepoStateUnchanged -Path $TargetRepoRoot -Before $TargetState -Label "Target repository")
+[void](Assert-RepoStateUnchanged -Path $TestLabRoot -Before $LabState -Label "Test Lab repository")
 
 $VerifierRun.output | ForEach-Object { Write-Host $_ }
 Write-Host "EVAVO_AUTHORITY_PEER_EXCHANGE_TARGET=PASS target_sha=$($TargetState.sha) test_lab_sha=$($LabState.sha) roles=$ExpectedRoleCount evidence_grade=$EvidenceGrade"
