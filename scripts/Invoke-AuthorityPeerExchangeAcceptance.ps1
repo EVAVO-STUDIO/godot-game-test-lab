@@ -15,6 +15,73 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
+function ConvertTo-WindowsCommandLineArgument {
+    param([AllowEmptyString()][string]$Value)
+
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    $slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq '\') {
+            $slashes += 1
+            continue
+        }
+        if ($character -eq '"') {
+            if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
+            [void]$builder.Append('\"')
+            $slashes = 0
+            continue
+        }
+        if ($slashes -gt 0) {
+            [void]$builder.Append(('\' * $slashes))
+            $slashes = 0
+        }
+        [void]$builder.Append($character)
+    }
+    if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Invoke-CapturedNativeProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$StdoutPath,
+        [Parameter(Mandatory = $true)][string]$StderrPath
+    )
+
+    $start = New-Object System.Diagnostics.ProcessStartInfo
+    $start.FileName = $FilePath
+    $start.Arguments = (($Arguments | ForEach-Object { ConvertTo-WindowsCommandLineArgument $_ }) -join ' ')
+    $start.WorkingDirectory = $WorkingDirectory
+    $start.UseShellExecute = $false
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.CreateNoWindow = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $start
+    if (-not $process.Start()) { throw "Failed to start native process: $FilePath" }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $stdout = $stdoutTask.GetAwaiter().GetResult()
+    $stderr = $stderrTask.GetAwaiter().GetResult()
+    $exitCode = $process.ExitCode
+    $process.Dispose()
+
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($StdoutPath, $stdout, $utf8)
+    [System.IO.File]::WriteAllText($StderrPath, $stderr, $utf8)
+    return $exitCode
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $labRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $targetRoot = (Resolve-Path $TargetRepoRoot).Path
@@ -52,14 +119,8 @@ $emitterStderr = Join-Path $runRoot 'emitter.stderr.txt'
 $verifierStdout = Join-Path $runRoot 'verifier.stdout.txt'
 $verifierStderr = Join-Path $runRoot 'verifier.stderr.txt'
 
-Push-Location $targetRoot
-try {
-    & $node $emitter 1> $receiptPath 2> $emitterStderr
-    $emitterExit = $LASTEXITCODE
-} finally {
-    Pop-Location
-}
-$emitterLog = Get-Content -LiteralPath $emitterStderr -Raw
+$emitterExit = Invoke-CapturedNativeProcess -FilePath $node -Arguments @($emitter) -WorkingDirectory $targetRoot -StdoutPath $receiptPath -StderrPath $emitterStderr
+$emitterLog = [System.IO.File]::ReadAllText($emitterStderr, [System.Text.Encoding]::UTF8)
 if ($emitterExit -ne 0 -or $emitterLog -notmatch '(?m)^EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS\s*$') {
     throw "Authority peer-exchange emitter failed. Exit=$emitterExit"
 }
@@ -72,21 +133,15 @@ try {
     } else {
         $env:PYTHONPATH = $srcPath + [System.IO.Path]::PathSeparator + $previousPythonPath
     }
-    Push-Location $labRoot
-    try {
-        if ([System.IO.Path]::GetFileNameWithoutExtension($python).ToLowerInvariant() -eq 'py') {
-            & $python -3 -m godot_game_test_lab.authority_peer_exchange $receiptPath 1> $verifierStdout 2> $verifierStderr
-        } else {
-            & $python -m godot_game_test_lab.authority_peer_exchange $receiptPath 1> $verifierStdout 2> $verifierStderr
-        }
-        $verifyExit = $LASTEXITCODE
-    } finally {
-        Pop-Location
+    $pythonArguments = @('-m', 'godot_game_test_lab.authority_peer_exchange', $receiptPath)
+    if ([System.IO.Path]::GetFileNameWithoutExtension($python).ToLowerInvariant() -eq 'py') {
+        $pythonArguments = @('-3') + $pythonArguments
     }
+    $verifyExit = Invoke-CapturedNativeProcess -FilePath $python -Arguments $pythonArguments -WorkingDirectory $labRoot -StdoutPath $verifierStdout -StderrPath $verifierStderr
 } finally {
     $env:PYTHONPATH = $previousPythonPath
 }
-$verifyLog = Get-Content -LiteralPath $verifierStdout -Raw
+$verifyLog = [System.IO.File]::ReadAllText($verifierStdout, [System.Text.Encoding]::UTF8)
 if ($verifyExit -ne 0 -or $verifyLog -notmatch '(?m)^EVAVO_AUTHORITY_PEER_EXCHANGE=PASS roles=\d+\s*$') {
     throw "Test Lab authority peer-exchange verifier failed. Exit=$verifyExit"
 }
