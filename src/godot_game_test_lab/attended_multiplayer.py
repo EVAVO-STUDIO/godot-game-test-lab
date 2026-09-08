@@ -31,6 +31,11 @@ from .attended_multiplayer_receipt import (
 from .attended_multiplayer_run import (
     verify_multiplayer_summary_sources as _verify_multiplayer_summary_sources,
 )
+from .multiplayer_authority_peer_exchange import (
+    SOURCE_RECEIPT_NAME,
+    AuthorityPeerExchangeSourceError,
+    verify_authority_peer_exchange_source,
+)
 from .multiplayer_peer_exchange import PeerExchangeEvidenceError, verify_peer_exchange
 
 __all__ = [
@@ -46,6 +51,24 @@ __all__ = [
     "verify_multiplayer_summary_sources",
     "verify_operator_attestation",
 ]
+
+
+def _peer_role_projection(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise AttendedMultiplayerError("ATTENDED_MULTIPLAYER_PEER_EXCHANGE_ROLES_INVALID")
+    roles: list[dict[str, Any]] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            raise AttendedMultiplayerError("ATTENDED_MULTIPLAYER_PEER_EXCHANGE_ROLE_INVALID")
+        roles.append(
+            {
+                "id": raw.get("id"),
+                "sessionId": raw.get("sessionId"),
+                "localPeerId": raw.get("localPeerId"),
+                "observedPeerIds": raw.get("observedPeerIds"),
+            }
+        )
+    return sorted(roles, key=lambda role: str(role.get("id")))
 
 
 def verify_multiplayer_summary_sources(
@@ -72,6 +95,35 @@ def verify_multiplayer_summary_sources(
         if detail:
             message += ": " + detail
         raise AttendedMultiplayerError(message)
+
+    source_path = artifact_root / SOURCE_RECEIPT_NAME
+    if source_path.is_file():
+        try:
+            source = verify_authority_peer_exchange_source(source_path)
+        except (AuthorityPeerExchangeSourceError, OSError, TypeError, ValueError) as error:
+            raise AttendedMultiplayerError(
+                "ATTENDED_MULTIPLAYER_AUTHORITY_PEER_EXCHANGE_SOURCE_INVALID: " + str(error)
+            ) from error
+        if peer_exchange.get("configured") is not True or peer_exchange.get("proven") is not True:
+            raise AttendedMultiplayerError(
+                "ATTENDED_MULTIPLAYER_AUTHORITY_PEER_EXCHANGE_SOURCE_WITHOUT_PROOF"
+            )
+        if source.get("requiredRoleCount") != peer_exchange.get("requiredRoleCount"):
+            raise AttendedMultiplayerError(
+                "ATTENDED_MULTIPLAYER_AUTHORITY_PEER_EXCHANGE_ROLE_COUNT_MISMATCH"
+            )
+        if _peer_role_projection(source.get("roles")) != _peer_role_projection(
+            peer_exchange.get("roles")
+        ):
+            raise AttendedMultiplayerError(
+                "ATTENDED_MULTIPLAYER_AUTHORITY_PEER_EXCHANGE_ROLE_EVIDENCE_MISMATCH"
+            )
+        peer_exchange = dict(peer_exchange)
+        peer_exchange["truthBoundary"] = (
+            str(peer_exchange.get("truthBoundary", "")).rstrip()
+            + " The retained authority lifecycle receipt was independently revalidated and its reconnect role evidence matched the generic peer-exchange summary. This source binding still does not prove browser traversal or deployed network conditions."
+        )
+
     evidence["peerExchange"] = peer_exchange
     return evidence
 
