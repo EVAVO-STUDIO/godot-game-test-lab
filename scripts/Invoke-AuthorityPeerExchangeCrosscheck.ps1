@@ -63,7 +63,7 @@ $null = Get-Command git -ErrorAction Stop
 $node = (Get-Command node -ErrorAction Stop).Source
 $python = Resolve-Python
 $nodeVersion = (& $node --version).Trim()
-if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(?<Major>\d+)\.\d+\.\d+$' -or [int]$Matches.Major -lt 20) {
+if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(?<Major>\d+)\.\d+\.\d+$' -or [int]$Matches['Major'] -lt 20) {
     throw "Node.js 20+ is required. Found: $nodeVersion"
 }
 
@@ -76,7 +76,12 @@ if ($labState.dirty) { throw 'godot-game-test-lab must be clean.' }
 
 $emitterPath = [IO.Path]::GetFullPath((Join-Path $targetRoot $BundleEmitterRelativePath))
 $relativeEmitter = [IO.Path]::GetRelativePath($targetRoot, $emitterPath)
-if ([IO.Path]::IsPathRooted($relativeEmitter) -or $relativeEmitter -eq '..' -or $relativeEmitter.StartsWith('..' + [IO.Path]::DirectorySeparatorChar)) {
+if (
+    [IO.Path]::IsPathRooted($relativeEmitter) -or
+    $relativeEmitter -eq '..' -or
+    $relativeEmitter.StartsWith('..' + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal) -or
+    $relativeEmitter.StartsWith('..' + [IO.Path]::AltDirectorySeparatorChar, [StringComparison]::Ordinal)
+) {
     throw 'Bundle emitter must remain inside the target repository.'
 }
 if (-not (Test-Path -LiteralPath $emitterPath -PathType Leaf)) { throw "Bundle emitter not found: $BundleEmitterRelativePath" }
@@ -93,14 +98,15 @@ $bundleRoot = Join-Path $runRoot 'bundle'
 
 $emitterOutput = @(& $node $emitterPath $bundleRoot 2>&1 | ForEach-Object { [string]$_ })
 $emitterExit = $LASTEXITCODE
-$bundleMarkerPattern = '^EVAVO_AUTHORITY_TEST_LAB_PEER_EXCHANGE_BUNDLE=PASS required_roles=(?<Count>\d+) output=.+$'
+$bundleMarkerPattern = '^EVAVO_AUTHORITY_TEST_LAB_PEER_EXCHANGE_BUNDLE=PASS required_roles=(?<Roles>\d+) output=.+$'
 $bundleMarkers = @($emitterOutput | Where-Object { $_ -match $bundleMarkerPattern })
 if ($emitterExit -ne 0 -or $bundleMarkers.Count -ne 1) {
     $emitterOutput | ForEach-Object { Write-Host $_ }
     throw "Authority Test Lab bundle emitter failed or emitted ambiguous evidence. Exit=$emitterExit Markers=$($bundleMarkers.Count)"
 }
 $null = $bundleMarkers[0] -match $bundleMarkerPattern
-if ([int]$Matches.Count -ne $ExpectedRoleCount) { throw "Bundle role count mismatch. Expected $ExpectedRoleCount, found $($Matches.Count)" }
+$reportedRoleCount = [int]$Matches['Roles']
+if ($reportedRoleCount -ne $ExpectedRoleCount) { throw "Bundle role count mismatch. Expected $ExpectedRoleCount, found $reportedRoleCount" }
 
 $crosscheck = Invoke-LabModule -Python $python -LabRoot $labRoot -Module 'godot_game_test_lab.authority_peer_exchange_crosscheck' -Arguments @($bundleRoot)
 $crosscheckMarker = "EVAVO_AUTHORITY_PEER_EXCHANGE_CROSSCHECK=PASS roles=$ExpectedRoleCount"
@@ -146,6 +152,7 @@ $acceptance = [ordered]@{
         relativePath = $BundleEmitterRelativePath.Replace('\', '/')
         marker = [string]$bundleMarkers[0]
         markerOccurrences = 1
+        requiredRoleCount = $reportedRoleCount
     }
     verifier = [ordered]@{
         marker = $crosscheckMarker
