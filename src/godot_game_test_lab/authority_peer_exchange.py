@@ -16,6 +16,23 @@ _MAX_SESSION_BYTES = 256
 _MAX_LABEL_BYTES = 64
 _MAX_RECEIPT_BYTES = 128 * 1024
 _PHASES = ("single", "reciprocal", "departure", "reconnect")
+_AUTHORITY_SAFETY_KEYS = {
+    "supersededSocketRetired",
+    "staleSocketSendRejected",
+}
+_V1_FIELDS = {
+    "schemaVersion",
+    "kind",
+    "gameId",
+    "authority",
+    "protocol",
+    "sessionId",
+    "departedRoleId",
+    "phases",
+    "privacy",
+    "truthBoundary",
+}
+_V2_FIELDS = _V1_FIELDS | {"authoritySafety"}
 
 
 class AuthorityPeerExchangeError(ValueError):
@@ -110,23 +127,31 @@ def _load_receipt(receipt_path: Path) -> tuple[dict[str, Any], int]:
     return raw, stat.st_size
 
 
+def _receipt_schema(raw: dict[str, Any]) -> tuple[int, bool]:
+    schema = raw.get("schemaVersion")
+    if schema == "1.0":
+        if set(raw) != _V1_FIELDS:
+            _fail("authority peer-exchange receipt has unexpected fields")
+        return 1, False
+    if schema == "2.0":
+        if set(raw) != _V2_FIELDS:
+            _fail("authority peer-exchange receipt has unexpected fields")
+        safety = raw.get("authoritySafety")
+        if not isinstance(safety, dict) or set(safety) != _AUTHORITY_SAFETY_KEYS:
+            _fail("authority peer-exchange authority safety statement is invalid")
+        if any(type(safety[key]) is not bool for key in _AUTHORITY_SAFETY_KEYS):
+            _fail("authority peer-exchange authority safety values must be booleans")
+        if any(safety[key] is not True for key in _AUTHORITY_SAFETY_KEYS):
+            _fail("authority peer-exchange receipt does not prove stale-socket authority retirement")
+        return 2, True
+    _fail("authority peer-exchange receipt schema is unsupported")
+    raise AssertionError("unreachable")
+
+
 def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
     raw, receipt_bytes = _load_receipt(receipt_path)
-    expected_top = {
-        "schemaVersion",
-        "kind",
-        "gameId",
-        "authority",
-        "protocol",
-        "sessionId",
-        "departedRoleId",
-        "phases",
-        "privacy",
-        "truthBoundary",
-    }
-    if set(raw) != expected_top:
-        _fail("authority peer-exchange receipt has unexpected fields")
-    if raw.get("schemaVersion") != "1.0" or raw.get("kind") != "evavo-authority-peer-exchange-lifecycle":
+    receipt_schema, authority_safety_proven = _receipt_schema(raw)
+    if raw.get("kind") != "evavo-authority-peer-exchange-lifecycle":
         _fail("authority peer-exchange receipt schema is unsupported")
 
     game_id = _bounded_text(raw.get("gameId"), "game id", _MAX_LABEL_BYTES)
@@ -203,6 +228,7 @@ def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
 
     return {
         "schemaVersion": 1,
+        "receiptSchemaVersion": receipt_schema,
         "proven": True,
         "gameId": game_id,
         "authority": authority,
@@ -214,13 +240,15 @@ def verify_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
         "phases": list(_PHASES),
         "privacySafe": True,
         "stablePeerMapping": True,
+        "authoritySafetyProven": authority_safety_proven,
         "receiptBytes": receipt_bytes,
         "truthBoundary": (
             "This proves the retained server-authority lifecycle receipt has one shared session, "
             "exact reciprocal peer observation, departure revocation, reconnect restoration with "
             "a stable ephemeral peer mapping, and no declared raw identity or credential "
-            "transmission. It does not by itself prove a browser or native client traversed the "
-            "production transport path."
+            "transmission. Receipt v2 additionally binds superseded-socket retirement and stale "
+            "socket send rejection. It does not by itself prove a browser or native client "
+            "traversed the production transport path."
         ),
     }
 
