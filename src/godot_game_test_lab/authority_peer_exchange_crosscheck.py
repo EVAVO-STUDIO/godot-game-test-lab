@@ -14,6 +14,7 @@ from .multiplayer_peer_exchange import (
     PeerExchangeEvidenceError,
     verify_peer_exchange,
 )
+from .peer_exchange_matrix import PeerExchangeMatrixError, validate_peer_matrix
 
 _SOURCE_RECEIPT = "authority-peer-exchange-lifecycle.json"
 _SUMMARY = "multiplayer-agent-summary.json"
@@ -111,8 +112,28 @@ def verify_authority_peer_exchange_crosscheck(artifact_root: Path) -> dict[str, 
     if peer_result.get("dynamicCaptureRoleCount") != required_roles:
         _fail("cross-check requires dynamic metadata capture for every required role")
 
+    try:
+        peer_matrix = validate_peer_matrix(
+            peer_result.get("roles"),
+            truth_boundary=(
+                "Standard Test Lab client evidence is revalidated as one shared session with "
+                "unique peers, reciprocal observation, accepted reserved assertions, and exact "
+                "dynamic-capture accounting before comparison with authority lifecycle evidence."
+            ),
+            dynamic_capture_role_count=required_roles,
+            require_authority_participant=False,
+        )
+    except PeerExchangeMatrixError as error:
+        _fail(f"shared peer-exchange matrix rejected standard evidence: {error}")
+    if (
+        peer_matrix.get("proven") is not True
+        or peer_matrix.get("requiredRoleCount") != required_roles
+        or peer_matrix.get("dynamicCaptureRoleCount") != required_roles
+    ):
+        _fail("shared peer-exchange matrix did not reproduce the standard peer evidence proof")
+
     authority_roles = _authority_reconnect_roles(receipt_path)
-    standard_roles = _standard_roles(peer_result)
+    standard_roles = _standard_roles(peer_matrix)
     if set(authority_roles) != set(standard_roles):
         _fail("authority and standard peer-exchange role ids disagree")
 
@@ -146,7 +167,7 @@ def verify_authority_peer_exchange_crosscheck(artifact_root: Path) -> dict[str, 
         "authorityLifecycleProven": True,
         "authoritySafetyProven": True,
         "standardPeerExchangeProven": True,
-        "dynamicCaptureRoleCount": peer_result.get("dynamicCaptureRoleCount"),
+        "dynamicCaptureRoleCount": peer_matrix.get("dynamicCaptureRoleCount"),
         "semanticViewsAgree": True,
         "transportProven": False,
         "browserTransportProven": False,
@@ -177,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         AuthorityPeerExchangeCrosscheckError,
         AuthorityPeerExchangeError,
         PeerExchangeEvidenceError,
+        PeerExchangeMatrixError,
         AttendedMultiplayerError,
         FileNotFoundError,
         OSError,
