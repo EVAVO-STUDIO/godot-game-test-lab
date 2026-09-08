@@ -132,6 +132,7 @@ def _verified_peer_exchange(evidence: dict[str, Any]) -> dict[str, Any]:
             "proven",
             "requiredRoleCount",
             "authorityObserved",
+            "dynamicCaptureRoleCount",
             "roles",
             "findings",
             "truthBoundary",
@@ -158,6 +159,13 @@ def _verified_peer_exchange(evidence: dict[str, Any]) -> dict[str, Any]:
         or not 0 <= required_role_count <= 8
     ):
         fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_ROLE_COUNT_INVALID")
+    dynamic_capture_role_count = peer_exchange.get("dynamicCaptureRoleCount")
+    if (
+        not isinstance(dynamic_capture_role_count, int)
+        or isinstance(dynamic_capture_role_count, bool)
+        or not 0 <= dynamic_capture_role_count <= required_role_count
+    ):
+        fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_DYNAMIC_CAPTURE_COUNT_INVALID")
     roles = peer_exchange.get("roles")
     findings = peer_exchange.get("findings")
     truth_boundary = peer_exchange.get("truthBoundary")
@@ -171,6 +179,10 @@ def _verified_peer_exchange(evidence: dict[str, Any]) -> dict[str, Any]:
         fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_ROLE_EVIDENCE_INCOMPLETE")
     if not configured and roles:
         fail("ATTENDED_MULTIPLAYER_RECEIPT_PEER_EXCHANGE_UNCONFIGURED_ROLES_PRESENT")
+    # dynamicCaptureRoleCount is runtime verifier observability, not part of the stable
+    # attended receipt v2 wire contract. Validate it above, then strip it so existing
+    # v2 receipts remain verifiable byte-for-byte against their original schema.
+    peer_exchange.pop("dynamicCaptureRoleCount", None)
     return peer_exchange
 
 
