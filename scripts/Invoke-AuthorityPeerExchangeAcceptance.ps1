@@ -84,6 +84,34 @@ function Invoke-CapturedNativeProcess {
     return $exitCode
 }
 
+function Invoke-LabPythonModule {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonPath,
+        [Parameter(Mandatory = $true)][string]$LabRoot,
+        [Parameter(Mandatory = $true)][string]$Module,
+        [Parameter(Mandatory = $true)][string[]]$ModuleArguments,
+        [Parameter(Mandatory = $true)][string]$StdoutPath,
+        [Parameter(Mandatory = $true)][string]$StderrPath
+    )
+
+    $previousPythonPath = $env:PYTHONPATH
+    try {
+        $srcPath = Join-Path $LabRoot 'src'
+        if ([string]::IsNullOrWhiteSpace($previousPythonPath)) {
+            $env:PYTHONPATH = $srcPath
+        } else {
+            $env:PYTHONPATH = $srcPath + [System.IO.Path]::PathSeparator + $previousPythonPath
+        }
+        $pythonArguments = @('-m', $Module) + $ModuleArguments
+        if ([System.IO.Path]::GetFileNameWithoutExtension($PythonPath).ToLowerInvariant() -eq 'py') {
+            $pythonArguments = @('-3') + $pythonArguments
+        }
+        return Invoke-CapturedNativeProcess -FilePath $PythonPath -Arguments $pythonArguments -WorkingDirectory $LabRoot -StdoutPath $StdoutPath -StderrPath $StderrPath
+    } finally {
+        $env:PYTHONPATH = $previousPythonPath
+    }
+}
+
 function Get-RepositoryState {
     param(
         [Parameter(Mandatory = $true)][string]$GitPath,
@@ -191,6 +219,8 @@ $receiptPath = Join-Path $runRoot 'authority-peer-exchange.json'
 $emitterStderr = Join-Path $runRoot 'emitter.stderr.txt'
 $verifierStdout = Join-Path $runRoot 'verifier.stdout.txt'
 $verifierStderr = Join-Path $runRoot 'verifier.stderr.txt'
+$acceptanceVerifierStdout = Join-Path $runRoot 'acceptance-verifier.stdout.txt'
+$acceptanceVerifierStderr = Join-Path $runRoot 'acceptance-verifier.stderr.txt'
 
 $emitterExit = Invoke-CapturedNativeProcess -FilePath $node -Arguments @($emitter) -WorkingDirectory $targetRoot -StdoutPath $receiptPath -StderrPath $emitterStderr
 $emitterLog = [System.IO.File]::ReadAllText($emitterStderr, [System.Text.Encoding]::UTF8)
@@ -200,22 +230,7 @@ if ($emitterExit -ne 0 -or $emitterMarkerCount -ne 1 -or $emitterLog -match '(?m
     throw "Authority peer-exchange emitter failed or emitted ambiguous evidence. Exit=$emitterExit MarkerCount=$emitterMarkerCount"
 }
 
-$previousPythonPath = $env:PYTHONPATH
-try {
-    $srcPath = Join-Path $labRoot 'src'
-    if ([string]::IsNullOrWhiteSpace($previousPythonPath)) {
-        $env:PYTHONPATH = $srcPath
-    } else {
-        $env:PYTHONPATH = $srcPath + [System.IO.Path]::PathSeparator + $previousPythonPath
-    }
-    $pythonArguments = @('-m', 'godot_game_test_lab.authority_peer_exchange', $receiptPath)
-    if ([System.IO.Path]::GetFileNameWithoutExtension($python).ToLowerInvariant() -eq 'py') {
-        $pythonArguments = @('-3') + $pythonArguments
-    }
-    $verifyExit = Invoke-CapturedNativeProcess -FilePath $python -Arguments $pythonArguments -WorkingDirectory $labRoot -StdoutPath $verifierStdout -StderrPath $verifierStderr
-} finally {
-    $env:PYTHONPATH = $previousPythonPath
-}
+$verifyExit = Invoke-LabPythonModule -PythonPath $python -LabRoot $labRoot -Module 'godot_game_test_lab.authority_peer_exchange' -ModuleArguments @($receiptPath) -StdoutPath $verifierStdout -StderrPath $verifierStderr
 $verifyLog = [System.IO.File]::ReadAllText($verifierStdout, [System.Text.Encoding]::UTF8)
 $verifyLines = @($verifyLog -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 $verifyMarkerLines = @($verifyLines | Where-Object { $_ -match '^EVAVO_AUTHORITY_PEER_EXCHANGE=PASS roles=\d+$' })
@@ -232,12 +247,12 @@ if ($verifiedResult.proven -ne $true -or $verifiedResult.privacySafe -ne $true -
     throw 'Test Lab authority peer-exchange structured result did not prove the required lifecycle guarantees.'
 }
 
-$targetFinal = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
-$labFinal = Get-RepositoryState -GitPath $git -RepositoryRoot $labRoot -Name 'godot-game-test-lab'
-if ($targetFinal.sha -ne $targetInitial.sha -or $targetFinal.dirty -or $targetFinal.branch -cne $targetInitial.branch) {
+$targetPreManifest = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
+$labPreManifest = Get-RepositoryState -GitPath $git -RepositoryRoot $labRoot -Name 'godot-game-test-lab'
+if ($targetPreManifest.sha -ne $targetInitial.sha -or $targetPreManifest.dirty -or $targetPreManifest.branch -cne $targetInitial.branch) {
     throw 'Target repository changed during authority peer-exchange acceptance.'
 }
-if ($labFinal.sha -ne $labInitial.sha -or $labFinal.dirty -or $labFinal.branch -cne $labInitial.branch) {
+if ($labPreManifest.sha -ne $labInitial.sha -or $labPreManifest.dirty -or $labPreManifest.branch -cne $labInitial.branch) {
     throw 'godot-game-test-lab changed during authority peer-exchange acceptance.'
 }
 
@@ -282,9 +297,41 @@ $manifest = [ordered]@{
     }
     sourceUnchanged = $true
 }
+$manifestPendingPath = Join-Path $runRoot 'acceptance.pending.json'
 $manifestPath = Join-Path $runRoot 'acceptance.json'
 $manifestJson = $manifest | ConvertTo-Json -Depth 10
-Write-Utf8CreateOnly -Path $manifestPath -Text ($manifestJson + "`n")
+Write-Utf8CreateOnly -Path $manifestPendingPath -Text ($manifestJson + "`n")
+
+$acceptanceVerifyExit = Invoke-LabPythonModule -PythonPath $python -LabRoot $labRoot -Module 'godot_game_test_lab.authority_peer_exchange_acceptance' -ModuleArguments @($manifestPendingPath) -StdoutPath $acceptanceVerifierStdout -StderrPath $acceptanceVerifierStderr
+$acceptanceVerifyLog = [System.IO.File]::ReadAllText($acceptanceVerifierStdout, [System.Text.Encoding]::UTF8)
+$acceptanceVerifyLines = @($acceptanceVerifyLog -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+$expectedAcceptanceMarker = "EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE_VERIFY=PASS target_sha=$expectedSha lab_sha=$($labInitial.sha)"
+$acceptanceMarkerCount = Get-ExactLineCount -Text $acceptanceVerifyLog -ExpectedLine $expectedAcceptanceMarker
+$acceptanceResultLines = @($acceptanceVerifyLines | Where-Object { $_ -notmatch '^EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE_VERIFY=' })
+if ($acceptanceVerifyExit -ne 0 -or $acceptanceMarkerCount -ne 1 -or $acceptanceResultLines.Count -ne 1) {
+    throw "Authority acceptance manifest verification failed or emitted ambiguous evidence. Exit=$acceptanceVerifyExit MarkerCount=$acceptanceMarkerCount ResultCount=$($acceptanceResultLines.Count)"
+}
+try {
+    $acceptanceResult = $acceptanceResultLines[0] | ConvertFrom-Json
+} catch {
+    throw 'Authority acceptance manifest verifier did not emit one valid structured result.'
+}
+if ($acceptanceResult.proven -ne $true -or $acceptanceResult.sourceBound -ne $true -or $acceptanceResult.targetSha -cne $expectedSha -or $acceptanceResult.testLabSha -cne $labInitial.sha) {
+    throw 'Authority acceptance manifest structured result did not bind the expected source SHAs.'
+}
+
+$targetFinal = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
+$labFinal = Get-RepositoryState -GitPath $git -RepositoryRoot $labRoot -Name 'godot-game-test-lab'
+if ($targetFinal.sha -ne $targetInitial.sha -or $targetFinal.dirty -or $targetFinal.branch -cne $targetInitial.branch) {
+    throw 'Target repository changed during authority peer-exchange acceptance.'
+}
+if ($labFinal.sha -ne $labInitial.sha -or $labFinal.dirty -or $labFinal.branch -cne $labInitial.branch) {
+    throw 'godot-game-test-lab changed during authority peer-exchange acceptance.'
+}
+if (Test-Path -LiteralPath $manifestPath) {
+    throw "Canonical authority acceptance manifest already exists: $manifestPath"
+}
+[System.IO.File]::Move($manifestPendingPath, $manifestPath)
 
 Write-Output "EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE=PASS target_sha=$expectedSha lab_sha=$($labInitial.sha)"
 Write-Output $manifestPath
