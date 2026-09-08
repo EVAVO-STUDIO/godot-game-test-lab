@@ -34,6 +34,11 @@ def test_authority_peer_exchange_runner_is_exact_sha_fail_closed_and_ps51_safe()
         "schemaVersion = '2.0'",
         "testLab = [ordered]@{",
         "sourceUnchanged = $true",
+        "acceptance.pending.json",
+        "godot_game_test_lab.authority_peer_exchange_acceptance",
+        "EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE_VERIFY=PASS",
+        "Authority acceptance manifest structured result did not bind the expected source SHAs.",
+        "[System.IO.File]::Move($manifestPendingPath, $manifestPath)",
         "EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE=PASS",
     ]
     for marker in required:
