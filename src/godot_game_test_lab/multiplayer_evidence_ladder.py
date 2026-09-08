@@ -98,6 +98,8 @@ def verify_multiplayer_evidence_ladder(
         _fail("Godot Web evidence tier does not prove browser + Godot-player transport")
     if godot_web.get("runtimeHandoffConsumedByGodotProven") is not True:
         _fail("Godot Web evidence tier does not prove runtime handoff consumption")
+    if godot_web.get("descriptorSignatureCryptographicallyVerifiedByThisProbe") is not True:
+        _fail("Godot Web top tier requires cryptographic descriptor verification against external trust")
 
     for label, result in all_tiers:
         if result.get("privacySafe") is not True:
@@ -113,15 +115,16 @@ def verify_multiplayer_evidence_ladder(
             _fail(f"{label} evidence tier lost runtime-session rotation")
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "proven": True,
-        "highestTier": "godot-web-player",
+        "highestTier": "godot-web-player-cryptographic-release",
         "tierCount": 4,
         "authorityLifecycleProven": True,
         "runtimeTransportProven": True,
         "browserNativeTransportProven": True,
         "godotWebPlayerTransportProven": True,
         "runtimeHandoffConsumedByGodotProven": True,
+        "descriptorSignatureCryptographicallyVerified": True,
         "deploymentSourceBound": True,
         "privacySafe": True,
         "gameId": game_id,
@@ -139,8 +142,9 @@ def verify_multiplayer_evidence_ladder(
             "This proves four independently verified receipts align on one Galactic Cycle multiplayer deployment: "
             "server-authority lifecycle semantics, EVAVO runtime-to-authority transport, Chromium browser-native "
             "transport, and the mounted Godot Web player consuming runtime handoff and observing reciprocal "
-            "presence through departure and reconnect. It still does not certify gameplay correctness, adverse "
-            "network quality, visual/performance quality, or release readiness."
+            "presence through departure and reconnect. The top Godot-Web receipt also cryptographically verifies "
+            "the mounted descriptor against external local release trust. It still does not certify gameplay "
+            "correctness, adverse network quality, visual/performance quality, or release readiness."
         ),
     }
 
