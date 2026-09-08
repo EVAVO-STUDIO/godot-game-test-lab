@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -13,7 +14,12 @@ _MAX_ROLES = 8
 _MAX_TEXT_BYTES = 256
 _PHASES = ("single", "reciprocal", "departure", "reconnect")
 _CHANNELS = {"development", "preview", "production"}
-_REQUIRED_CAPABILITIES = {"authoritative-room-presence", "stale-socket-send-rejection"}
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_REQUIRED_CAPABILITIES = {
+    "authoritative-room-presence",
+    "stale-socket-send-rejection",
+    "source-bound-deployment",
+}
 _EXPECTED_FIELDS = {
     "schemaVersion",
     "kind",
@@ -27,6 +33,7 @@ _EXPECTED_FIELDS = {
     "truthBoundary",
     "runtimeOrigin",
     "authorityOrigin",
+    "authoritySourceSha",
     "releaseId",
     "releaseChannel",
     "runtimeSessionIssuerProven",
@@ -194,8 +201,11 @@ def verify_runtime_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]
         _fail("runtime authority peer-exchange release channel is invalid")
     runtime_origin = _origin(raw.get("runtimeOrigin"), "runtime origin", websocket=False)
     authority_origin = _origin(raw.get("authorityOrigin"), "authority origin", websocket=True)
-    if runtime_origin == authority_origin:
+    if urlsplit(runtime_origin).netloc == urlsplit(authority_origin).netloc:
         _fail("runtime and game authority origins must remain distinct")
+    authority_source_sha = raw.get("authoritySourceSha")
+    if not isinstance(authority_source_sha, str) or _SHA_RE.fullmatch(authority_source_sha) is None:
+        _fail("runtime authority peer-exchange authority source SHA is invalid")
 
     for field in (
         "transportProven",
@@ -284,6 +294,7 @@ def verify_runtime_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]
         "reconnectIdentityContinuityProven": True,
         "runtimeSessionRotationProven": True,
         "completeRoomCoverageProven": True,
+        "deploymentSourceBound": True,
         "privacySafe": True,
         "gameId": game_id,
         "protocol": protocol,
@@ -292,6 +303,7 @@ def verify_runtime_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]
         "releaseChannel": release_channel,
         "runtimeOrigin": runtime_origin,
         "authorityOrigin": authority_origin,
+        "authoritySourceSha": authority_source_sha,
         "requiredRoleCount": len(reciprocal),
         "departedRoleId": departed_role,
         "survivorRoleId": survivor_role,
@@ -299,9 +311,9 @@ def verify_runtime_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]
         "authorityCapabilities": sorted(normalized_capabilities),
         "truthBoundary": (
             "This proves a retained EVAVO runtime-to-authority WebSocket lifecycle receipt has runtime-issued "
-            "bound admission, complete-room reciprocal presence, departure revocation, reconnect identity "
-            "continuity with runtime-session rotation, and privacy-safe retained evidence. It does not prove "
-            "that a browser-hosted Godot player traversed the production path."
+            "bound admission, exact deployed-authority source provenance, complete-room reciprocal presence, "
+            "departure revocation, reconnect identity continuity with runtime-session rotation, and privacy-safe "
+            "retained evidence. It does not prove that a browser-hosted Godot player traversed the production path."
         ),
     }
 
