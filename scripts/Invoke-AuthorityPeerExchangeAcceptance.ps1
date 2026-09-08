@@ -15,37 +15,6 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
-function Invoke-CapturedProcess {
-    param(
-        [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
-        [Parameter(Mandatory = $true)][string]$StdoutPath,
-        [Parameter(Mandatory = $true)][string]$StderrPath
-    )
-
-    $start = New-Object System.Diagnostics.ProcessStartInfo
-    $start.FileName = $FilePath
-    $start.WorkingDirectory = $WorkingDirectory
-    $start.UseShellExecute = $false
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    $start.CreateNoWindow = $true
-    foreach ($argument in $Arguments) {
-        [void]$start.ArgumentList.Add($argument)
-    }
-
-    $process = New-Object System.Diagnostics.Process
-    $process.StartInfo = $start
-    if (-not $process.Start()) { throw "Failed to start $FilePath" }
-    $stdout = $process.StandardOutput.ReadToEnd()
-    $stderr = $process.StandardError.ReadToEnd()
-    $process.WaitForExit()
-    [System.IO.File]::WriteAllText($StdoutPath, $stdout, (New-Object System.Text.UTF8Encoding($false)))
-    [System.IO.File]::WriteAllText($StderrPath, $stderr, (New-Object System.Text.UTF8Encoding($false)))
-    return $process.ExitCode
-}
-
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $labRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $targetRoot = (Resolve-Path $TargetRepoRoot).Path
@@ -83,7 +52,13 @@ $emitterStderr = Join-Path $runRoot 'emitter.stderr.txt'
 $verifierStdout = Join-Path $runRoot 'verifier.stdout.txt'
 $verifierStderr = Join-Path $runRoot 'verifier.stderr.txt'
 
-$emitterExit = Invoke-CapturedProcess -FilePath $node -Arguments @($emitter) -WorkingDirectory $targetRoot -StdoutPath $receiptPath -StderrPath $emitterStderr
+Push-Location $targetRoot
+try {
+    & $node $emitter 1> $receiptPath 2> $emitterStderr
+    $emitterExit = $LASTEXITCODE
+} finally {
+    Pop-Location
+}
 $emitterLog = Get-Content -LiteralPath $emitterStderr -Raw
 if ($emitterExit -ne 0 -or $emitterLog -notmatch '(?m)^EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS\s*$') {
     throw "Authority peer-exchange emitter failed. Exit=$emitterExit"
@@ -97,11 +72,17 @@ try {
     } else {
         $env:PYTHONPATH = $srcPath + [System.IO.Path]::PathSeparator + $previousPythonPath
     }
-    $pythonArgs = @('-m', 'godot_game_test_lab.authority_peer_exchange', $receiptPath)
-    if ([System.IO.Path]::GetFileNameWithoutExtension($python).ToLowerInvariant() -eq 'py') {
-        $pythonArgs = @('-3') + $pythonArgs
+    Push-Location $labRoot
+    try {
+        if ([System.IO.Path]::GetFileNameWithoutExtension($python).ToLowerInvariant() -eq 'py') {
+            & $python -3 -m godot_game_test_lab.authority_peer_exchange $receiptPath 1> $verifierStdout 2> $verifierStderr
+        } else {
+            & $python -m godot_game_test_lab.authority_peer_exchange $receiptPath 1> $verifierStdout 2> $verifierStderr
+        }
+        $verifyExit = $LASTEXITCODE
+    } finally {
+        Pop-Location
     }
-    $verifyExit = Invoke-CapturedProcess -FilePath $python -Arguments $pythonArgs -WorkingDirectory $labRoot -StdoutPath $verifierStdout -StderrPath $verifierStderr
 } finally {
     $env:PYTHONPATH = $previousPythonPath
 }
