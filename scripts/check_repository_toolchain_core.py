@@ -32,6 +32,7 @@ EXPECTED_SCRIPTS = {
     "godot-lab": "godot_game_test_lab.cli:main",
     "godot-lab-native-qa": "godot_game_test_lab.native_qa:main",
     "godot-lab-multiplayer-qa": "godot_game_test_lab.multiplayer_qa:main",
+    "godot-lab-peer-evidence": "godot_game_test_lab.peer_exchange_semantics:main",
     "godot-lab-bot-qa": "godot_game_test_lab.bot_qa:main",
     "godot-lab-init-qa": "godot_game_test_lab.profile_bootstrap:main",
     "godot-lab-media-qa": "godot_game_test_lab.media_cli:main",
