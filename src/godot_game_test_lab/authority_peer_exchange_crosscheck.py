@@ -89,10 +89,12 @@ def verify_authority_peer_exchange_crosscheck(artifact_root: Path) -> dict[str, 
     authority_result = verify_authority_peer_exchange(receipt_path)
     peer_result = verify_peer_exchange(summary_path=summary_path, artifact_root=root)
 
-    if authority_result.get("receiptSchemaVersion") != 2:
-        _fail("authority peer-exchange cross-check requires a v2 lifecycle receipt")
+    if authority_result.get("receiptSchemaVersion") != 3:
+        _fail("authority peer-exchange cross-check requires a v3 lifecycle receipt")
     if authority_result.get("authoritySafetyProven") is not True:
         _fail("authority peer-exchange cross-check requires stale-socket authority safety")
+    if authority_result.get("staleSocketInboundRejectedProven") is not True:
+        _fail("authority peer-exchange cross-check requires stale inbound-message rejection")
     if authority_result.get("authorityLifecycleProven") is not True:
         _fail("authority peer-exchange lifecycle is not proven")
     if authority_result.get("transportProven") is not False:
@@ -163,9 +165,10 @@ def verify_authority_peer_exchange_crosscheck(artifact_root: Path) -> dict[str, 
         "protocol": authority_result.get("protocol"),
         "sessionId": session_id,
         "requiredRoleCount": required_roles,
-        "authorityReceiptSchemaVersion": 2,
+        "authorityReceiptSchemaVersion": 3,
         "authorityLifecycleProven": True,
         "authoritySafetyProven": True,
+        "staleSocketInboundRejectedProven": True,
         "standardPeerExchangeProven": True,
         "dynamicCaptureRoleCount": peer_matrix.get("dynamicCaptureRoleCount"),
         "semanticViewsAgree": True,
@@ -175,9 +178,10 @@ def verify_authority_peer_exchange_crosscheck(artifact_root: Path) -> dict[str, 
         "truthBoundary": (
             "This cross-check proves the retained GalacticCycleRoom authority lifecycle receipt and "
             "the standard Test Lab dynamic peer-exchange evidence describe the same shared session, "
-            "role inventory, local peer ids, and reciprocal observations. It also requires v2 stale-"
-            "socket authority retirement. It does not prove that a browser or native client traversed "
-            "the deployed production transport path, WAN behavior, game feel, or release readiness."
+            "role inventory, local peer ids, and reciprocal observations. It also requires v3 stale-"
+            "socket retirement plus outbound-send and inbound-message rejection. It does not prove "
+            "that a browser or native client traversed the deployed production transport path, WAN "
+            "behavior, game feel, or release readiness."
         ),
     }
 
