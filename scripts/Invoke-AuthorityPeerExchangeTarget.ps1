@@ -46,19 +46,50 @@ function Resolve-PythonInvocation {
     throw "Python 3.11+ is required to run the Test Lab verifier."
 }
 
+function Assert-ContainedPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Candidate,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    $relative = [IO.Path]::GetRelativePath($Root, $Candidate)
+    if (
+        [IO.Path]::IsPathRooted($relative) -or
+        $relative -eq ".." -or
+        $relative.StartsWith("..$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::Ordinal) -or
+        $relative.StartsWith("..$([IO.Path]::AltDirectorySeparatorChar)", [StringComparison]::Ordinal)
+    ) {
+        throw "$Label must remain inside the target repository."
+    }
+}
+
+function Assert-NotLink {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $item = Get-Item -LiteralPath $Path -Force
+    if (-not [string]::IsNullOrWhiteSpace([string]$item.LinkType)) {
+        throw "$Label must not be a symbolic link or junction."
+    }
+}
+
 if ($ExpectedRoleCount -lt 2 -or $ExpectedRoleCount -gt 32) {
     throw "ExpectedRoleCount must be between 2 and 32."
 }
 
 $TestLabRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $TargetRepoRoot = (Resolve-Path -LiteralPath $TargetRepoRoot).Path
+Assert-NotLink -Path $TargetRepoRoot -Label "Target repository root"
 $EmitterPath = [IO.Path]::GetFullPath((Join-Path $TargetRepoRoot $EmitterRelativePath))
-if (-not $EmitterPath.StartsWith($TargetRepoRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "EmitterRelativePath must remain inside the target repository."
-}
+Assert-ContainedPath -Root $TargetRepoRoot -Candidate $EmitterPath -Label "EmitterRelativePath"
 if (-not (Test-Path -LiteralPath $EmitterPath -PathType Leaf)) {
     throw "Authority peer-exchange emitter is missing: $EmitterPath"
 }
+Assert-NotLink -Path $EmitterPath -Label "Authority peer-exchange emitter"
 if ([IO.Path]::GetExtension($EmitterPath) -ne ".mjs") {
     throw "Authority peer-exchange emitter must be an .mjs file."
 }
@@ -69,9 +100,12 @@ if (-not (Test-Path -LiteralPath $VerifierModule -PathType Leaf)) {
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     throw "Node.js 20+ is required to run the authority emitter."
 }
-$NodeMajor = [int]((& node -p "process.versions.node.split('.')[0]").Trim())
-if ($LASTEXITCODE -ne 0 -or $NodeMajor -lt 20) {
-    throw "Node.js 20+ is required to run the authority emitter."
+$NodeVersionText = (& node -p "process.versions.node").Trim()
+if ($LASTEXITCODE -ne 0 -or $NodeVersionText -notmatch '^(\d+)\.') {
+    throw "Unable to determine Node.js version."
+}
+if ([int]$Matches[1] -lt 20) {
+    throw "Node.js 20+ is required to run the authority emitter; found $NodeVersionText."
 }
 
 $TargetState = Get-RepoState -Path $TargetRepoRoot
@@ -89,10 +123,9 @@ foreach ($entry in @(
 }
 
 $ArtifactRoot = [IO.Path]::GetFullPath((Join-Path $TargetRepoRoot $ArtifactRelativePath))
-if (-not $ArtifactRoot.StartsWith($TargetRepoRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "ArtifactRelativePath must remain inside the target repository."
-}
+Assert-ContainedPath -Root $TargetRepoRoot -Candidate $ArtifactRoot -Label "ArtifactRelativePath"
 New-Item -ItemType Directory -Path $ArtifactRoot -Force | Out-Null
+Assert-NotLink -Path $ArtifactRoot -Label "Authority peer-exchange artifact directory"
 $ReceiptPath = Join-Path $ArtifactRoot "authority-peer-exchange.json"
 $EmitterStderrPath = Join-Path $ArtifactRoot "emitter.stderr.log"
 $VerificationPath = Join-Path $ArtifactRoot "verification.json"
@@ -112,6 +145,7 @@ if ($EmitterMarkers.Count -ne 1) {
 if (-not (Test-Path -LiteralPath $ReceiptPath) -or (Get-Item -LiteralPath $ReceiptPath).Length -lt 2) {
     throw "Authority peer-exchange receipt was not retained."
 }
+Assert-NotLink -Path $ReceiptPath -Label "Authority peer-exchange receipt"
 
 $Python = Resolve-PythonInvocation
 $OldPythonPath = $env:PYTHONPATH
