@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +29,17 @@ CLAIMS = {
 
 
 def run(command: list[str], cwd: Path, timeout: float) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", timeout=timeout, check=False)
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        check=False,
+    )
 
 
 def git(root: Path, *args: str) -> str:
@@ -90,8 +100,8 @@ def main() -> None:
     receipt: dict[str, Any] = {
         "version": 1,
         "suite_id": SUITE_ID,
-        "run_id": f"http-range-hardening-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}",
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "run_id": f"http-range-hardening-{datetime.now(UTC):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}",
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "status": "fail",
         "runtime_repository": "EVAVO-STUDIO/evavo-game-runtime",
         "runtime_sha": runtime_sha,
@@ -110,7 +120,12 @@ def main() -> None:
 
     try:
         receipt["scenarios"]["integration_validator"] = check(
-            [sys.executable, str(TEST_LAB / "scripts/validate-evavo-game-runtime-http-range-hardening.py"), "--runtime-repo", str(runtime)],
+            [
+                sys.executable,
+                str(TEST_LAB / "scripts/validate-evavo-game-runtime-http-range-hardening.py"),
+                "--runtime-repo",
+                str(runtime),
+            ],
             TEST_LAB,
             artifacts / "integration-validator.log",
             args.timeout_seconds,
@@ -135,7 +150,10 @@ def main() -> None:
         receipt["status"] = "pass"
         receipt["notes"] = [
             "The suite requires the exact Godot 4.6.2 version family.",
-            "The suite validates release policy and cannot grant content availability, scene activation or simulation authority.",
+            (
+                "The suite validates release policy and cannot grant content availability, "
+                "scene activation or simulation authority."
+            ),
         ]
     except Exception as exc:
         receipt["notes"].append(f"failure: {type(exc).__name__}: {exc}")
