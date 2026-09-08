@@ -10,7 +10,7 @@ from godot_game_test_lab import multiplayer_authority_peer_exchange as subject
 
 def _receipt() -> dict[str, object]:
     return {
-        "schemaVersion": "2.0",
+        "schemaVersion": "3.0",
         "kind": "evavo-authority-peer-exchange-lifecycle",
         "gameId": "galactic-cycle-online",
         "authority": "GalacticCycleRoom",
@@ -100,9 +100,12 @@ def _write(root: Path, value: dict[str, object]) -> Path:
 def test_accepts_complete_authority_lifecycle_and_returns_reconnect_roles(tmp_path: Path) -> None:
     result = subject.verify_authority_peer_exchange_source(_write(tmp_path, _receipt()))
     assert result["sourceBound"] is True
+    assert result["receiptSchemaVersion"] == 3
     assert result["gameId"] == "galactic-cycle-online"
     assert result["requiredRoleCount"] == 2
     assert result["departedRoleId"] == "beta"
+    assert result["authoritySafetyProven"] is True
+    assert result["staleSocketInboundRejectedProven"] is True
     assert result["roles"] == _receipt()["phases"][3]["roles"]
 
 
@@ -131,6 +134,13 @@ def test_all_stale_socket_safety_claims_are_required(tmp_path: Path) -> None:
     receipt = _receipt()
     receipt["authoritySafety"].pop("staleSocketMessageRejected")
     with pytest.raises(subject.AuthorityPeerExchangeSourceError, match="safety receipt"):
+        subject.verify_authority_peer_exchange_source(_write(tmp_path, receipt))
+
+
+def test_v2_source_is_rejected_instead_of_silently_upgraded(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["schemaVersion"] = "2.0"
+    with pytest.raises(subject.AuthorityPeerExchangeSourceError, match="schema must be 3.0"):
         subject.verify_authority_peer_exchange_source(_write(tmp_path, receipt))
 
 
