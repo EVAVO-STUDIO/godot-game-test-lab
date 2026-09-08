@@ -14,6 +14,8 @@ Proves the retained server-authority lifecycle receipt has one shared room/sessi
 
 It does **not** prove any client traversed a real transport path.
 
+For fixture-derived Test Lab-shaped metadata evidence, use `godot-lab-authority-peer-exchange-bundle`. That verifier requires the retained schema-3 authority source receipt and labels the result `authority-fixture`; it cannot be promoted into native/browser transport evidence.
+
 ## Tier 2 — EVAVO runtime transport
 
 Command:
@@ -38,7 +40,7 @@ Adds Chromium browser-native same-origin session issuance and WebSocket transpor
 
 It does **not** prove the mounted Godot Web export consumed the runtime handoff.
 
-## Tier 4 — mounted Godot Web player
+## Tier 4 — mounted Godot Web player + cryptographic release binding
 
 Command:
 
@@ -48,7 +50,11 @@ godot-lab-godot-web-authority-peer-exchange <godot-web-receipt.json>
 
 Adds proof that two isolated Chromium contexts launched the mounted Godot Web export through the ordinary EVAVO `/play` → `/embed` surfaces, the running Godot clients consumed the runtime multiplayer handoff, reached the source-bound authority, observed reciprocal room presence, observed departure revocation and restored reciprocal evidence after reconnect.
 
-This tier observes the signed release descriptor **envelope**. The current live probe does not independently perform the descriptor's cryptographic signature verification itself, so it must not claim that stronger fact.
+Receipt v1 remains verifiable as historical evidence that the mounted descriptor carried the approved signature **envelope**. It is not sufficient for the current top evidence-ladder PASS.
+
+Receipt v2 is produced only after the successful browser/Godot lifecycle probe is followed by an independent cryptographic verification of the exact live mounted descriptor against an **external local P-256 trust map** from the governed hosted build. The trust anchor is intentionally not fetched from the live deployment being tested; otherwise a compromised host could replace both descriptor and trust and still appear self-consistent.
+
+The current ladder requires this v2 cryptographic verification for its highest tier.
 
 ## Cross-bind all four tiers
 
@@ -74,8 +80,9 @@ The ladder reruns each strict verifier and rejects receipts that do not describe
 - reconnect identity continuity and runtime-session rotation
 - privacy-safe evidence claims
 - the deliberate transport-scope distinction between tiers
+- cryptographic verification of the mounted descriptor against external local trust at the Godot-Web top tier
 
-A ladder PASS means all four retained receipts are individually admissible and mutually consistent. It still does not certify gameplay correctness, real WAN quality under adverse latency/loss, rendering quality, performance budgets, UX quality or release readiness.
+A current ladder PASS reports `highestTier=godot-web-player-cryptographic-release`. It means all four retained receipts are individually admissible and mutually consistent and the mounted release descriptor was cryptographically verified after the Godot-Web lifecycle probe. It still does not certify gameplay correctness, real WAN quality under adverse latency/loss, rendering quality, performance budgets, UX quality or release readiness.
 
 ## Privacy boundary
 
