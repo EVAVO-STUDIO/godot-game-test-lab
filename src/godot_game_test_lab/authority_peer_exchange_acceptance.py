@@ -58,6 +58,9 @@ _VERIFIER_V3_FIELDS = _VERIFIER_V2_FIELDS | {
     "transportProven",
     "browserTransportProven",
 }
+_VERIFIER_V4_FIELDS = _VERIFIER_V3_FIELDS | {
+    "staleSocketInboundRejectedProven",
+}
 _EMITTER_MARKER = "EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS"
 _VERIFIER_MARKER_RE = re.compile(r"^EVAVO_AUTHORITY_PEER_EXCHANGE=PASS roles=(?P<roles>\d+)$")
 _MAX_MANIFEST_BYTES = 128 * 1024
@@ -125,8 +128,11 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
     elif manifest_schema == "3.0":
         acceptance_schema = 3
         verifier_fields = _VERIFIER_V3_FIELDS
+    elif manifest_schema == "4.0":
+        acceptance_schema = 4
+        verifier_fields = _VERIFIER_V4_FIELDS
     else:
-        _fail("authority acceptance manifest schemaVersion must be 2.0 or 3.0")
+        _fail("authority acceptance manifest schemaVersion must be 2.0, 3.0, or 4.0")
 
     if manifest.get("kind") != "evavo-authority-peer-exchange-acceptance" or manifest.get("status") != "passed":
         _fail("authority acceptance manifest status or kind is invalid")
@@ -194,11 +200,14 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
 
     if acceptance_schema >= 3:
         if verified["receiptSchemaVersion"] < 2 or verified["authoritySafetyProven"] is not True:
-            _fail("authority acceptance v3 requires a receipt v2 authority-safety proof")
+            _fail("authority acceptance v3+ requires a receipt v2 authority-safety proof")
         if verified["authorityLifecycleProven"] is not True:
-            _fail("authority acceptance v3 requires authority lifecycle proof")
+            _fail("authority acceptance v3+ requires authority lifecycle proof")
         if verified["transportProven"] is not False or verified["browserTransportProven"] is not False:
-            _fail("authority acceptance v3 cannot escalate authority evidence into transport proof")
+            _fail("authority acceptance v3+ cannot escalate authority evidence into transport proof")
+    if acceptance_schema >= 4:
+        if verified["receiptSchemaVersion"] < 3 or verified["staleSocketInboundRejectedProven"] is not True:
+            _fail("authority acceptance v4 requires receipt v3 stale inbound-message rejection proof")
 
     verifier = _exact_fields(manifest.get("verifier"), verifier_fields, "verifier")
     marker = verifier.get("marker")
@@ -228,6 +237,8 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
                 "browserTransportProven": False,
             }
         )
+    if acceptance_schema >= 4:
+        comparisons["staleSocketInboundRejectedProven"] = True
     for key, expected in comparisons.items():
         if verifier.get(key) != expected:
             _fail(f"authority acceptance verifier claim disagrees with retained receipt: {key}")
@@ -239,6 +250,7 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
         "proven": True,
         "authorityLifecycleProven": verified["authorityLifecycleProven"],
         "authoritySafetyProven": verified["authoritySafetyProven"],
+        "staleSocketInboundRejectedProven": verified["staleSocketInboundRejectedProven"],
         "transportProven": False,
         "browserTransportProven": False,
         "runId": run_id,
@@ -255,9 +267,9 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
         "truthBoundary": (
             "This verifies a retained server-authority lifecycle receipt against its exact bytes "
             "and binds the accepted result to clean main-branch target and Test Lab SHAs recorded "
-            "by the runner. Acceptance v3 additionally requires receipt-v2 stale-socket authority "
-            "safety evidence. It still does not prove a browser or native client traversed the "
-            "production transport path."
+            "by the runner. Acceptance v3 binds outbound stale-socket authority safety; acceptance "
+            "v4 additionally requires receipt-v3 stale inbound-message rejection evidence. It "
+            "still does not prove a browser or native client traversed the production transport path."
         ),
     }
 
