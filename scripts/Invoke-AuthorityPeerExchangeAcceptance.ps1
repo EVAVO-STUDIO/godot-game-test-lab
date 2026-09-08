@@ -243,8 +243,17 @@ try {
 } catch {
     throw 'Test Lab authority peer-exchange verifier did not emit one valid structured result.'
 }
-if ($verifiedResult.proven -ne $true -or $verifiedResult.privacySafe -ne $true -or $verifiedResult.stablePeerMapping -ne $true) {
-    throw 'Test Lab authority peer-exchange structured result did not prove the required lifecycle guarantees.'
+if (
+    $verifiedResult.proven -ne $true -or
+    $verifiedResult.privacySafe -ne $true -or
+    $verifiedResult.stablePeerMapping -ne $true -or
+    $verifiedResult.receiptSchemaVersion -ne 2 -or
+    $verifiedResult.authoritySafetyProven -ne $true -or
+    $verifiedResult.authorityLifecycleProven -ne $true -or
+    $verifiedResult.transportProven -ne $false -or
+    $verifiedResult.browserTransportProven -ne $false
+) {
+    throw 'Test Lab authority peer-exchange structured result did not prove the required v2 lifecycle and authority-safety guarantees.'
 }
 
 $targetPreManifest = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
@@ -258,7 +267,7 @@ if ($labPreManifest.sha -ne $labInitial.sha -or $labPreManifest.dirty -or $labPr
 
 $receiptHash = (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifest = [ordered]@{
-    schemaVersion = '2.0'
+    schemaVersion = '3.0'
     kind = 'evavo-authority-peer-exchange-acceptance'
     status = 'passed'
     runId = $runId
@@ -294,6 +303,11 @@ $manifest = [ordered]@{
         authority = [string]$verifiedResult.authority
         protocol = [string]$verifiedResult.protocol
         sessionId = [string]$verifiedResult.sessionId
+        receiptSchemaVersion = [int]$verifiedResult.receiptSchemaVersion
+        authoritySafetyProven = [bool]$verifiedResult.authoritySafetyProven
+        authorityLifecycleProven = [bool]$verifiedResult.authorityLifecycleProven
+        transportProven = [bool]$verifiedResult.transportProven
+        browserTransportProven = [bool]$verifiedResult.browserTransportProven
     }
     sourceUnchanged = $true
 }
@@ -316,8 +330,17 @@ try {
 } catch {
     throw 'Authority acceptance manifest verifier did not emit one valid structured result.'
 }
-if ($acceptanceResult.proven -ne $true -or $acceptanceResult.sourceBound -ne $true -or $acceptanceResult.targetSha -cne $expectedSha -or $acceptanceResult.testLabSha -cne $labInitial.sha) {
-    throw 'Authority acceptance manifest structured result did not bind the expected source SHAs.'
+if (
+    $acceptanceResult.proven -ne $true -or
+    $acceptanceResult.sourceBound -ne $true -or
+    $acceptanceResult.authoritySafetyProven -ne $true -or
+    $acceptanceResult.authorityLifecycleProven -ne $true -or
+    $acceptanceResult.transportProven -ne $false -or
+    $acceptanceResult.browserTransportProven -ne $false -or
+    $acceptanceResult.targetSha -cne $expectedSha -or
+    $acceptanceResult.testLabSha -cne $labInitial.sha
+) {
+    throw 'Authority acceptance manifest structured result did not bind the expected v3 source and truth claims.'
 }
 
 $targetFinal = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
