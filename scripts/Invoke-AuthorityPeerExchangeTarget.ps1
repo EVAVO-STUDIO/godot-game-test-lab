@@ -33,6 +33,7 @@ function Get-RepoState {
         branch = $branch
         sha = $sha
         dirty = ($status.Count -gt 0)
+        status = @($status | ForEach-Object { [string]$_ })
     }
 }
 
@@ -77,6 +78,30 @@ function Assert-NotLink {
     }
 }
 
+function Invoke-TestLabModule {
+    param(
+        [Parameter(Mandatory = $true)][hashtable]$Python,
+        [Parameter(Mandatory = $true)][string]$TestLabRoot,
+        [Parameter(Mandatory = $true)][string]$Module,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $oldPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($oldPythonPath)) {
+        Join-Path $TestLabRoot "src"
+    } else {
+        "$(Join-Path $TestLabRoot 'src')$([IO.Path]::PathSeparator)$oldPythonPath"
+    }
+    try {
+        $pythonArgs = @($Python.prefix) + @("-m", $Module, $Path)
+        $output = @(& $Python.executable @pythonArgs 2>&1)
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $env:PYTHONPATH = $oldPythonPath
+    }
+    return [ordered]@{ output = $output; exitCode = $exitCode }
+}
+
 if ($ExpectedRoleCount -lt 2 -or $ExpectedRoleCount -gt 32) {
     throw "ExpectedRoleCount must be between 2 and 32."
 }
@@ -94,8 +119,11 @@ if ([IO.Path]::GetExtension($EmitterPath) -ne ".mjs") {
     throw "Authority peer-exchange emitter must be an .mjs file."
 }
 $VerifierModule = Join-Path $TestLabRoot "src\godot_game_test_lab\authority_peer_exchange.py"
-if (-not (Test-Path -LiteralPath $VerifierModule -PathType Leaf)) {
-    throw "Test Lab authority peer-exchange verifier is missing."
+$AcceptanceModule = Join-Path $TestLabRoot "src\godot_game_test_lab\authority_peer_exchange_acceptance.py"
+foreach ($required in @($VerifierModule, $AcceptanceModule)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Required Test Lab authority verifier is missing: $required"
+    }
 }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     throw "Node.js 20+ is required to run the authority emitter."
@@ -107,6 +135,7 @@ if ($LASTEXITCODE -ne 0 -or $NodeVersionText -notmatch '^(\d+)\.') {
 if ([int]$Matches[1] -lt 20) {
     throw "Node.js 20+ is required to run the authority emitter; found $NodeVersionText."
 }
+$Python = Resolve-PythonInvocation
 
 $TargetState = Get-RepoState -Path $TargetRepoRoot
 $LabState = Get-RepoState -Path $TestLabRoot
@@ -126,9 +155,17 @@ $ArtifactRoot = [IO.Path]::GetFullPath((Join-Path $TargetRepoRoot $ArtifactRelat
 Assert-ContainedPath -Root $TargetRepoRoot -Candidate $ArtifactRoot -Label "ArtifactRelativePath"
 New-Item -ItemType Directory -Path $ArtifactRoot -Force | Out-Null
 Assert-NotLink -Path $ArtifactRoot -Label "Authority peer-exchange artifact directory"
-$ReceiptPath = Join-Path $ArtifactRoot "authority-peer-exchange.json"
-$EmitterStderrPath = Join-Path $ArtifactRoot "emitter.stderr.log"
-$VerificationPath = Join-Path $ArtifactRoot "verification.json"
+$RunId = "authority-$($TargetState.sha.Substring(0, 12))-$($LabState.sha.Substring(0, 12))"
+$RunRoot = Join-Path $ArtifactRoot $RunId
+if (Test-Path -LiteralPath $RunRoot) {
+    Remove-Item -LiteralPath $RunRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Path $RunRoot -Force | Out-Null
+Assert-NotLink -Path $RunRoot -Label "Authority peer-exchange run directory"
+$ReceiptPath = Join-Path $RunRoot "authority-peer-exchange.json"
+$EmitterStderrPath = Join-Path $RunRoot "emitter.stderr.log"
+$VerificationPath = Join-Path $RunRoot "verification.json"
+$AcceptancePath = Join-Path $RunRoot "acceptance.json"
 
 & node $EmitterPath 1> $ReceiptPath 2> $EmitterStderrPath
 $EmitterExit = $LASTEXITCODE
@@ -147,36 +184,18 @@ if (-not (Test-Path -LiteralPath $ReceiptPath) -or (Get-Item -LiteralPath $Recei
 }
 Assert-NotLink -Path $ReceiptPath -Label "Authority peer-exchange receipt"
 
-$Python = Resolve-PythonInvocation
-$OldPythonPath = $env:PYTHONPATH
-$env:PYTHONPATH = if ([string]::IsNullOrWhiteSpace($OldPythonPath)) {
-    Join-Path $TestLabRoot "src"
-} else {
-    "$(Join-Path $TestLabRoot 'src')$([IO.Path]::PathSeparator)$OldPythonPath"
-}
-try {
-    $PythonArgs = @($Python.prefix) + @(
-        "-m",
-        "godot_game_test_lab.authority_peer_exchange",
-        $ReceiptPath
-    )
-    $VerifierOutput = @(& $Python.executable @PythonArgs 2>&1)
-    $VerifierExit = $LASTEXITCODE
-} finally {
-    $env:PYTHONPATH = $OldPythonPath
-}
-if ($VerifierExit -ne 0) {
-    $VerifierOutput | ForEach-Object { Write-Host $_ }
-    throw "Test Lab authority peer-exchange verifier failed with exit code $VerifierExit."
+$VerifierRun = Invoke-TestLabModule -Python $Python -TestLabRoot $TestLabRoot -Module "godot_game_test_lab.authority_peer_exchange" -Path $ReceiptPath
+if ($VerifierRun.exitCode -ne 0) {
+    $VerifierRun.output | ForEach-Object { Write-Host $_ }
+    throw "Test Lab authority peer-exchange verifier failed with exit code $($VerifierRun.exitCode)."
 }
 $ExpectedVerifierSentinel = "EVAVO_AUTHORITY_PEER_EXCHANGE=PASS roles=$ExpectedRoleCount"
-$VerifierMarkers = @($VerifierOutput | Where-Object { $_ -eq $ExpectedVerifierSentinel })
+$VerifierMarkers = @($VerifierRun.output | Where-Object { $_ -eq $ExpectedVerifierSentinel })
 if ($VerifierMarkers.Count -ne 1) {
-    $VerifierOutput | ForEach-Object { Write-Host $_ }
+    $VerifierRun.output | ForEach-Object { Write-Host $_ }
     throw "Test Lab verifier did not produce exactly one expected PASS sentinel."
 }
-
-$JsonLine = $VerifierOutput | Where-Object { $_ -match '^\{' } | Select-Object -First 1
+$JsonLine = $VerifierRun.output | Where-Object { $_ -match '^\{' } | Select-Object -First 1
 if ([string]::IsNullOrWhiteSpace($JsonLine)) {
     throw "Test Lab verifier did not emit its JSON result."
 }
@@ -185,6 +204,7 @@ if (
     $Verified.proven -ne $true -or
     $Verified.receiptSchemaVersion -ne 2 -or
     $Verified.authoritySafetyProven -ne $true -or
+    $Verified.authorityLifecycleProven -ne $true -or
     $Verified.departureRevocationProven -ne $true -or
     $Verified.reconnectPeerSemanticsProven -ne $true -or
     $Verified.transportProven -ne $false -or
@@ -197,36 +217,121 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedGameId) -and [string]$Verified.ga
     throw "Authority peer-exchange game ID mismatch: expected '$ExpectedGameId', found '$($Verified.gameId)'."
 }
 
-$Combined = [ordered]@{
-    schemaVersion = 1
-    kind = "evavo-authority-peer-exchange-target-verification"
-    target = [ordered]@{
-        branch = $TargetState.branch
-        sha = $TargetState.sha
-        dirty = $TargetState.dirty
-    }
-    testLab = [ordered]@{
-        branch = $LabState.branch
-        sha = $LabState.sha
-        dirty = $LabState.dirty
-    }
-    allowDirty = [bool]$AllowDirty
-    emitterRelativePath = $EmitterRelativePath.Replace('\', '/')
-    emitterSentinel = "EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS"
-    verifierSentinel = $ExpectedVerifierSentinel
-    gameId = [string]$Verified.gameId
-    authority = [string]$Verified.authority
-    protocol = [string]$Verified.protocol
-    requiredRoleCount = [int]$Verified.requiredRoleCount
-    authorityLifecycleProven = $true
-    authoritySafetyProven = $true
-    browserTransportProven = $false
-    transportProven = $false
-    receipt = (Resolve-Path -LiteralPath $ReceiptPath).Path
-    verifiedAtUtc = [DateTime]::UtcNow.ToString("o")
+$AfterTargetState = Get-RepoState -Path $TargetRepoRoot
+$AfterLabState = Get-RepoState -Path $TestLabRoot
+if ($AfterTargetState.sha -ne $TargetState.sha -or $AfterLabState.sha -ne $LabState.sha) {
+    throw "Repository HEAD changed during authority peer-exchange verification."
 }
-$Combined | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $VerificationPath -Encoding utf8NoBOM
+if (-not $AllowDirty) {
+    if ($AfterTargetState.dirty -or $AfterLabState.dirty) {
+        throw "Repository source changed during authority peer-exchange verification."
+    }
+    if (($AfterTargetState.status -join "`n") -ne ($TargetState.status -join "`n") -or ($AfterLabState.status -join "`n") -ne ($LabState.status -join "`n")) {
+        throw "Repository status changed during authority peer-exchange verification."
+    }
+}
 
-$VerifierOutput | ForEach-Object { Write-Host $_ }
-Write-Host "EVAVO_AUTHORITY_PEER_EXCHANGE_TARGET=PASS target_sha=$($TargetState.sha) test_lab_sha=$($LabState.sha) roles=$ExpectedRoleCount"
-Write-Host "Verification receipt: $VerificationPath"
+$ReceiptItem = Get-Item -LiteralPath $ReceiptPath
+$ReceiptDigest = (Get-FileHash -LiteralPath $ReceiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$EvidenceGrade = "diagnostic"
+if (-not $AllowDirty) {
+    $Acceptance = [ordered]@{
+        schemaVersion = "3.0"
+        kind = "evavo-authority-peer-exchange-acceptance"
+        status = "passed"
+        runId = $RunId
+        testLab = [ordered]@{ sha = $LabState.sha; branch = "main"; dirty = $false }
+        target = [ordered]@{ sha = $TargetState.sha; branch = "main"; dirty = $false }
+        nodeVersion = "v$NodeVersionText"
+        emitter = [ordered]@{
+            relativePath = $EmitterRelativePath.Replace('\', '/')
+            marker = "EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS"
+            markerOccurrences = 1
+        }
+        receipt = [ordered]@{
+            path = "authority-peer-exchange.json"
+            sha256 = $ReceiptDigest
+            bytes = [int64]$ReceiptItem.Length
+        }
+        verifier = [ordered]@{
+            marker = $ExpectedVerifierSentinel
+            markerOccurrences = 1
+            proven = $true
+            privacySafe = $true
+            stablePeerMapping = $true
+            requiredRoleCount = [int]$Verified.requiredRoleCount
+            gameId = [string]$Verified.gameId
+            authority = [string]$Verified.authority
+            protocol = [string]$Verified.protocol
+            sessionId = [string]$Verified.sessionId
+            receiptSchemaVersion = [int]$Verified.receiptSchemaVersion
+            authoritySafetyProven = $true
+            authorityLifecycleProven = $true
+            transportProven = $false
+            browserTransportProven = $false
+        }
+        sourceUnchanged = $true
+    }
+    $Acceptance | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $AcceptancePath -Encoding utf8NoBOM
+    Assert-NotLink -Path $AcceptancePath -Label "Authority peer-exchange acceptance manifest"
+
+    $AcceptanceRun = Invoke-TestLabModule -Python $Python -TestLabRoot $TestLabRoot -Module "godot_game_test_lab.authority_peer_exchange_acceptance" -Path $AcceptancePath
+    if ($AcceptanceRun.exitCode -ne 0) {
+        $AcceptanceRun.output | ForEach-Object { Write-Host $_ }
+        throw "Test Lab authority acceptance verifier failed with exit code $($AcceptanceRun.exitCode)."
+    }
+    $ExpectedAcceptanceSentinel = "EVAVO_AUTHORITY_PEER_EXCHANGE_ACCEPTANCE_VERIFY=PASS target_sha=$($TargetState.sha) lab_sha=$($LabState.sha)"
+    $AcceptanceMarkers = @($AcceptanceRun.output | Where-Object { $_ -eq $ExpectedAcceptanceSentinel })
+    if ($AcceptanceMarkers.Count -ne 1) {
+        $AcceptanceRun.output | ForEach-Object { Write-Host $_ }
+        throw "Test Lab authority acceptance verifier did not produce exactly one expected PASS sentinel."
+    }
+    $AcceptanceJsonLine = $AcceptanceRun.output | Where-Object { $_ -match '^\{' } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($AcceptanceJsonLine)) {
+        throw "Test Lab authority acceptance verifier did not emit its JSON result."
+    }
+    $Accepted = $AcceptanceJsonLine | ConvertFrom-Json
+    if (
+        $Accepted.acceptanceSchemaVersion -ne 3 -or
+        $Accepted.receiptSchemaVersion -ne 2 -or
+        $Accepted.proven -ne $true -or
+        $Accepted.authorityLifecycleProven -ne $true -or
+        $Accepted.authoritySafetyProven -ne $true -or
+        $Accepted.transportProven -ne $false -or
+        $Accepted.browserTransportProven -ne $false -or
+        $Accepted.sourceBound -ne $true -or
+        [string]$Accepted.receiptSha256 -ne $ReceiptDigest
+    ) {
+        throw "Test Lab authority acceptance result does not satisfy the source-bound v3 contract."
+    }
+    $AcceptanceRun.output | ForEach-Object { Write-Host $_ }
+    $EvidenceGrade = "source-bound-v3"
+}
+else {
+    $Diagnostic = [ordered]@{
+        schemaVersion = 1
+        kind = "evavo-authority-peer-exchange-diagnostic"
+        target = [ordered]@{ branch = $TargetState.branch; sha = $TargetState.sha; dirty = $TargetState.dirty }
+        testLab = [ordered]@{ branch = $LabState.branch; sha = $LabState.sha; dirty = $LabState.dirty }
+        receiptSha256 = $ReceiptDigest
+        gameId = [string]$Verified.gameId
+        authority = [string]$Verified.authority
+        protocol = [string]$Verified.protocol
+        requiredRoleCount = [int]$Verified.requiredRoleCount
+        authorityLifecycleProven = $true
+        authoritySafetyProven = $true
+        transportProven = $false
+        browserTransportProven = $false
+        sourceBound = $false
+    }
+    $Diagnostic | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $VerificationPath -Encoding utf8NoBOM
+}
+
+$VerifierRun.output | ForEach-Object { Write-Host $_ }
+Write-Host "EVAVO_AUTHORITY_PEER_EXCHANGE_TARGET=PASS target_sha=$($TargetState.sha) test_lab_sha=$($LabState.sha) roles=$ExpectedRoleCount evidence_grade=$EvidenceGrade"
+Write-Host "Authority receipt: $ReceiptPath"
+if (-not $AllowDirty) {
+    Write-Host "Acceptance manifest: $AcceptancePath"
+} else {
+    Write-Host "Diagnostic receipt: $VerificationPath"
+}
