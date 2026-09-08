@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from godot_game_test_lab import authority_peer_exchange as subject
+
+
+def _receipt() -> dict[str, object]:
+    return {
+        "schemaVersion": "1.0",
+        "kind": "evavo-authority-peer-exchange-lifecycle",
+        "gameId": "galactic-cycle-online",
+        "authority": "GalacticCycleRoom",
+        "protocol": "galactic-cycle.v1",
+        "sessionId": "persistent-galaxy",
+        "departedRoleId": "beta",
+        "phases": [
+            {
+                "id": "single",
+                "roles": [
+                    {
+                        "id": "alpha",
+                        "sessionId": "persistent-galaxy",
+                        "localPeerId": 1,
+                        "observedPeerIds": [],
+                    }
+                ],
+            },
+            {
+                "id": "reciprocal",
+                "roles": [
+                    {
+                        "id": "alpha",
+                        "sessionId": "persistent-galaxy",
+                        "localPeerId": 1,
+                        "observedPeerIds": [2],
+                    },
+                    {
+                        "id": "beta",
+                        "sessionId": "persistent-galaxy",
+                        "localPeerId": 2,
+                        "observedPeerIds": [1],
+                    },
+                ],
+            },
+            {
+                "id": "departure",
+                "roles": [
+                    {
+                        "id": "alpha",
+                        "sessionId": "persistent-galaxy",
+                        "localPeerId": 1,
+                        "observedPeerIds": [],
+                    }
+                ],
+            },
+            {
+                "id": "reconnect",
+                "roles": [
+                    {
+                        "id": "alpha",
+                        "sessionId": "persistent-galaxy",
+                        "localPeerId": 1,
+                        "observedPeerIds": [2],
+                    },
+                    {
+                        "id": "beta",
+                        "sessionId": "persistent-galaxy",
+                        "localPeerId": 2,
+                        "observedPeerIds": [1],
+                    },
+                ],
+            },
+        ],
+        "privacy": {
+            "rawPlayerIdsTransmitted": False,
+            "runtimeSessionIdsTransmitted": False,
+            "credentialsTransmitted": False,
+        },
+        "truthBoundary": "server authority lifecycle only",
+    }
+
+
+def _write(tmp_path: Path, receipt: dict[str, object]) -> Path:
+    path = tmp_path / "authority-peer-exchange.json"
+    path.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def test_proves_reciprocal_departure_and_reconnect_lifecycle(tmp_path: Path) -> None:
+    result = subject.verify_authority_peer_exchange(_write(tmp_path, _receipt()))
+    assert result["proven"] is True
+    assert result["requiredRoleCount"] == 2
+    assert result["privacySafe"] is True
+    assert result["phases"] == ["single", "reciprocal", "departure", "reconnect"]
+
+
+def test_missing_reciprocal_observation_fails_closed(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["phases"][1]["roles"][1]["observedPeerIds"] = []
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="exact reciprocal peer set"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_departure_must_remove_exactly_the_declared_role(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["phases"][2]["roles"] = receipt["phases"][1]["roles"]
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="remove exactly the departed role"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_reconnect_must_restore_reciprocal_role_inventory(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["phases"][3]["roles"] = receipt["phases"][3]["roles"][:1]
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="restore the reciprocal role inventory"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_identity_or_credential_leak_claim_fails_closed(tmp_path: Path) -> None:
+    for key in ("rawPlayerIdsTransmitted", "runtimeSessionIdsTransmitted", "credentialsTransmitted"):
+        receipt = _receipt()
+        receipt["privacy"][key] = True
+        with pytest.raises(subject.AuthorityPeerExchangeError, match="identity or credential leakage"):
+            subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_unexpected_fields_are_rejected(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["rawPlayerIds"] = ["secret"]
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="unexpected fields"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
