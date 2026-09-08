@@ -95,6 +95,8 @@ def test_proves_reciprocal_departure_and_reconnect_lifecycle(tmp_path: Path) -> 
     assert result["proven"] is True
     assert result["requiredRoleCount"] == 2
     assert result["privacySafe"] is True
+    assert result["stablePeerMapping"] is True
+    assert result["survivorRoleId"] == "alpha"
     assert result["receiptBytes"] > 0
     assert result["phases"] == ["single", "reciprocal", "departure", "reconnect"]
 
@@ -113,6 +115,13 @@ def test_departure_must_remove_exactly_the_declared_role(tmp_path: Path) -> None
         subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
 
 
+def test_departure_cannot_renumber_surviving_peer(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["phases"][2]["roles"][0]["localPeerId"] = 9
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="changed peer id for surviving role"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
 def test_reconnect_must_restore_reciprocal_role_inventory(tmp_path: Path) -> None:
     receipt = _receipt()
     receipt["phases"][3]["roles"] = receipt["phases"][3]["roles"][:1]
@@ -120,10 +129,27 @@ def test_reconnect_must_restore_reciprocal_role_inventory(tmp_path: Path) -> Non
         subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
 
 
+def test_reconnect_cannot_silently_renumber_peers(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["phases"][3]["roles"][0]["localPeerId"] = 7
+    receipt["phases"][3]["roles"][0]["observedPeerIds"] = [8]
+    receipt["phases"][3]["roles"][1]["localPeerId"] = 8
+    receipt["phases"][3]["roles"][1]["observedPeerIds"] = [7]
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="changed the reciprocal peer mapping"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
 def test_single_role_must_exist_in_reciprocal_phase(tmp_path: Path) -> None:
     receipt = _receipt()
     receipt["phases"][0]["roles"][0]["id"] = "observer"
     with pytest.raises(subject.AuthorityPeerExchangeError, match="single phase role"):
+        subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_departed_role_cannot_be_the_single_phase_survivor(tmp_path: Path) -> None:
+    receipt = _receipt()
+    receipt["departedRoleId"] = "alpha"
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="departed role cannot be the single-phase survivor"):
         subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
 
 
@@ -148,6 +174,15 @@ def test_unexpected_fields_are_rejected(tmp_path: Path) -> None:
     receipt["rawPlayerIds"] = ["secret"]
     with pytest.raises(subject.AuthorityPeerExchangeError, match="unexpected fields"):
         subject.verify_authority_peer_exchange(_write(tmp_path, receipt))
+
+
+def test_duplicate_json_keys_are_rejected_by_strict_loader(tmp_path: Path) -> None:
+    path = tmp_path / "authority-peer-exchange.json"
+    valid = json.dumps(_receipt(), separators=(",", ":"))
+    tampered = valid[:-1] + ',"kind":"evavo-authority-peer-exchange-lifecycle"}'
+    path.write_text(tampered, encoding="utf-8")
+    with pytest.raises(subject.AuthorityPeerExchangeError, match="receipt is unreadable"):
+        subject.verify_authority_peer_exchange(path)
 
 
 def test_oversized_receipt_is_rejected_before_json_parsing(tmp_path: Path) -> None:
