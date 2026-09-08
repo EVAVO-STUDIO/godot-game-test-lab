@@ -3,7 +3,7 @@
   "contractVersion": "evavo_repository_capabilities_v1",
   "repository": "EVAVO-STUDIO/godot-game-test-lab",
   "authority": "independent-godot-validation-and-admission",
-  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified engines; audits exact Godot web export descriptors, asset identities and threaded isolation evidence; runs exact-head plural localization, stable-ID application-bundle admission, native authored, concurrent multiplayer with optional game-reported peer-exchange proof, attended multiplayer, bot and no-network QA; analyses retained media; and compiles exact asset and animation evidence. It may write managed caches, transient ignored probe material and governed evidence outside target source authority, but does not repair, edit, publish or grant deployment authority over target repositories.",
+  "summary": "EVAVO Godot Game Test Lab independently inspects, validates, executes and captures evidence from external Godot projects; provisions checksum-verified engines; audits exact Godot web export descriptors, asset identities and threaded isolation evidence; runs exact-head plural localization, stable-ID application-bundle admission, native authored, concurrent multiplayer with optional game-reported peer-exchange proof, server-authority peer-exchange lifecycle acceptance, attended multiplayer, bot and no-network QA; analyses retained media; and compiles exact asset and animation evidence. It may write managed caches, transient ignored probe material and governed evidence outside target source authority, but does not repair, edit, publish or grant deployment authority over target repositories.",
   "capabilities": [
     {
       "id": "testlab.readiness.automated-testing",
@@ -96,6 +96,16 @@
       "requires": ["Exact Lab and target SHAs", "Reviewed multiplayer profile with 2 to 8 roles", "Allowed external artifact root", "Interactive Windows session", "Game-owned reserved metadata assertions on every required role when peer-exchange proof is requested", "Completed passed multiplayer run for attended receipt", "Same-session operator attestation for attended receipt", "Human review for game-feel conclusions"]
     },
     {
+      "id": "testlab.qa.authority-peer-exchange",
+      "title": "Verify exact-SHA server-authority peer-exchange lifecycle evidence",
+      "description": "Run a game-owned server-authority peer-exchange emitter from one exact clean target head, verify a strict privacy-safe four-phase lifecycle receipt for single presence, reciprocal observation, departure revocation and reconnect restoration, retain SHA-256 evidence outside the target, and prove the target remained unchanged. This is authority lifecycle evidence, not browser or native client transport certification.",
+      "interfaces": ["automation", "cli", "testing"],
+      "effects": ["read", "compute", "write", "execute"],
+      "entrypoints": ["python -m godot_game_test_lab.authority_peer_exchange", "src/godot_game_test_lab/authority_peer_exchange.py", "scripts/Invoke-AuthorityPeerExchangeAcceptance.ps1"],
+      "tags": ["godot", "multiplayer", "authority", "peer-exchange", "lifecycle", "exact-sha", "receipt", "privacy"],
+      "requires": ["Exact clean target Git head", "Game-owned authority peer-exchange emitter", "Node.js when the emitter requires it", "Python 3.11+", "External evidence root", "Separate client-side QA for browser or native transport traversal"]
+    },
+    {
       "id": "testlab.qa.bot",
       "title": "Run deterministic bot QA",
       "description": "Execute bounded deterministic fresh-process bot journeys across supported input paths while retaining replay, state and media evidence without claiming complete state coverage.",
@@ -167,8 +177,9 @@
       "native and headless validation",
       "plural localization runtime admission",
       "stable-ID application-bundle admission and non-mutation",
-      "authored, multiplayer, peer-exchange, attended multiplayer and bot QA",
+      "authored, multiplayer, peer-exchange, authority peer-exchange lifecycle, attended multiplayer and bot QA",
       "game-reported peer observation versus network-condition certification",
+      "server-authority lifecycle evidence versus client transport traversal",
       "operator attendance versus human approval",
       "Linux sandbox QA",
       "media and audio evidence",
