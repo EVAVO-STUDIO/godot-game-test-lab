@@ -126,3 +126,21 @@ def test_peer_exchange_is_discoverable_in_capability_registry() -> None:
         in capability["requires"]
     )
     assert "peer-exchange proof" in capability["description"].lower()
+
+
+def test_authority_peer_exchange_is_discoverable_as_a_distinct_capability() -> None:
+    manifest = json.loads((ROOT / "evavo.capabilities.json").read_text(encoding="utf-8"))
+    capability = next(
+        item
+        for item in manifest["capabilities"]
+        if item["id"] == "testlab.qa.authority-peer-exchange"
+    )
+    assert "authority" in capability["tags"]
+    assert "peer-exchange" in capability["tags"]
+    assert "lifecycle" in capability["tags"]
+    assert "python -m godot_game_test_lab.authority_peer_exchange" in capability["entrypoints"]
+    assert "src/godot_game_test_lab/authority_peer_exchange.py" in capability["entrypoints"]
+    assert "scripts/Invoke-AuthorityPeerExchangeAcceptance.ps1" in capability["entrypoints"]
+    assert "Exact clean target Git head" in capability["requires"]
+    assert "Separate client-side QA for browser or native transport traversal" in capability["requires"]
+    assert "not browser or native client transport certification" in capability["description"].lower()
