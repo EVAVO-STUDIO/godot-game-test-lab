@@ -14,7 +14,7 @@ _MAX_TEXT_BYTES = 2048
 _MAX_ROLES = 8
 _CHANNELS = {"development", "preview", "production"}
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-_EXPECTED_FIELDS = {
+_BASE_FIELDS = {
     "schemaVersion",
     "kind",
     "gameId",
@@ -46,6 +46,7 @@ _EXPECTED_FIELDS = {
     "phases",
     "truthBoundary",
 }
+_V2_FIELDS = _BASE_FIELDS | {"descriptorSignatureCryptographicallyVerified"}
 _TRUE_FIELDS = {
     "browserTransportProven",
     "browserLifecycleErrorsAbsentProven",
@@ -204,10 +205,19 @@ def _load_receipt(path: Path) -> tuple[dict[str, Any], int]:
 
 def verify_godot_web_authority_peer_exchange(receipt_path: Path) -> dict[str, Any]:
     raw, receipt_bytes = _load_receipt(receipt_path)
-    if set(raw) != _EXPECTED_FIELDS:
-        _fail("Godot Web peer-exchange receipt has unexpected fields")
-    if raw.get("schemaVersion") != 1 or raw.get("kind") != "evavo-godot-web-authority-peer-exchange":
+    schema_version = raw.get("schemaVersion")
+    expected_fields = _BASE_FIELDS if schema_version == 1 else _V2_FIELDS if schema_version == 2 else None
+    if expected_fields is None or raw.get("kind") != "evavo-godot-web-authority-peer-exchange":
         _fail("Godot Web peer-exchange receipt schema is unsupported")
+    if set(raw) != expected_fields:
+        _fail("Godot Web peer-exchange receipt has unexpected fields")
+    cryptographically_verified = schema_version == 2
+    if cryptographically_verified:
+        _literal_bool(
+            raw.get("descriptorSignatureCryptographicallyVerified"),
+            "descriptorSignatureCryptographicallyVerified",
+            True,
+        )
     _scan_forbidden_keys(raw)
 
     game_id = _bounded_text(raw.get("gameId"), "game id", 96)
@@ -278,12 +288,17 @@ def verify_godot_web_authority_peer_exchange(receipt_path: Path) -> dict[str, An
 
     truth_boundary = _bounded_text(raw.get("truthBoundary"), "truth boundary", 4096)
     lowered = truth_boundary.lower()
-    for required in ("does not", "cryptographically verify", "gameplay", "performance", "release readiness"):
-        if required not in lowered:
-            _fail("Godot Web peer-exchange truth boundary is too broad")
+    required_phrases = ("does not", "gameplay", "performance", "release readiness")
+    if any(required not in lowered for required in required_phrases):
+        _fail("Godot Web peer-exchange truth boundary is too broad")
+    if cryptographically_verified:
+        if "cryptographically verifies" not in lowered and "cryptographically verified" not in lowered:
+            _fail("Godot Web peer-exchange v2 truth boundary omits cryptographic verification scope")
+    elif "cryptographically verify" not in lowered:
+        _fail("Godot Web peer-exchange v1 truth boundary omits its signature-verification limitation")
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": schema_version,
         "proven": True,
         "browserTransportProven": True,
         "godotWebPlayerTransportProven": True,
@@ -296,7 +311,7 @@ def verify_godot_web_authority_peer_exchange(receipt_path: Path) -> dict[str, An
         "deploymentSourceBound": True,
         "privacySafe": True,
         "descriptorSignatureEnvelopeObserved": True,
-        "descriptorSignatureCryptographicallyVerifiedByThisProbe": False,
+        "descriptorSignatureCryptographicallyVerifiedByThisProbe": cryptographically_verified,
         "gameId": game_id,
         "releaseId": release_id,
         "releaseChannel": release_channel,
@@ -313,9 +328,15 @@ def verify_godot_web_authority_peer_exchange(receipt_path: Path) -> dict[str, An
         "truthBoundary": (
             "This proves the retained receipt reports the mounted Galactic Cycle Godot Web export consumed "
             "EVAVO runtime multiplayer handoff and observed source-bound authoritative reciprocal presence, "
-            "departure revocation, and reconnect restoration in two Chromium contexts. It does not independently "
-            "cryptographically verify the descriptor signature and does not certify gameplay, adverse-network "
-            "resilience, rendering/performance quality, or release readiness."
+            "departure revocation, and reconnect restoration in two Chromium contexts. "
+            + (
+                "The v2 receipt also cryptographically verifies the live mounted descriptor against external "
+                "local release trust. "
+                if cryptographically_verified
+                else "The v1 receipt observes only the descriptor signature envelope and does not independently "
+                "cryptographically verify the descriptor signature. "
+            )
+            + "It does not certify gameplay, adverse-network resilience, rendering/performance quality, or release readiness."
         ),
     }
 
