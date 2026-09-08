@@ -49,6 +49,15 @@ def bounded_session_id(value: object, label: str) -> str:
     return value
 
 
+def _strict_optional_bool(role: dict[str, Any], key: str, default: bool, role_id: str) -> bool:
+    if key not in role:
+        return default
+    value = role[key]
+    if not isinstance(value, bool):
+        _fail(f"role {role_id} {key} must be boolean")
+    return value
+
+
 def validate_peer_matrix(
     roles: object,
     *,
@@ -65,8 +74,14 @@ def validate_peer_matrix(
         or dynamic_capture_role_count > len(roles)
     ):
         _fail("dynamic capture role count is invalid")
-    if not isinstance(truth_boundary, str) or not truth_boundary.strip():
-        _fail("peer-exchange truth boundary must be non-empty")
+    if not isinstance(require_authority_participant, bool):
+        _fail("require_authority_participant must be boolean")
+    if not isinstance(truth_boundary, str) or truth_boundary != truth_boundary.strip() or not truth_boundary:
+        _fail("peer-exchange truth boundary must be a trimmed non-empty string")
+    if len(truth_boundary.encode("utf-8")) > 4096 or any(
+        character in truth_boundary for character in ("\x00", "\r")
+    ):
+        _fail("peer-exchange truth boundary is invalid")
 
     normalized: list[dict[str, Any]] = []
     seen_role_ids: set[str] = set()
@@ -74,6 +89,8 @@ def validate_peer_matrix(
     local_peer_ids: dict[str, int] = {}
     observed_peer_ids: dict[str, list[int]] = {}
     authority_peer_ids: dict[str, int] = {}
+    actual_dynamic_capture_count = 0
+    rejected_assertion_roles: list[str] = []
 
     for index, raw in enumerate(roles):
         if not is_record(raw):
@@ -111,6 +128,17 @@ def validate_peer_matrix(
             )
             authority_peer_ids[role_id] = authority_peer
 
+        dynamic_captured = _strict_optional_bool(
+            role, "dynamicRequiredMetadataCaptured", False, role_id
+        )
+        assertions_accepted = _strict_optional_bool(
+            role, "reservedAssertionsAccepted", True, role_id
+        )
+        if dynamic_captured:
+            actual_dynamic_capture_count += 1
+        if not assertions_accepted:
+            rejected_assertion_roles.append(role_id)
+
         session_values[role_id] = session_id
         local_peer_ids[role_id] = local_peer
         observed_peer_ids[role_id] = observed
@@ -121,16 +149,23 @@ def validate_peer_matrix(
                 "localPeerId": local_peer,
                 "observedPeerIds": observed,
                 "authorityPeerId": authority_peer,
-                "dynamicRequiredMetadataCaptured": bool(
-                    role.get("dynamicRequiredMetadataCaptured", False)
-                ),
-                "reservedAssertionsAccepted": bool(
-                    role.get("reservedAssertionsAccepted", True)
-                ),
+                "dynamicRequiredMetadataCaptured": dynamic_captured,
+                "reservedAssertionsAccepted": assertions_accepted,
             }
         )
 
+    if actual_dynamic_capture_count != dynamic_capture_role_count:
+        _fail(
+            "dynamic capture role count disagrees with role evidence: "
+            f"declared={dynamic_capture_role_count} actual={actual_dynamic_capture_count}"
+        )
+
     findings: list[str] = []
+    if rejected_assertion_roles:
+        findings.append(
+            "reserved multiplayer assertions were not accepted for roles: "
+            + ", ".join(sorted(rejected_assertion_roles))
+        )
     if len(set(session_values.values())) != 1:
         findings.append("required roles did not report one shared multiplayer session id")
     if len(set(local_peer_ids.values())) != len(local_peer_ids):
@@ -163,8 +198,8 @@ def validate_peer_matrix(
         "proven": proven,
         "requiredRoleCount": len(normalized),
         "authorityObserved": authority_count == len(normalized) and proven,
-        "dynamicCaptureRoleCount": dynamic_capture_role_count,
+        "dynamicCaptureRoleCount": actual_dynamic_capture_count,
         "roles": normalized,
         "findings": sorted(set(findings)),
-        "truthBoundary": truth_boundary.strip(),
+        "truthBoundary": truth_boundary,
     }
