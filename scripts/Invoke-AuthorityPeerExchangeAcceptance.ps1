@@ -247,13 +247,14 @@ if (
     $verifiedResult.proven -ne $true -or
     $verifiedResult.privacySafe -ne $true -or
     $verifiedResult.stablePeerMapping -ne $true -or
-    $verifiedResult.receiptSchemaVersion -ne 2 -or
+    $verifiedResult.receiptSchemaVersion -ne 3 -or
     $verifiedResult.authoritySafetyProven -ne $true -or
+    $verifiedResult.staleSocketInboundRejectedProven -ne $true -or
     $verifiedResult.authorityLifecycleProven -ne $true -or
     $verifiedResult.transportProven -ne $false -or
     $verifiedResult.browserTransportProven -ne $false
 ) {
-    throw 'Test Lab authority peer-exchange structured result did not prove the required v2 lifecycle and authority-safety guarantees.'
+    throw 'Test Lab authority peer-exchange structured result did not prove the required v3 lifecycle and stale inbound/outbound authority-safety guarantees.'
 }
 
 $targetPreManifest = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
@@ -267,7 +268,7 @@ if ($labPreManifest.sha -ne $labInitial.sha -or $labPreManifest.dirty -or $labPr
 
 $receiptHash = (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifest = [ordered]@{
-    schemaVersion = '3.0'
+    schemaVersion = '4.0'
     kind = 'evavo-authority-peer-exchange-acceptance'
     status = 'passed'
     runId = $runId
@@ -308,6 +309,7 @@ $manifest = [ordered]@{
         authorityLifecycleProven = [bool]$verifiedResult.authorityLifecycleProven
         transportProven = [bool]$verifiedResult.transportProven
         browserTransportProven = [bool]$verifiedResult.browserTransportProven
+        staleSocketInboundRejectedProven = [bool]$verifiedResult.staleSocketInboundRejectedProven
     }
     sourceUnchanged = $true
 }
@@ -333,14 +335,17 @@ try {
 if (
     $acceptanceResult.proven -ne $true -or
     $acceptanceResult.sourceBound -ne $true -or
+    $acceptanceResult.acceptanceSchemaVersion -ne 4 -or
+    $acceptanceResult.receiptSchemaVersion -ne 3 -or
     $acceptanceResult.authoritySafetyProven -ne $true -or
+    $acceptanceResult.staleSocketInboundRejectedProven -ne $true -or
     $acceptanceResult.authorityLifecycleProven -ne $true -or
     $acceptanceResult.transportProven -ne $false -or
     $acceptanceResult.browserTransportProven -ne $false -or
     $acceptanceResult.targetSha -cne $expectedSha -or
     $acceptanceResult.testLabSha -cne $labInitial.sha
 ) {
-    throw 'Authority acceptance manifest structured result did not bind the expected v3 source and truth claims.'
+    throw 'Authority acceptance manifest structured result did not bind the expected v4 source and stale inbound/outbound truth claims.'
 }
 
 $targetFinal = Get-RepositoryState -GitPath $git -RepositoryRoot $targetRoot -Name 'Target repository'
