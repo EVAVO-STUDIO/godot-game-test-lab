@@ -39,7 +39,7 @@ _MANIFEST_FIELDS = {
 _REPOSITORY_FIELDS = {"sha", "branch", "dirty"}
 _EMITTER_FIELDS = {"relativePath", "marker", "markerOccurrences"}
 _RECEIPT_FIELDS = {"path", "sha256", "bytes"}
-_VERIFIER_FIELDS = {
+_VERIFIER_V2_FIELDS = {
     "marker",
     "markerOccurrences",
     "proven",
@@ -50,6 +50,13 @@ _VERIFIER_FIELDS = {
     "authority",
     "protocol",
     "sessionId",
+}
+_VERIFIER_V3_FIELDS = _VERIFIER_V2_FIELDS | {
+    "receiptSchemaVersion",
+    "authoritySafetyProven",
+    "authorityLifecycleProven",
+    "transportProven",
+    "browserTransportProven",
 }
 _EMITTER_MARKER = "EVAVO_AUTHORITY_PEER_EXCHANGE_RECEIPT=PASS"
 _VERIFIER_MARKER_RE = re.compile(r"^EVAVO_AUTHORITY_PEER_EXCHANGE=PASS roles=(?P<roles>\d+)$")
@@ -110,8 +117,17 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
         _fail("authority acceptance manifest changed during verification")
     if set(manifest) != _MANIFEST_FIELDS:
         _fail("authority acceptance manifest fields are invalid")
-    if manifest.get("schemaVersion") != "2.0":
-        _fail("authority acceptance manifest schemaVersion must be 2.0")
+
+    manifest_schema = manifest.get("schemaVersion")
+    if manifest_schema == "2.0":
+        acceptance_schema = 2
+        verifier_fields = _VERIFIER_V2_FIELDS
+    elif manifest_schema == "3.0":
+        acceptance_schema = 3
+        verifier_fields = _VERIFIER_V3_FIELDS
+    else:
+        _fail("authority acceptance manifest schemaVersion must be 2.0 or 3.0")
+
     if manifest.get("kind") != "evavo-authority-peer-exchange-acceptance" or manifest.get("status") != "passed":
         _fail("authority acceptance manifest status or kind is invalid")
     try:
@@ -176,7 +192,15 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
     except AuthorityPeerExchangeError as error:
         raise AuthorityPeerExchangeAcceptanceError(str(error)) from error
 
-    verifier = _exact_fields(manifest.get("verifier"), _VERIFIER_FIELDS, "verifier")
+    if acceptance_schema >= 3:
+        if verified["receiptSchemaVersion"] < 2 or verified["authoritySafetyProven"] is not True:
+            _fail("authority acceptance v3 requires a receipt v2 authority-safety proof")
+        if verified["authorityLifecycleProven"] is not True:
+            _fail("authority acceptance v3 requires authority lifecycle proof")
+        if verified["transportProven"] is not False or verified["browserTransportProven"] is not False:
+            _fail("authority acceptance v3 cannot escalate authority evidence into transport proof")
+
+    verifier = _exact_fields(manifest.get("verifier"), verifier_fields, "verifier")
     marker = verifier.get("marker")
     marker_match = _VERIFIER_MARKER_RE.fullmatch(marker) if isinstance(marker, str) else None
     if marker_match is None or verifier.get("markerOccurrences") != 1:
@@ -184,7 +208,7 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
     if int(marker_match.group("roles")) != verified["requiredRoleCount"]:
         _fail("authority acceptance verifier marker role count disagrees with receipt")
 
-    comparisons = {
+    comparisons: dict[str, object] = {
         "proven": True,
         "privacySafe": True,
         "stablePeerMapping": True,
@@ -194,13 +218,29 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
         "protocol": verified["protocol"],
         "sessionId": verified["sessionId"],
     }
+    if acceptance_schema >= 3:
+        comparisons.update(
+            {
+                "receiptSchemaVersion": verified["receiptSchemaVersion"],
+                "authoritySafetyProven": True,
+                "authorityLifecycleProven": True,
+                "transportProven": False,
+                "browserTransportProven": False,
+            }
+        )
     for key, expected in comparisons.items():
         if verifier.get(key) != expected:
             _fail(f"authority acceptance verifier claim disagrees with retained receipt: {key}")
 
     return {
         "schemaVersion": 1,
+        "acceptanceSchemaVersion": acceptance_schema,
+        "receiptSchemaVersion": verified["receiptSchemaVersion"],
         "proven": True,
+        "authorityLifecycleProven": verified["authorityLifecycleProven"],
+        "authoritySafetyProven": verified["authoritySafetyProven"],
+        "transportProven": False,
+        "browserTransportProven": False,
         "runId": run_id,
         "testLabSha": test_lab["sha"],
         "targetSha": target["sha"],
@@ -215,7 +255,8 @@ def verify_authority_peer_exchange_acceptance(manifest_path: Path) -> dict[str, 
         "truthBoundary": (
             "This verifies a retained server-authority lifecycle receipt against its exact bytes "
             "and binds the accepted result to clean main-branch target and Test Lab SHAs recorded "
-            "by the runner. It still does not prove a browser or native client traversed the "
+            "by the runner. Acceptance v3 additionally requires receipt-v2 stale-socket authority "
+            "safety evidence. It still does not prove a browser or native client traversed the "
             "production transport path."
         ),
     }
