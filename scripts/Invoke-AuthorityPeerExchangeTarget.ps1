@@ -172,13 +172,14 @@ $ArtifactRoot = [IO.Path]::GetFullPath((Join-Path $TargetRepoRoot $ArtifactRelat
 Assert-ContainedPath -Root $TargetRepoRoot -Candidate $ArtifactRoot -Label "ArtifactRelativePath"
 New-Item -ItemType Directory -Path $ArtifactRoot -Force | Out-Null
 Assert-NotLink -Path $ArtifactRoot -Label "Authority peer-exchange artifact directory"
-$RunId = "authority-$($TargetState.sha.Substring(0, 12))-$($LabState.sha.Substring(0, 12))"
+$Timestamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
+$Nonce = [Guid]::NewGuid().ToString('N').Substring(0, 8)
+$RunId = "authority-$($TargetState.sha.Substring(0, 12))-$($LabState.sha.Substring(0, 12))-$Timestamp-$Nonce"
 $RunRoot = Join-Path $ArtifactRoot $RunId
 if (Test-Path -LiteralPath $RunRoot) {
-    Assert-NotLink -Path $RunRoot -Label "Existing authority peer-exchange run directory"
-    Remove-Item -LiteralPath $RunRoot -Recurse -Force
+    throw "Authority peer-exchange run directory already exists; refusing to overwrite retained evidence: $RunRoot"
 }
-New-Item -ItemType Directory -Path $RunRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $RunRoot | Out-Null
 Assert-NotLink -Path $RunRoot -Label "Authority peer-exchange run directory"
 $ReceiptPath = Join-Path $RunRoot "authority-peer-exchange.json"
 $EmitterStderrPath = Join-Path $RunRoot "emitter.stderr.log"
