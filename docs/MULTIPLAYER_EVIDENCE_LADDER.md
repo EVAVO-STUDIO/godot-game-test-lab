@@ -14,6 +14,8 @@ Proves the retained server-authority lifecycle receipt has one shared room/sessi
 
 It does **not** prove any client traversed a real transport path.
 
+For a clean-main source-bound authority result, use the target acceptance runner and retain its `acceptance.json`. The current top evidence ladder requires **acceptance schema v4** and the canonical schema-v3 lifecycle receipt beside it. This binds the lifecycle proof to the exact clean target Git SHA and Test Lab SHA used to produce and verify it.
+
 For fixture-derived Test Lab-shaped metadata evidence, use `godot-lab-authority-peer-exchange-bundle`. That verifier requires the retained schema-3 authority source receipt and labels the result `authority-fixture`; it cannot be promoted into native/browser transport evidence.
 
 ## Tier 2 — EVAVO runtime transport
@@ -62,19 +64,23 @@ Command:
 
 ```text
 godot-lab-multiplayer-evidence-ladder \
-  authority-receipt.json \
+  authority-run/acceptance.json \
   runtime-receipt.json \
   browser-receipt.json \
   godot-web-receipt.json
 ```
 
-The ladder reruns each strict verifier and rejects receipts that do not describe the same deployment. It cross-binds:
+The ladder reruns each strict verifier and rejects evidence that does not describe the same deployment. For the authority tier it first verifies the source-bound v4 acceptance manifest, then reopens and verifies the canonical `authority-peer-exchange.json` retained beside that manifest.
+
+It cross-binds:
 
 - game ID and protocol
 - shared authority room/session
 - release ID and release channel
 - runtime origin and authority origin
-- exact deployed authority source SHA
+- exact deployed authority source SHA across all transport tiers
+- the clean authority target Git SHA from the v4 acceptance manifest to that exact deployed authority source SHA
+- exact retained authority receipt bytes through the acceptance manifest
 - required role count
 - departed and surviving role identities
 - reconnect identity continuity and runtime-session rotation
@@ -82,7 +88,16 @@ The ladder reruns each strict verifier and rejects receipts that do not describe
 - the deliberate transport-scope distinction between tiers
 - cryptographic verification of the mounted descriptor against external local trust at the Godot-Web top tier
 
-A current ladder PASS reports `highestTier=godot-web-player-cryptographic-release`. It means all four retained receipts are individually admissible and mutually consistent and the mounted release descriptor was cryptographically verified after the Godot-Web lifecycle probe. It still does not certify gameplay correctness, real WAN quality under adverse latency/loss, rendering quality, performance budgets, UX quality or release readiness.
+A current ladder PASS reports:
+
+```text
+highestTier=source-bound-godot-web-player-cryptographic-release
+schemaVersion=3
+```
+
+It means all four tiers are individually admissible and mutually consistent, the authority lifecycle is tied to the exact clean target commit that the runtime/browser/Godot evidence names as the deployed authority source, and the mounted release descriptor was cryptographically verified after the Godot-Web lifecycle probe.
+
+It still does not certify gameplay correctness, real WAN quality under adverse latency/loss, rendering quality, performance budgets, UX quality or release readiness.
 
 ## Privacy boundary
 
