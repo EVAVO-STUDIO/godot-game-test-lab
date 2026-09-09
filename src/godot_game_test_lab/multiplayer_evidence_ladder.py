@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .authority_peer_exchange import AuthorityPeerExchangeError, verify_authority_peer_exchange
+from .authority_peer_exchange_acceptance import (
+    AuthorityPeerExchangeAcceptanceError,
+    verify_authority_peer_exchange_acceptance,
+)
 from .browser_runtime_authority_peer_exchange import (
     BrowserRuntimeAuthorityPeerExchangeError,
     verify_browser_runtime_authority_peer_exchange,
@@ -33,6 +37,7 @@ def _verified(label: str, verifier: Callable[[Path], dict[str, Any]], path: Path
         result = verifier(path)
     except (
         AuthorityPeerExchangeError,
+        AuthorityPeerExchangeAcceptanceError,
         RuntimeAuthorityPeerExchangeError,
         BrowserRuntimeAuthorityPeerExchangeError,
         GodotWebAuthorityPeerExchangeError,
@@ -41,6 +46,46 @@ def _verified(label: str, verifier: Callable[[Path], dict[str, Any]], path: Path
     if result.get("proven") is not True:
         _fail(f"{label} verifier did not return proven=true")
     return result
+
+
+def _verified_authority_acceptance(path: Path) -> dict[str, Any]:
+    accepted = _verified("authority-acceptance", verify_authority_peer_exchange_acceptance, path)
+    if accepted.get("acceptanceSchemaVersion") != 4:
+        _fail("top multiplayer tier requires authority acceptance schema v4")
+    if accepted.get("receiptSchemaVersion") != 3:
+        _fail("top multiplayer tier requires authority lifecycle receipt schema v3")
+    if accepted.get("sourceBound") is not True:
+        _fail("top multiplayer tier requires source-bound authority acceptance")
+    if accepted.get("authoritySafetyProven") is not True or accepted.get("staleSocketInboundRejectedProven") is not True:
+        _fail("top multiplayer tier requires current authority stale-socket safety evidence")
+
+    try:
+        receipt_path = path.resolve(strict=True).parent / "authority-peer-exchange.json"
+    except OSError as error:
+        raise MultiplayerEvidenceLadderError("authority acceptance path is unreadable") from error
+    authority = _verified("authority", verify_authority_peer_exchange, receipt_path)
+
+    comparisons = {
+        "gameId": accepted.get("gameId"),
+        "protocol": accepted.get("protocol"),
+        "requiredRoleCount": accepted.get("requiredRoleCount"),
+    }
+    for field, expected in comparisons.items():
+        if authority.get(field) != expected:
+            _fail(f"authority acceptance and lifecycle receipt disagree on {field}")
+    if authority.get("receiptSchemaVersion") != accepted.get("receiptSchemaVersion"):
+        _fail("authority acceptance and lifecycle receipt disagree on receipt schema")
+    if authority.get("authoritySafetyProven") is not True or authority.get("staleSocketInboundRejectedProven") is not True:
+        _fail("authority lifecycle receipt lost current stale-socket safety evidence")
+
+    return {
+        **authority,
+        "acceptanceSchemaVersion": accepted.get("acceptanceSchemaVersion"),
+        "targetSha": accepted.get("targetSha"),
+        "testLabSha": accepted.get("testLabSha"),
+        "receiptSha256": accepted.get("receiptSha256"),
+        "sourceBound": True,
+    }
 
 
 def _same(results: list[tuple[str, dict[str, Any]]], field: str) -> Any:
@@ -53,12 +98,12 @@ def _same(results: list[tuple[str, dict[str, Any]]], field: str) -> Any:
 
 
 def verify_multiplayer_evidence_ladder(
-    authority_receipt: Path,
+    authority_acceptance_manifest: Path,
     runtime_receipt: Path,
     browser_receipt: Path,
     godot_web_receipt: Path,
 ) -> dict[str, Any]:
-    authority = _verified("authority", verify_authority_peer_exchange, authority_receipt)
+    authority = _verified_authority_acceptance(authority_acceptance_manifest)
     runtime = _verified("runtime", verify_runtime_authority_peer_exchange, runtime_receipt)
     browser = _verified("browser", verify_browser_runtime_authority_peer_exchange, browser_receipt)
     godot_web = _verified("godot-web", verify_godot_web_authority_peer_exchange, godot_web_receipt)
@@ -86,6 +131,8 @@ def verify_multiplayer_evidence_ladder(
     runtime_origin = _same(transport_tiers, "runtimeOrigin")
     authority_origin = _same(transport_tiers, "authorityOrigin")
     authority_source_sha = _same(transport_tiers, "authoritySourceSha")
+    if authority.get("targetSha") != authority_source_sha:
+        _fail("source-bound authority acceptance target SHA does not match deployed authoritySourceSha")
     role_count = _same(all_tiers, "requiredRoleCount")
     departed_role = _same(all_tiers, "departedRoleId")
     survivor_role = _same(all_tiers, "survivorRoleId")
@@ -104,6 +151,8 @@ def verify_multiplayer_evidence_ladder(
     for label, result in all_tiers:
         if result.get("privacySafe") is not True:
             _fail(f"{label} evidence tier is not privacy-safe")
+    if authority.get("sourceBound") is not True:
+        _fail("authority evidence tier is not source-bound")
     if authority.get("authoritySafetyProven") is not True or authority.get("staleSocketInboundRejectedProven") is not True:
         _fail("authority evidence tier lacks the current stale-socket safety contract")
     for label, result in transport_tiers:
@@ -115,11 +164,15 @@ def verify_multiplayer_evidence_ladder(
             _fail(f"{label} evidence tier lost runtime-session rotation")
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "proven": True,
-        "highestTier": "godot-web-player-cryptographic-release",
+        "highestTier": "source-bound-godot-web-player-cryptographic-release",
         "tierCount": 4,
         "authorityLifecycleProven": True,
+        "authoritySourceBound": True,
+        "authorityAcceptanceSchemaVersion": authority.get("acceptanceSchemaVersion"),
+        "authorityReceiptSchemaVersion": authority.get("receiptSchemaVersion"),
+        "authorityReceiptSha256": authority.get("receiptSha256"),
         "runtimeTransportProven": True,
         "browserNativeTransportProven": True,
         "godotWebPlayerTransportProven": True,
@@ -139,19 +192,21 @@ def verify_multiplayer_evidence_ladder(
         "departedRoleId": departed_role,
         "survivorRoleId": survivor_role,
         "truthBoundary": (
-            "This proves four independently verified receipts align on one Galactic Cycle multiplayer deployment: "
-            "server-authority lifecycle semantics, EVAVO runtime-to-authority transport, Chromium browser-native "
-            "transport, and the mounted Godot Web player consuming runtime handoff and observing reciprocal "
-            "presence through departure and reconnect. The top Godot-Web receipt also cryptographically verifies "
-            "the mounted descriptor against external local release trust. It still does not certify gameplay "
-            "correctness, adverse network quality, visual/performance quality, or release readiness."
+            "This proves four independently verified evidence tiers align on one Galactic Cycle multiplayer "
+            "deployment: a source-bound clean-main authority lifecycle acceptance, EVAVO runtime-to-authority "
+            "transport, Chromium browser-native transport, and the mounted Godot Web player consuming runtime "
+            "handoff and observing reciprocal presence through departure and reconnect. The clean authority "
+            "target SHA is required to equal the deployed authority source SHA, and the top Godot-Web receipt "
+            "cryptographically verifies the mounted descriptor against external local release trust. It still "
+            "does not certify gameplay correctness, adverse network quality, visual/performance quality, UX "
+            "quality, or release readiness."
         ),
     }
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Cross-bind EVAVO multiplayer authority/runtime/browser/Godot evidence.")
-    parser.add_argument("authority_receipt", type=Path)
+    parser.add_argument("authority_acceptance_manifest", type=Path)
     parser.add_argument("runtime_receipt", type=Path)
     parser.add_argument("browser_receipt", type=Path)
     parser.add_argument("godot_web_receipt", type=Path)
@@ -162,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = verify_multiplayer_evidence_ladder(
-            args.authority_receipt,
+            args.authority_acceptance_manifest,
             args.runtime_receipt,
             args.browser_receipt,
             args.godot_web_receipt,
