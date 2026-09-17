@@ -136,7 +136,7 @@ Required journey failures fail the repository workflow. Optional journey failure
 Each active Godot repository should commit:
 
 1. `.evavo/godot-lab-linux.json`, owned by the game and pinned to its real scene, arguments, export preset and journey expectations.
-2. `.github/workflows/godot-linux-agent-qa.yml`, calling the reusable lab workflow at an exact lab commit SHA and passing the exact caller SHA.
+2. `.github/workflows-retired/godot-linux-agent-qa.yml`, calling the reusable lab workflow at an exact lab commit SHA and passing the exact caller SHA.
 3. A reliability or agent note stating that build/import/export and journey evidence must be reviewed before a repair is declared complete.
 
 The caller workflow runs in the game repository's GitHub security context and needs only `contents: read`. No standing cross-repository private-repository token is required for the standard caller path.

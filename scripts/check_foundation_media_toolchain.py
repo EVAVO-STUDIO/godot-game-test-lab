@@ -19,7 +19,7 @@ FILES = {
     "mcp_tests": "tests/test_foundation_media_mcp.py",
     "docs": "docs/FOUNDATION_KIT_MEDIA_PLAN_GATE.md",
     "release_docs": "docs/FOUNDATION_KIT_MEDIA_RELEASE_REPORT.md",
-    "linux_workflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
+    "linux_workflow": ".github/workflows-retired/reusable-godot-linux-sandbox.yml",
 }
 MAXIMUM_SOURCE_BYTES = 1_000_000
 

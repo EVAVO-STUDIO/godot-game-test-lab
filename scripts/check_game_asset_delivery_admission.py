@@ -9,7 +9,7 @@ FILES = {
     "contract": ROOT / "config/game-asset-delivery-admission.v1.json",
     "test": ROOT / "tests/test_game_asset_delivery_admission.py",
     "docs": ROOT / "docs/GAME_ASSET_DELIVERY_ADMISSION.md",
-    "workflow": ROOT / ".github/workflows/game-asset-delivery-admission.yml",
+    "workflow": ROOT / ".github/workflows-retired/game-asset-delivery-admission.yml",
 }
 
 failures: list[str] = []

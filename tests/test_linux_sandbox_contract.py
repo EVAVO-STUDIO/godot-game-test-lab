@@ -39,7 +39,7 @@ def test_linux_container_is_pinned_and_fail_closed() -> None:
 
 
 def test_linux_workflow_enforces_exact_sha_and_sandbox_boundaries() -> None:
-    workflow = _read(".github/workflows/evavo-linux-godot-sandbox.yml")
+    workflow = _read(".github/workflows-retired/evavo-linux-godot-sandbox.yml")
     for marker in [
         "workflow_call:",
         "expected_sha:",
@@ -65,7 +65,7 @@ def test_linux_workflow_enforces_exact_sha_and_sandbox_boundaries() -> None:
 
 
 def test_reusable_workflow_preserves_host_file_ownership() -> None:
-    workflow = _read(".github/workflows/reusable-godot-linux-sandbox.yml")
+    workflow = _read(".github/workflows-retired/reusable-godot-linux-sandbox.yml")
     for marker in [
         'host_uid="$(id -u)"',
         'host_gid="$(id -g)"',

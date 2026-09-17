@@ -67,11 +67,11 @@ def test_smoke_fixture_profile_uses_the_fixture_project_root() -> None:
 
 
 def test_smoke_workflow_invokes_local_worker_at_the_same_sha() -> None:
-    workflow_path = ROOT / ".github/workflows/linux-sandbox-smoke.yml"
+    workflow_path = ROOT / ".github/workflows-retired/linux-sandbox-smoke.yml"
     workflow = workflow_path.read_text(encoding="utf-8")
 
     assert (
-        "uses: ./.github/workflows/reusable-godot-linux-sandbox.yml"
+        "uses: ./.github/workflows-retired/reusable-godot-linux-sandbox.yml"
         in workflow
     )
     assert "lab_sha: ${{ github.sha }}" in workflow

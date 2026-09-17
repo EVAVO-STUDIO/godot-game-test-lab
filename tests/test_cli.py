@@ -89,7 +89,7 @@ def test_capabilities_command_is_machine_readable(capsys) -> None:
         "nativeAuthoredQaWrapper": "scripts/Invoke-GodotLabNativeAgentQA.ps1",
         "nativeBotQaWrapper": "scripts/Invoke-GodotLabBotQA.ps1",
         "localLinuxSandboxWrapper": "scripts/Invoke-GodotLabLinuxSandbox.ps1",
-        "linuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
+        "linuxWorkflow": ".github/workflows-retired/reusable-godot-linux-sandbox.yml",
     }
     assert "authoritative Godot --import" in payload["validationStages"]
     assert "deterministic fresh-process bot state exploration" in payload["validationStages"]

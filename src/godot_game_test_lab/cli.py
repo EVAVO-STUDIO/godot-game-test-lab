@@ -277,7 +277,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "scripts/Invoke-GodotLabLinuxSandbox.ps1"
                     ),
                     "linuxWorkflow": (
-                        ".github/workflows/reusable-godot-linux-sandbox.yml"
+                        ".github/workflows-retired/reusable-godot-linux-sandbox.yml"
                     ),
                 },
                 "validationStages": [

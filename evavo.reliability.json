@@ -75,16 +75,16 @@
     "rm -rf dist .pytest_cache .ruff_cache src/*.egg-info && git diff --exit-code && test -z \"$(git status --porcelain)\""
   ],
   "providerConfirmation": {
-    "workflow": ".github/workflows/evavo-mainline-confirmation.yml",
-    "selfValidationWorkflow": ".github/workflows/ci.yml",
+    "workflow": ".github/workflows-retired/evavo-mainline-confirmation.yml",
+    "selfValidationWorkflow": ".github/workflows-retired/ci.yml",
     "githubRunner": "ubuntu-24.04",
     "exactMainShaRequired": true,
     "exactHostedPythonRequired": true,
     "sourceConfirmationOnly": true,
     "nativeWindowsEvidenceSeparate": true,
     "linuxSandboxEvidenceSeparate": true,
-    "reusableLinuxWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
-    "realInteractiveSmokeWorkflow": ".github/workflows/linux-sandbox-smoke.yml"
+    "reusableLinuxWorkflow": ".github/workflows-retired/reusable-godot-linux-sandbox.yml",
+    "realInteractiveSmokeWorkflow": ".github/workflows-retired/linux-sandbox-smoke.yml"
   },
   "branchPolicy": {
     "mode": "direct-main",
@@ -148,8 +148,8 @@
     ]
   },
   "linuxSandboxAcceptance": {
-    "administrativeWorkflow": ".github/workflows/evavo-linux-godot-sandbox.yml",
-    "reusableWorkflow": ".github/workflows/reusable-godot-linux-sandbox.yml",
+    "administrativeWorkflow": ".github/workflows-retired/evavo-linux-godot-sandbox.yml",
+    "reusableWorkflow": ".github/workflows-retired/reusable-godot-linux-sandbox.yml",
     "callerContextPreferred": true,
     "standingCrossRepositoryTokenRequired": false,
     "repositoryProfile": ".evavo/godot-lab-linux.json",

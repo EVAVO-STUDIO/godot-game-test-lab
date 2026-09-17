@@ -101,7 +101,7 @@ def test_profiled_runner_rejects_ambiguous_arguments_and_scene() -> None:
 
 
 def test_reusable_workflow_uses_caller_context_and_exact_shas() -> None:
-    workflow_path = ROOT / ".github/workflows/reusable-godot-linux-sandbox.yml"
+    workflow_path = ROOT / ".github/workflows-retired/reusable-godot-linux-sandbox.yml"
     workflow = workflow_path.read_text(encoding="utf-8")
     entrypoint = (ROOT / "scripts/linux-sandbox-entrypoint.sh").read_text(encoding="utf-8")
     runner = (ROOT / "scripts/run_profiled_linux_sandbox.py").read_text(encoding="utf-8")

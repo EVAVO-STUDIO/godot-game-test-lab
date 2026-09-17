@@ -31,14 +31,14 @@ SAFE_RELATIVE_PATH = re.compile(
 )
 
 WORKFLOWS = (
-    ".github/workflows/capability-manifest.yml",
-    ".github/workflows/ci.yml",
-    ".github/workflows/evavo-mainline-confirmation.yml",
-    ".github/workflows/evavo-native-godot-validation.yml",
-    ".github/workflows/reusable-godot-linux-sandbox.yml",
-    ".github/workflows/evavo-linux-godot-sandbox.yml",
-    ".github/workflows/linux-sandbox-smoke.yml",
-    ".github/workflows/verified-toolchain-transport.yml",
+    ".github/workflows-retired/capability-manifest.yml",
+    ".github/workflows-retired/ci.yml",
+    ".github/workflows-retired/evavo-mainline-confirmation.yml",
+    ".github/workflows-retired/evavo-native-godot-validation.yml",
+    ".github/workflows-retired/reusable-godot-linux-sandbox.yml",
+    ".github/workflows-retired/evavo-linux-godot-sandbox.yml",
+    ".github/workflows-retired/linux-sandbox-smoke.yml",
+    ".github/workflows-retired/verified-toolchain-transport.yml",
 )
 
 EXPECTED_SCRIPTS = {
@@ -543,7 +543,7 @@ def validate_engine_and_sandbox_source() -> None:
 
 def validate_workflows() -> None:
     expected_tokens = {
-        ".github/workflows/ci.yml": (
+        ".github/workflows-retired/ci.yml": (
             f"actions/checkout@{CHECKOUT_V6_SHA}",
             f"actions/setup-python@{SETUP_PYTHON_SHA}",
             f'python-version: "{HOSTED_PYTHON}"',
@@ -554,26 +554,26 @@ def validate_workflows() -> None:
             "python -m pytest",
             "python -m pip wheel --no-deps --wheel-dir dist .",
         ),
-        ".github/workflows/evavo-mainline-confirmation.yml": (
+        ".github/workflows-retired/evavo-mainline-confirmation.yml": (
             f"actions/checkout@{CHECKOUT_V4_SHA}",
             f"actions/setup-python@{SETUP_PYTHON_SHA}",
             f'python-version: "{HOSTED_PYTHON}"',
             "python scripts/check_repository_toolchain.py",
             "python scripts/test_repository_toolchain.py",
         ),
-        ".github/workflows/evavo-native-godot-validation.yml": (
+        ".github/workflows-retired/evavo-native-godot-validation.yml": (
             f"actions/checkout@{CHECKOUT_V4_SHA}",
             "py -3.11 scripts/check_repository_toolchain.py --native-family",
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_SHA}",
         ),
-        ".github/workflows/reusable-godot-linux-sandbox.yml": (
+        ".github/workflows-retired/reusable-godot-linux-sandbox.yml": (
             f"actions/checkout@{CHECKOUT_V4_SHA}",
             "--network none",
             "--read-only",
             "--cap-drop ALL",
             "--security-opt no-new-privileges",
         ),
-        ".github/workflows/evavo-linux-godot-sandbox.yml": (
+        ".github/workflows-retired/evavo-linux-godot-sandbox.yml": (
             f"actions/checkout@{CHECKOUT_V4_SHA}",
             "--network none",
             "--read-only",

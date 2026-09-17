@@ -61,7 +61,7 @@ The caller pins the reusable workflow by exact commit SHA and passes the same SH
 ```yaml
 jobs:
   linux-godot:
-    uses: EVAVO-STUDIO/godot-game-test-lab/.github/workflows/reusable-godot-linux-sandbox.yml@LAB_SHA
+    uses: EVAVO-STUDIO/godot-game-test-lab/.github/workflows-retired/reusable-godot-linux-sandbox.yml@LAB_SHA
     with:
       lab_sha: LAB_SHA
       target_sha: ${{ github.sha }}
@@ -109,7 +109,7 @@ The artifact bundle contains:
 
 ## Lab self-test
 
-`.github/workflows/linux-sandbox-smoke.yml` calls the same reusable workflow against `fixtures/linux-smoke` at the exact lab commit. It is triggered by changes to the container, entrypoint, Linux runner, input harness, profile parser, fixture, contract tests or reusable workflow.
+`.github/workflows-retired/linux-sandbox-smoke.yml` calls the same reusable workflow against `fixtures/linux-smoke` at the exact lab commit. It is triggered by changes to the container, entrypoint, Linux runner, input harness, profile parser, fixture, contract tests or reusable workflow.
 
 The smoke run must build the real image, verify the Godot archives, import and boot the fixture, record the baseline X11 movie and complete three required journeys:
 

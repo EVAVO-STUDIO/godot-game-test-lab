@@ -14,14 +14,14 @@ from typing import Any
 
 SOURCE_ROOT = Path.cwd().resolve(strict=True)
 CORE_FILES = (
-    ".github/workflows/capability-manifest.yml",
-    ".github/workflows/ci.yml",
-    ".github/workflows/evavo-mainline-confirmation.yml",
-    ".github/workflows/evavo-native-godot-validation.yml",
-    ".github/workflows/reusable-godot-linux-sandbox.yml",
-    ".github/workflows/evavo-linux-godot-sandbox.yml",
-    ".github/workflows/linux-sandbox-smoke.yml",
-    ".github/workflows/verified-toolchain-transport.yml",
+    ".github/workflows-retired/capability-manifest.yml",
+    ".github/workflows-retired/ci.yml",
+    ".github/workflows-retired/evavo-mainline-confirmation.yml",
+    ".github/workflows-retired/evavo-native-godot-validation.yml",
+    ".github/workflows-retired/reusable-godot-linux-sandbox.yml",
+    ".github/workflows-retired/evavo-linux-godot-sandbox.yml",
+    ".github/workflows-retired/linux-sandbox-smoke.yml",
+    ".github/workflows-retired/verified-toolchain-transport.yml",
     ".python-version",
     "containers/linux-sandbox/Dockerfile",
     "docs/LOCALIZATION_PLURAL_RUNTIME_VALIDATION.md",
@@ -313,7 +313,7 @@ def main() -> int:
     exercise(
         lambda root: mutate_text(
             root,
-            ".github/workflows/ci.yml",
+            ".github/workflows-retired/ci.yml",
             lambda value: value.replace(
                 (
                     "actions/checkout@"
@@ -327,7 +327,7 @@ def main() -> int:
     exercise(
         lambda root: mutate_text(
             root,
-            ".github/workflows/evavo-linux-godot-sandbox.yml",
+            ".github/workflows-retired/evavo-linux-godot-sandbox.yml",
             lambda value: value.replace(
                 "permissions:\n  contents: read",
                 "permissions:\n  contents: write",
