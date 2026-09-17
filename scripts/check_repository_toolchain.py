@@ -31,9 +31,9 @@ FORBIDDEN_STAGING_PATHS = (
     ".evavo/bootstrap",
     ".evavo/agent-audio-upgrade-diagnostic.txt",
     ".evavo/managed-sandbox-0.7-diagnostic.txt",
-    ".github/workflows-retired/apply-agent-audio-upgrade.yml",
-    ".github/workflows-retired/apply-managed-sandbox-0.7.yml",
-    ".github/workflows-retired/dispatch-agent-audio-upgrade.yml",
+    ".github/workflows/apply-agent-audio-upgrade.yml",
+    ".github/workflows/apply-managed-sandbox-0.7.yml",
+    ".github/workflows/dispatch-agent-audio-upgrade.yml",
     "scripts/apply_agent_audio_upgrade.py",
 )
 
